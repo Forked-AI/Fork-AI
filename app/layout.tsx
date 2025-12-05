@@ -1,3 +1,5 @@
+import { SiteHeader } from "@/components/site-header";
+import { StickyFooter } from "@/components/sticky-footer";
 import { GeistMono } from "geist/font/mono";
 import { GeistSans } from "geist/font/sans";
 import type { Metadata } from "next";
@@ -27,7 +29,9 @@ html {
         `}</style>
       </head>
       <body className="dark" suppressHydrationWarning>
+        <SiteHeader />
         {children}
+        <StickyFooter />
       </body>
     </html>
   );
