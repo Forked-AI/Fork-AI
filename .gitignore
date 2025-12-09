@@ -12,3 +12,7 @@ coverage
 .env.development.local
 .env.test.local
 .env.production.local
+/lib/generated/prisma
+/app/generated/prisma
+/generated/prisma
+generated
