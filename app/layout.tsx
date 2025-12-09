@@ -15,6 +15,7 @@ export default function RootLayout({
 }>) {
   const pathname = usePathname();
   const isAdminRoute = pathname?.startsWith("/admin");
+  const isPrelaunchRoute = pathname === "/prelaunch";
 
   return (
     <html lang="en" className="dark">
@@ -32,7 +33,7 @@ html {
       <body className="dark" suppressHydrationWarning>
         {!isAdminRoute && <SiteHeader />}
         {children}
-        {!isAdminRoute && <StickyFooter />}
+        {!isAdminRoute && !isPrelaunchRoute && <StickyFooter />}
       </body>
     </html>
   );

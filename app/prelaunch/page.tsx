@@ -4,7 +4,7 @@ import type React from "react";
 
 import { AuroraBackground } from "@/components/ui/aurora-background";
 import { AnimatePresence, motion } from "framer-motion";
-import { Clock, GitBranch, Loader2, Mail, Sparkles } from "lucide-react";
+import { Clock, Loader2, Mail, Sparkles } from "lucide-react";
 import { useEffect, useState } from "react";
 
 export default function PrelaunchPage() {
@@ -13,6 +13,7 @@ export default function PrelaunchPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [flipIndex, setFlipIndex] = useState(0);
+  const [launchStatus, setLaunchStatus] = useState<'coming-soon' | 'countdown'>('coming-soon');
   const [timeLeft, setTimeLeft] = useState({
     days: 0,
     hours: 0,
@@ -93,7 +94,7 @@ export default function PrelaunchPage() {
     <AuroraBackground className="min-h-screen w-full">
       <div className="min-h-screen w-full relative flex flex-col">
         {/* Main Content */}
-        <main className="flex-1 flex items-center justify-center px-4 py-24e">
+        <main className="flex-1 flex items-center justify-center px-4 py-24">
           <div className="max-w-4xl mx-auto text-center">
             {/* Badge */}
             <motion.div
@@ -104,7 +105,7 @@ export default function PrelaunchPage() {
             >
               <Sparkles className="w-4 h-4 text-[#cbd5e1]" />
               <span className="text-sm font-medium text-white/80">
-                Coming Soon
+                {launchStatus === 'coming-soon' ? 'Coming Soon' : 'Launching Soon'}
               </span>
             </motion.div>
 
@@ -151,19 +152,20 @@ export default function PrelaunchPage() {
             </motion.p>
 
             {/* Countdown Timer */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.3 }}
-              className="mb-12"
-            >
-              <div className="flex items-center justify-center gap-2 mb-6">
-                <Clock className="w-5 h-5 text-[#cbd5e1]" />
-                <span className="text-white/60 text-sm font-medium">
-                  Launching in
-                </span>
-              </div>
-              <div className="grid grid-cols-4 gap-4 max-w-2xl mx-auto">
+            {launchStatus === 'countdown' && (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.6, delay: 0.3 }}
+                className="mb-12"
+              >
+                <div className="flex items-center justify-center gap-2 mb-6">
+                  <Clock className="w-5 h-5 text-[#cbd5e1]" />
+                  <span className="text-white/60 text-sm font-medium">
+                    Launching in
+                  </span>
+                </div>
+                <div className="grid grid-cols-4 gap-4 max-w-2xl mx-auto">
                 {[
                   { label: "Days", value: timeLeft.days },
                   { label: "Hours", value: timeLeft.hours },
@@ -186,8 +188,9 @@ export default function PrelaunchPage() {
                     </div>
                   </motion.div>
                 ))}
-              </div>
-            </motion.div>
+                </div>
+              </motion.div>
+            )}
 
             <motion.div
               initial={{ opacity: 0, y: 20 }}
@@ -221,7 +224,7 @@ export default function PrelaunchPage() {
                           Joining...
                         </>
                       ) : (
-                        "Get Early Access"
+                        launchStatus === 'coming-soon' ? 'Notify Me' : 'Join Waitlist'
                       )}
                     </motion.button>
                   </div>
@@ -303,11 +306,21 @@ export default function PrelaunchPage() {
               ].map((feature, index) => (
                 <motion.div
                   key={feature.title}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.5, delay: 1.1 + index * 0.1 }}
-                  whileHover={{ y: -4, scale: 1.02 }}
-                  className="glass border-white/10 rounded-2xl p-6 hover:border-white/20 transition-all duration-300"
+                  initial={{ opacity: 0, y: 20, scale: 0.95 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  transition={{ 
+                    duration: 0.5, 
+                    delay: 1.1 + index * 0.1,
+                    type: "spring",
+                    stiffness: 100
+                  }}
+                  whileHover={{
+                    scale: 1.02,
+                    borderColor: "rgba(148, 163, 184, 0.6)",
+                    boxShadow: "0 0 30px rgba(148, 163, 184, 0.2)",
+                    transition: { duration: 0.2, ease: "easeOut" }
+                  }}
+                  className="glass border-white/10 rounded-2xl p-6 cursor-pointer"
                 >
                   <h3 className="text-white font-semibold mb-2">
                     {feature.title}
@@ -320,43 +333,6 @@ export default function PrelaunchPage() {
             </motion.div>
           </div>
         </main>
-
-        {/* Footer */}
-        <motion.footer
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 1.2 }}
-          className="py-8 px-4"
-        >
-          <div className="max-w-7xl mx-auto">
-            <div className="glass border-white/10 rounded-2xl p-8 hover:border-white/20 transition-all duration-300">
-              <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-                <div className="flex items-center gap-2">
-                  <GitBranch className="w-6 h-6 text-white" />
-                  <span className="text-white/60 text-sm">
-                    © 2025 Fork AI. All rights reserved.
-                  </span>
-                </div>
-                <div className="flex items-center gap-6">
-                  <a
-                    href="/policy"
-                    className="text-white/60 hover:text-white text-sm transition-colors relative group"
-                  >
-                    Privacy Policy
-                    <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-gradient-to-r from-[#cbd5e1] to-[#94a3b8] transition-all duration-300 group-hover:w-full"></span>
-                  </a>
-                  <a
-                    href="/policy"
-                    className="text-white/60 hover:text-white text-sm transition-colors relative group"
-                  >
-                    Terms of Service
-                    <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-gradient-to-r from-[#cbd5e1] to-[#94a3b8] transition-all duration-300 group-hover:w-full"></span>
-                  </a>
-                </div>
-              </div>
-            </div>
-          </div>
-        </motion.footer>
       </div>
     </AuroraBackground>
   );
