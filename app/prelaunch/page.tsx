@@ -2,14 +2,16 @@
 
 import type React from "react";
 
-import { useState, useEffect } from "react";
-import { motion, AnimatePresence } from "framer-motion";
 import { AuroraBackground } from "@/components/ui/aurora-background";
-import { Mail, Sparkles, Clock, GitBranch } from "lucide-react";
+import { AnimatePresence, motion } from "framer-motion";
+import { Clock, GitBranch, Loader2, Mail, Sparkles } from "lucide-react";
+import { useEffect, useState } from "react";
 
 export default function PrelaunchPage() {
   const [email, setEmail] = useState("");
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [flipIndex, setFlipIndex] = useState(0);
   const [timeLeft, setTimeLeft] = useState({
     days: 0,
@@ -58,39 +60,40 @@ export default function PrelaunchPage() {
     return () => clearInterval(timer);
   }, []);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsSubmitted(true);
-    console.log("Email submitted:", email);
+    setError(null);
+    setIsLoading(true);
+
+    try {
+      const response = await fetch("/api/waitlist", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ email }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        setError(data.error || "Something went wrong. Please try again.");
+        return;
+      }
+
+      setIsSubmitted(true);
+    } catch (err) {
+      setError("Something went wrong. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
     <AuroraBackground className="min-h-screen w-full">
       <div className="min-h-screen w-full relative flex flex-col">
-        {/* Header */}
-        <motion.header
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
-          className="sticky top-4 z-[9999] mx-auto w-full max-w-5xl px-4 py-2"
-        >
-          <div className="flex items-center justify-between rounded-full glass border-white/20 shadow-2xl shadow-[#cbd5e1]/10 px-6 py-3">
-            <a className="flex items-center justify-center gap-2" href="/">
-              <GitBranch className="w-8 h-8 text-white" />
-              <span className="font-bold text-white text-lg">Fork AI</span>
-            </a>
-
-            <a
-              href="/"
-              className="text-sm font-medium text-white/60 hover:text-white transition-colors"
-            >
-              Back to Home
-            </a>
-          </div>
-        </motion.header>
-
         {/* Main Content */}
-        <main className="flex-1 flex items-center justify-center px-4 py-12">
+        <main className="flex-1 flex items-center justify-center px-4 py-24e">
           <div className="max-w-4xl mx-auto text-center">
             {/* Badge */}
             <motion.div
@@ -202,17 +205,35 @@ export default function PrelaunchPage() {
                       onChange={(e) => setEmail(e.target.value)}
                       placeholder="Enter your email"
                       required
-                      className="flex-1 bg-transparent py-2 text-white placeholder:text-white/40 focus:outline-none text-base min-w-0"
+                      disabled={isLoading}
+                      className="flex-1 bg-transparent py-2 text-white placeholder:text-white/40 focus:outline-none text-base min-w-0 disabled:opacity-50"
                     />
                     <motion.button
                       type="submit"
-                      whileHover={{ scale: 1.03 }}
-                      whileTap={{ scale: 0.97 }}
-                      className="flex-shrink-0 px-6 py-2.5 rounded-full bg-gradient-to-r from-[#e2e8f0] to-white text-black font-semibold text-sm shadow-lg hover:shadow-xl transition-all duration-300 whitespace-nowrap"
+                      disabled={isLoading}
+                      whileHover={!isLoading ? { scale: 1.03 } : {}}
+                      whileTap={!isLoading ? { scale: 0.97 } : {}}
+                      className="flex-shrink-0 px-6 py-2.5 rounded-full bg-gradient-to-r from-[#e2e8f0] to-white text-black font-semibold text-sm shadow-lg hover:shadow-xl transition-all duration-300 whitespace-nowrap disabled:opacity-70 disabled:cursor-not-allowed flex items-center gap-2"
                     >
-                      Get Early Access
+                      {isLoading ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          Joining...
+                        </>
+                      ) : (
+                        "Get Early Access"
+                      )}
                     </motion.button>
                   </div>
+                  {error && (
+                    <motion.p
+                      initial={{ opacity: 0, y: -10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="text-red-400 text-sm mt-3"
+                    >
+                      {error}
+                    </motion.p>
+                  )}
                   <motion.p
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
