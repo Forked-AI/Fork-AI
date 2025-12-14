@@ -1,0 +1,37 @@
+{
+	"semi": true,
+	"trailingComma": "es5",
+	"singleQuote": true,
+	"tabWidth": 2,
+	"useTabs": true,
+	"printWidth": 80,
+	"bracketSpacing": true,
+	"overrides": [
+		{
+			"files": ["*.js", "*.ts"],
+			"options": {
+				"tabWidth": 4,
+				"singleQuote": false
+			}
+		},
+		{
+			"files": ["*.tsx"],
+			"options": {
+				"semi": false
+			}
+		},
+		{
+			"files": ["*.json", "*.jsonc"],
+			"options": {
+				"tabWidth": 4,
+				"singleQuote": false
+			}
+		},
+		{
+			"files": "*.md",
+			"options": {
+				"proseWrap": "always"
+			}
+		}
+	]
+}

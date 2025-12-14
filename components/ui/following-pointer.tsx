@@ -1,158 +1,158 @@
-"use client"
+'use client'
 
-import { cn } from "@/lib/utils"
-import { AnimatePresence, motion, useMotionValue } from "framer-motion"
-import React, { useCallback, useEffect, useState } from "react"
+import { cn } from '@/lib/utils'
+import { AnimatePresence, motion, useMotionValue } from 'framer-motion'
+import React, { useCallback, useEffect, useState } from 'react'
 
 export const FollowerPointerCard = ({
-  children,
-  className,
-  title,
+	children,
+	className,
+	title,
 }: {
-  children: React.ReactNode
-  className?: string
-  title?: string | React.ReactNode
+	children: React.ReactNode
+	className?: string
+	title?: string | React.ReactNode
 }) => {
-  const x = useMotionValue(0)
-  const y = useMotionValue(0)
-  const ref = React.useRef<HTMLDivElement>(null)
-  const [isInside, setIsInside] = useState<boolean>(false)
+	const x = useMotionValue(0)
+	const y = useMotionValue(0)
+	const ref = React.useRef<HTMLDivElement>(null)
+	const [isInside, setIsInside] = useState<boolean>(false)
 
-  // Check if current mouse position is inside the element bounds
-  const checkBounds = useCallback(() => {
-    if (!ref.current || !isInside) return
+	// Check if current mouse position is inside the element bounds
+	const checkBounds = useCallback(() => {
+		if (!ref.current || !isInside) return
 
-    const rect = ref.current.getBoundingClientRect()
-    const mouseX = x.get()
-    const mouseY = y.get()
+		const rect = ref.current.getBoundingClientRect()
+		const mouseX = x.get()
+		const mouseY = y.get()
 
-    const isStillInside =
-      mouseX >= rect.left &&
-      mouseX <= rect.right &&
-      mouseY >= rect.top &&
-      mouseY <= rect.bottom
+		const isStillInside =
+			mouseX >= rect.left &&
+			mouseX <= rect.right &&
+			mouseY >= rect.top &&
+			mouseY <= rect.bottom
 
-    if (!isStillInside) {
-      setIsInside(false)
-    }
-  }, [isInside, x, y])
+		if (!isStillInside) {
+			setIsInside(false)
+		}
+	}, [isInside, x, y])
 
-  useEffect(() => {
-    const handleScroll = () => checkBounds()
+	useEffect(() => {
+		const handleScroll = () => checkBounds()
 
-    window.addEventListener("scroll", handleScroll, { passive: true })
+		window.addEventListener('scroll', handleScroll, { passive: true })
 
-    return () => {
-      window.removeEventListener("scroll", handleScroll)
-    }
-  }, [checkBounds])
+		return () => {
+			window.removeEventListener('scroll', handleScroll)
+		}
+	}, [checkBounds])
 
-  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
-    x.set(e.clientX)
-    y.set(e.clientY)
-  }
+	const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+		x.set(e.clientX)
+		y.set(e.clientY)
+	}
 
-  const handleMouseLeave = () => {
-    setIsInside(false)
-  }
+	const handleMouseLeave = () => {
+		setIsInside(false)
+	}
 
-  const handleMouseEnter = (e: React.MouseEvent<HTMLDivElement>) => {
-    // Initialize position from enter event to avoid (0,0) flash
-    x.set(e.clientX)
-    y.set(e.clientY)
-    setIsInside(true)
-  }
+	const handleMouseEnter = (e: React.MouseEvent<HTMLDivElement>) => {
+		// Initialize position from enter event to avoid (0,0) flash
+		x.set(e.clientX)
+		y.set(e.clientY)
+		setIsInside(true)
+	}
 
-  return (
-    <div
-      onMouseLeave={handleMouseLeave}
-      onMouseEnter={handleMouseEnter}
-      onMouseMove={handleMouseMove}
-      style={{
-        cursor: "none",
-      }}
-      ref={ref}
-      className={cn("relative", className)}
-    >
-      <AnimatePresence>
-        {isInside && <FollowPointer x={x} y={y} title={title} />}
-      </AnimatePresence>
-      {children}
-    </div>
-  )
+	return (
+		<div
+			onMouseLeave={handleMouseLeave}
+			onMouseEnter={handleMouseEnter}
+			onMouseMove={handleMouseMove}
+			style={{
+				cursor: 'none',
+			}}
+			ref={ref}
+			className={cn('relative', className)}
+		>
+			<AnimatePresence>
+				{isInside && <FollowPointer x={x} y={y} title={title} />}
+			</AnimatePresence>
+			{children}
+		</div>
+	)
 }
 
 export const FollowPointer = ({
-  x,
-  y,
-  title,
+	x,
+	y,
+	title,
 }: {
-  x: any
-  y: any
-  title?: string | React.ReactNode
+	x: any
+	y: any
+	title?: string | React.ReactNode
 }) => {
-  return (
-    <motion.div
-      className="fixed z-[99999] pointer-events-none"
-      style={{
-        top: y,
-        left: x,
-        transform: "translate(-50%, -50%)",
-        pointerEvents: "none",
-      }}
-      initial={{
-        scale: 0,
-        opacity: 0,
-      }}
-      animate={{
-        scale: 1,
-        opacity: 1,
-      }}
-      exit={{
-        scale: 0,
-        opacity: 0,
-      }}
-      transition={{
-        type: "spring",
-        stiffness: 150,
-        damping: 15,
-        mass: 0.1,
-      }}
-    >
-      <div className="flex items-center pointer-events-none">
-        <svg
-          stroke="currentColor"
-          fill="currentColor"
-          strokeWidth="1"
-          viewBox="0 0 16 16"
-          className="h-6 w-6 -rotate-[70deg] transform stroke-slate-400 text-slate-300 drop-shadow-lg pointer-events-none"
-          height="1em"
-          width="1em"
-          xmlns="http://www.w3.org/2000/svg"
-        >
-          <path d="M14.082 2.182a.5.5 0 0 1 .103.557L8.528 15.467a.5.5 0 0 1-.917-.007L5.57 10.694.803 8.652a.5.5 0 0 1-.006-.916l12.728-5.657a.5.5 0 0 1 .556.103z"></path>
-        </svg>
-        <motion.div
-          style={{
-            backgroundColor: "#94a3b8",
-          }}
-          initial={{
-            scale: 0.5,
-            opacity: 0,
-          }}
-          animate={{
-            scale: 1,
-            opacity: 1,
-          }}
-          exit={{
-            scale: 0.5,
-            opacity: 0,
-          }}
-          className="ml-2 min-w-max rounded-full px-2 py-1 text-xs whitespace-nowrap text-white shadow-lg border border-white/20 pointer-events-none"
-        >
-          {title || `Dynamic Layout`}
-        </motion.div>
-      </div>
-    </motion.div>
-  )
+	return (
+		<motion.div
+			className="fixed z-[99999] pointer-events-none"
+			style={{
+				top: y,
+				left: x,
+				transform: 'translate(-50%, -50%)',
+				pointerEvents: 'none',
+			}}
+			initial={{
+				scale: 0,
+				opacity: 0,
+			}}
+			animate={{
+				scale: 1,
+				opacity: 1,
+			}}
+			exit={{
+				scale: 0,
+				opacity: 0,
+			}}
+			transition={{
+				type: 'spring',
+				stiffness: 150,
+				damping: 15,
+				mass: 0.1,
+			}}
+		>
+			<div className="flex items-center pointer-events-none">
+				<svg
+					stroke="currentColor"
+					fill="currentColor"
+					strokeWidth="1"
+					viewBox="0 0 16 16"
+					className="h-6 w-6 -rotate-[70deg] transform stroke-slate-400 text-slate-300 drop-shadow-lg pointer-events-none"
+					height="1em"
+					width="1em"
+					xmlns="http://www.w3.org/2000/svg"
+				>
+					<path d="M14.082 2.182a.5.5 0 0 1 .103.557L8.528 15.467a.5.5 0 0 1-.917-.007L5.57 10.694.803 8.652a.5.5 0 0 1-.006-.916l12.728-5.657a.5.5 0 0 1 .556.103z"></path>
+				</svg>
+				<motion.div
+					style={{
+						backgroundColor: '#94a3b8',
+					}}
+					initial={{
+						scale: 0.5,
+						opacity: 0,
+					}}
+					animate={{
+						scale: 1,
+						opacity: 1,
+					}}
+					exit={{
+						scale: 0.5,
+						opacity: 0,
+					}}
+					className="ml-2 min-w-max rounded-full px-2 py-1 text-xs whitespace-nowrap text-white shadow-lg border border-white/20 pointer-events-none"
+				>
+					{title || `Dynamic Layout`}
+				</motion.div>
+			</div>
+		</motion.div>
+	)
 }

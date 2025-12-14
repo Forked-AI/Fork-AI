@@ -1,6 +1,6 @@
-import { Inter } from "next/font/google"
+import { Inter } from "next/font/google";
 
 export const geist = Inter({
-  subsets: ["latin"],
-  display: "swap",
-})
+	subsets: ["latin"],
+	display: "swap",
+});
