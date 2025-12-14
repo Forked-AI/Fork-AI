@@ -14,8 +14,12 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   const pathname = usePathname();
+  const pathWithoutFooter = ["/admin", "/login", "/prelaunch", "/landing"];
+  const shouldHideFooter = pathWithoutFooter.some((path) =>
+    pathname?.startsWith(path)
+  );
   const isAdminRoute = pathname?.startsWith("/admin");
-  const isPrelaunchRoute = pathname === "/prelaunch";
+  // const isPrelaunchRoute = pathname === "/prelaunch";
 
   return (
     <html lang="en" className="dark">
@@ -33,7 +37,7 @@ html {
       <body className="dark" suppressHydrationWarning>
         {!isAdminRoute && <SiteHeader />}
         {children}
-        {!isAdminRoute && !isPrelaunchRoute && <StickyFooter />}
+        {!shouldHideFooter && <StickyFooter />}
       </body>
     </html>
   );

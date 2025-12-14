@@ -1,3 +1,10 @@
+/**
+ * SITE HEADER - PRELAUNCH CONFIGURATION
+ * Navigation links point to /landing route during prelaunch phase.
+ * 
+ * SEE: PRELAUNCH-RESTORATION.md for restoration instructions when ready to launch.
+ */
+
 "use client";
 
 import { GitBranch } from "lucide-react";
@@ -10,7 +17,8 @@ export function SiteHeader() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [lastScrollY, setLastScrollY] = useState(0);
   const pathname = usePathname();
-  const isHomePage = pathname === "/";
+  // Check if on landing page (where sections exist) during prelaunch
+  const isHomePage = pathname === "/" || pathname === "/landing";
 
   useEffect(() => {
     const handleScroll = () => {
@@ -93,7 +101,7 @@ export function SiteHeader() {
           {navItems.map((item) => (
             <Link
               key={item.id}
-              href={`/#${item.id}`}
+              href={`/landing#${item.id}`}
               className={`relative py-2 text-muted-foreground hover:text-white transition-all cursor-pointer group ${
                 isScrolled ? "px-2" : "px-4"
               }`}
@@ -169,7 +177,7 @@ export function SiteHeader() {
               {navItems.map((item) => (
                 <Link
                   key={item.id}
-                  href={`/#${item.id}`}
+                  href={`/landing#${item.id}`}
                   onClick={(e) => {
                     if (isHomePage) {
                       e.preventDefault();
