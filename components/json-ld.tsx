@@ -1,4 +1,3 @@
-
 interface JsonLdProps {
 	data: Record<string, unknown>
 }
@@ -17,8 +16,8 @@ export const organizationSchema = {
 	'@context': 'https://schema.org',
 	'@type': 'Organization',
 	name: 'Fork AI',
-	url: 'https://fork-ai.com',
-	logo: 'https://fork-ai.com/icon.svg',
+	url: 'https://forkai.tech',
+	logo: 'https://forkai.tech/icon.svg',
 	description:
 		'Fork AI is a revolutionary multi-AI platform that lets you explore different conversation paths, compare AI models side-by-side, and unlock the full potential of artificial intelligence.',
 	sameAs: [
@@ -46,11 +45,8 @@ export const softwareApplicationSchema = {
 		price: '0',
 		priceCurrency: 'USD',
 	},
-	aggregateRating: {
-		'@type': 'AggregateRating',
-		ratingValue: '4.8',
-		ratingCount: '150',
-	},
+	// NOTE: Aggregate rating removed - add back when you have real reviews
+	// Having fake reviews violates Google's structured data guidelines
 	description:
 		'Multi-AI platform with branching conversations. Explore different conversation paths, compare AI models side-by-side, and unlock the full potential of artificial intelligence.',
 	featureList: [

@@ -32,8 +32,11 @@ export const metadata: Metadata = {
 	creator: 'Fork AI',
 	publisher: 'Fork AI',
 	metadataBase: new URL(
-		process.env.NEXT_PUBLIC_BASE_URL || 'https://fork-ai.com'
+		(process.env.NEXT_PUBLIC_BASE_URL || 'https://forkai.tech').trim()
 	),
+	alternates: {
+		canonical: '/',
+	},
 	openGraph: {
 		type: 'website',
 		locale: 'en_US',
@@ -70,11 +73,9 @@ export const metadata: Metadata = {
 			'max-snippet': -1,
 		},
 	},
-	verification: {
-		// Add your verification codes here when ready
-		// google: 'your-google-verification-code',
-		// yandex: 'your-yandex-verification-code',
-	},
+	// verification: {
+	// 	google: process.env.GOOGLE_SITE_VERIFICATION, // Not needed - verified via DNS
+	// },
 }
 
 export default function RootLayout({
@@ -83,7 +84,10 @@ export default function RootLayout({
 	children: React.ReactNode
 }>) {
 	return (
-		<html lang="en" className={`dark ${GeistSans.variable} ${GeistMono.variable}`}>
+		<html
+			lang="en"
+			className={`dark ${GeistSans.variable} ${GeistMono.variable}`}
+		>
 			<head>
 				<JsonLd data={organizationSchema} />
 				<JsonLd data={softwareApplicationSchema} />
