@@ -60,105 +60,105 @@ export function FAQSection() {
 		<>
 			<JsonLd data={faqSchema} />
 			<section id="faq" className="relative overflow-hidden pb-120 pt-24">
-			<div className="absolute top-1/2 -right-20 z-[-1] h-64 w-64 rounded-full bg-[#cbd5e1]/10 opacity-80 blur-3xl"></div>
-			<div className="absolute top-1/2 -left-20 z-[-1] h-64 w-64 rounded-full bg-[#cbd5e1]/10 opacity-80 blur-3xl"></div>
+				<div className="absolute top-1/2 -right-20 z-[-1] h-64 w-64 rounded-full bg-[#cbd5e1]/10 opacity-80 blur-3xl"></div>
+				<div className="absolute top-1/2 -left-20 z-[-1] h-64 w-64 rounded-full bg-[#cbd5e1]/10 opacity-80 blur-3xl"></div>
 
-			<div className="z-10 container mx-auto px-4">
-				<motion.div
-					className="flex justify-center"
-					initial={{ opacity: 0, y: 20 }}
-					whileInView={{ opacity: 1, y: 0 }}
-					transition={{ duration: 0.6 }}
-					viewport={{ once: true }}
-				>
-					<div className="glass border-white/20 text-[#cbd5e1] inline-flex items-center gap-2 rounded-full border px-3 py-1 uppercase shimmer">
-						<span>✶</span>
-						<span className="text-sm">Faqs</span>
-					</div>
-				</motion.div>
+				<div className="z-10 container mx-auto px-4">
+					<motion.div
+						className="flex justify-center"
+						initial={{ opacity: 0, y: 20 }}
+						whileInView={{ opacity: 1, y: 0 }}
+						transition={{ duration: 0.6 }}
+						viewport={{ once: true }}
+					>
+						<div className="glass border-white/20 text-[#cbd5e1] inline-flex items-center gap-2 rounded-full border px-3 py-1 uppercase shimmer">
+							<span>✶</span>
+							<span className="text-sm">Faqs</span>
+						</div>
+					</motion.div>
 
-				<motion.h2
-					className="mx-auto mt-6 max-w-xl text-center text-4xl font-medium md:text-[54px] md:leading-[60px]"
-					initial={{ opacity: 0, y: 20 }}
-					whileInView={{ opacity: 1, y: 0 }}
-					transition={{ duration: 0.6, delay: 0.2 }}
-					viewport={{ once: true }}
-				>
-					Questions? We've got{' '}
-					<span className="bg-gradient-to-b from-foreground via-gray-400 to-primary bg-clip-text text-transparent">
-						answers
-					</span>
-				</motion.h2>
+					<motion.h2
+						className="mx-auto mt-6 max-w-xl text-center text-4xl font-medium md:text-[54px] md:leading-[60px]"
+						initial={{ opacity: 0, y: 20 }}
+						whileInView={{ opacity: 1, y: 0 }}
+						transition={{ duration: 0.6, delay: 0.2 }}
+						viewport={{ once: true }}
+					>
+						Questions? We've got{' '}
+						<span className="bg-gradient-to-b from-foreground via-gray-400 to-primary bg-clip-text text-transparent">
+							answers
+						</span>
+					</motion.h2>
 
-				<div className="mx-auto mt-12 flex max-w-xl flex-col gap-6">
-					{faqs.map((faq, index) => (
-						<motion.div
-							key={index}
-							/* Enhanced FAQ items with glass effect and hover animations */
-							className="glass-hover rounded-2xl border border-white/10 p-6 shadow-xl cursor-pointer shimmer"
-							initial={{ opacity: 0, y: 20 }}
-							whileInView={{ opacity: 1, y: 0 }}
-							transition={{ duration: 0.5, delay: index * 0.1 }}
-							viewport={{ once: true }}
-							whileHover={{
-								scale: 1.02,
-								borderColor: 'rgba(203, 213, 225, 0.3)',
-							}}
-							whileTap={{ scale: 0.98 }}
-							onClick={() => toggleItem(index)}
-							role="button"
-							tabIndex={0}
-							onKeyDown={(e) => {
-								if (e.key === 'Enter' || e.key === ' ') {
-									e.preventDefault()
-									toggleItem(index)
-								}
-							}}
-							{...(index === faqs.length - 1 && { 'data-faq': faq.question })}
-						>
-							<div className="flex items-start justify-between">
-								<h3 className="m-0 font-medium pr-4">{faq.question}</h3>
-								<motion.div
-									animate={{ rotate: openItems.includes(index) ? 180 : 0 }}
-									transition={{ duration: 0.3, ease: 'easeInOut' }}
-									className=""
-								>
-									{openItems.includes(index) ? (
-										/* Updated icon colors to silver */
-										<Minus
-											className="text-[#cbd5e1] flex-shrink-0 transition duration-300"
-											size={24}
-										/>
-									) : (
-										<Plus
-											className="text-[#cbd5e1] flex-shrink-0 transition duration-300"
-											size={24}
-										/>
-									)}
-								</motion.div>
-							</div>
-							<AnimatePresence>
-								{openItems.includes(index) && (
+					<div className="mx-auto mt-12 flex max-w-xl flex-col gap-6">
+						{faqs.map((faq, index) => (
+							<motion.div
+								key={index}
+								/* Enhanced FAQ items with glass effect and hover animations */
+								className="glass-hover rounded-2xl border border-white/10 p-6 shadow-xl cursor-pointer shimmer"
+								initial={{ opacity: 0, y: 20 }}
+								whileInView={{ opacity: 1, y: 0 }}
+								transition={{ duration: 0.5, delay: index * 0.1 }}
+								viewport={{ once: true }}
+								whileHover={{
+									scale: 1.02,
+									borderColor: 'rgba(203, 213, 225, 0.3)',
+								}}
+								whileTap={{ scale: 0.98 }}
+								onClick={() => toggleItem(index)}
+								role="button"
+								tabIndex={0}
+								onKeyDown={(e) => {
+									if (e.key === 'Enter' || e.key === ' ') {
+										e.preventDefault()
+										toggleItem(index)
+									}
+								}}
+								{...(index === faqs.length - 1 && { 'data-faq': faq.question })}
+							>
+								<div className="flex items-start justify-between">
+									<h3 className="m-0 font-medium pr-4">{faq.question}</h3>
 									<motion.div
-										className="mt-4 text-muted-foreground leading-relaxed overflow-hidden"
-										initial={{ opacity: 0, height: 0, marginTop: 0 }}
-										animate={{ opacity: 1, height: 'auto', marginTop: 16 }}
-										exit={{ opacity: 0, height: 0, marginTop: 0 }}
-										transition={{
-											duration: 0.4,
-											ease: 'easeInOut',
-											opacity: { duration: 0.2 },
-										}}
+										animate={{ rotate: openItems.includes(index) ? 180 : 0 }}
+										transition={{ duration: 0.3, ease: 'easeInOut' }}
+										className=""
 									>
-										{faq.answer}
+										{openItems.includes(index) ? (
+											/* Updated icon colors to silver */
+											<Minus
+												className="text-[#cbd5e1] flex-shrink-0 transition duration-300"
+												size={24}
+											/>
+										) : (
+											<Plus
+												className="text-[#cbd5e1] flex-shrink-0 transition duration-300"
+												size={24}
+											/>
+										)}
 									</motion.div>
-								)}
-							</AnimatePresence>
-						</motion.div>
-					))}
+								</div>
+								<AnimatePresence>
+									{openItems.includes(index) && (
+										<motion.div
+											className="mt-4 text-muted-foreground leading-relaxed overflow-hidden"
+											initial={{ opacity: 0, height: 0, marginTop: 0 }}
+											animate={{ opacity: 1, height: 'auto', marginTop: 16 }}
+											exit={{ opacity: 0, height: 0, marginTop: 0 }}
+											transition={{
+												duration: 0.4,
+												ease: 'easeInOut',
+												opacity: { duration: 0.2 },
+											}}
+										>
+											{faq.answer}
+										</motion.div>
+									)}
+								</AnimatePresence>
+							</motion.div>
+						))}
+					</div>
 				</div>
-			</div>
-		</section>
+			</section>
 		</>
 	)
 }
