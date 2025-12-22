@@ -12,11 +12,11 @@ import './globals.css'
 
 export const metadata: Metadata = {
 	title: {
-		default: 'Fork AI - Multi-AI Platform with Branching Conversations',
+		default: 'Fork AI | Multi-AI Platform & Branching Conversations',
 		template: '%s | Fork AI',
 	},
 	description:
-		'Fork AI is a revolutionary multi-AI platform that lets you explore different conversation paths, compare AI models side-by-side, and unlock the full potential of artificial intelligence.',
+		'Fork AI: Multi-AI platform with branching conversations. Compare ChatGPT, Claude, Gemini side-by-side. Fork conversations, explore paths, and unlock AI potential.',
 	keywords: [
 		'AI platform',
 		'multi-AI',
@@ -39,9 +39,9 @@ export const metadata: Metadata = {
 		locale: 'en_US',
 		url: '/',
 		siteName: 'Fork AI',
-		title: 'Fork AI - Multi-AI Platform with Branching Conversations',
+		title: 'Fork AI | Multi-AI Platform & Branching Conversations',
 		description:
-			'Explore different conversation paths, compare AI models side-by-side, and unlock the full potential of artificial intelligence.',
+			'Compare ChatGPT, Claude, Gemini side-by-side. Fork conversations, explore paths, and unlock AI potential with branching conversations.',
 		images: [
 			{
 				url: '/opengraph-image',
@@ -53,9 +53,9 @@ export const metadata: Metadata = {
 	},
 	twitter: {
 		card: 'summary_large_image',
-		title: 'Fork AI - Multi-AI Platform with Branching Conversations',
+		title: 'Fork AI | Multi-AI Platform & Branching Conversations',
 		description:
-			'Explore different conversation paths, compare AI models side-by-side, and unlock the full potential of artificial intelligence.',
+			'Compare ChatGPT, Claude, Gemini side-by-side. Fork conversations, explore paths, and unlock AI potential.',
 		images: ['/opengraph-image'],
 		creator: '@forkai',
 	},
