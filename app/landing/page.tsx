@@ -11,13 +11,14 @@ import { AuroraBackground } from '@/components/ui/aurora-background'
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = {
-	title: 'Multi-AI Platform with Branching Conversations',
+	title: 'Multi-AI Chat Platform & AI Workspace',
 	description:
-		'Fork AI lets you explore different conversation paths, compare AI models side-by-side, and unlock the full potential of artificial intelligence. Experience the future of AI interaction.',
+		'Fork AI is a powerful multi-AI chat platform that lets you interact with ChatGPT, Claude, and Gemini in one workspace. Branch conversations, switch models, and start free today.',
 	openGraph: {
-		title: 'Fork AI - Multi-AI Platform with Branching Conversations',
+		title:
+			'Fork AI – The Multi-AI Chat Platform Built for Effortless Conversations',
 		description:
-			'Explore different conversation paths, compare AI models side-by-side, and unlock the full potential of artificial intelligence.',
+			'Branch, compare, and switch between ChatGPT, Claude, and Gemini without losing context. Free to start, no credit card required.',
 	},
 }
 
@@ -27,8 +28,6 @@ export default function Landing() {
 			<div className="min-h-screen w-full relative">
 				{/* Hero Section */}
 				<Hero />
-
-
 
 				{/* 
           ═══════════════════════════════════════════════════════════════

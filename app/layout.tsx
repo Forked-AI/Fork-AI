@@ -12,21 +12,26 @@ import './globals.css'
 
 export const metadata: Metadata = {
 	title: {
-		default: 'Fork AI | Multi-AI Platform & Branching Conversations',
+		default: 'Fork AI – Branch, Compare & Switch AI Models in One Chat',
 		template: '%s | Fork AI',
 	},
 	description:
-		'Fork AI: Multi-AI platform with branching conversations. Compare ChatGPT, Claude, Gemini side-by-side. Fork conversations, explore paths, and unlock AI potential.',
+		'Fork AI is a free multi-AI chat platform with smart branching, seamless model switching, and privacy-first sharing. No credit card required. Start for free.',
 	keywords: [
 		'AI platform',
 		'multi-AI',
+		'AI workspace',
+		'AI chat platform',
 		'branching conversations',
 		'AI comparison',
 		'ChatGPT alternative',
+		'Claude alternative',
 		'Claude AI',
 		'Gemini',
 		'conversation fork',
 		'AI chat',
+		'free AI chat',
+		'AI productivity tool',
 	],
 	authors: [{ name: 'Fork AI Team' }],
 	creator: 'Fork AI',
@@ -42,9 +47,9 @@ export const metadata: Metadata = {
 		locale: 'en_US',
 		url: '/',
 		siteName: 'Fork AI',
-		title: 'Fork AI | Multi-AI Platform & Branching Conversations',
+		title: 'Fork AI – Branch, Compare & Switch AI Models in One Chat',
 		description:
-			'Compare ChatGPT, Claude, Gemini side-by-side. Fork conversations, explore paths, and unlock AI potential with branching conversations.',
+			'Fork AI is a free multi-AI chat platform with smart branching, seamless model switching, and privacy-first sharing. No credit card required.',
 		images: [
 			{
 				url: '/opengraph-image',
@@ -56,9 +61,9 @@ export const metadata: Metadata = {
 	},
 	twitter: {
 		card: 'summary_large_image',
-		title: 'Fork AI | Multi-AI Platform & Branching Conversations',
+		title: 'Fork AI – Branch, Compare & Switch AI Models in One Chat',
 		description:
-			'Compare ChatGPT, Claude, Gemini side-by-side. Fork conversations, explore paths, and unlock AI potential.',
+			'Free multi-AI chat platform with smart branching. Switch between ChatGPT, Claude, Gemini seamlessly. Start for free.',
 		images: ['/opengraph-image'],
 		creator: '@forkai',
 	},

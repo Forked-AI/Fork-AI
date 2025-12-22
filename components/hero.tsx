@@ -102,9 +102,10 @@ export default function Hero() {
 					transition={{ duration: 0.75, delay: 0.3 }}
 				>
 					<p className="text-gray-300 text-xl leading-relaxed">
-						Fork AI is a multi-AI platform with a fine-grained, zero-effort UX.
-						Fork chats, swap models without losing context, and share only what
-						you want.
+						Fork AI is a powerful multi-AI chat platform and AI workspace.
+						Seamlessly switch between ChatGPT, Claude, and Gemini without losing
+						context. Branch conversations, organize chats, and start free—no
+						credit card required.
 					</p>
 				</motion.div>
 				<motion.div

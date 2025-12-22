@@ -1,6 +1,6 @@
 'use client'
 
-import { motion, AnimatePresence } from 'framer-motion'
+import { AnimatePresence, motion } from 'framer-motion'
 import { Check, Sparkles } from 'lucide-react'
 import { useState } from 'react'
 
@@ -78,12 +78,12 @@ export function PricingSection() {
 					</motion.div>
 
 					<h2 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-white via-white to-white/60 bg-clip-text text-transparent mb-4">
-						Premium UX, accessible pricing
+						Fork AI Pricing – Free, Pro, and Team Plans
 					</h2>
 
 					<p className="text-lg text-white/60 max-w-2xl mx-auto mb-8">
-						Fork AI is built to be accessible. Start free with ads, or upgrade
-						for an ad-free power user experience.
+						Start free with our ad-supported plan, or upgrade for an ad-free
+						power user experience. No credit card required.
 					</p>
 
 					{/* Monthly/Annual Toggle */}

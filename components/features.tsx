@@ -59,13 +59,12 @@ export function Features() {
 							geist.className
 						)}
 					>
-						Why your current AI chat sucks
+						What is Fork AI? A Multi-AI Chat Platform & AI Workspace
 					</h2>
 					<p className="text-white/60 text-lg leading-relaxed">
-						Most AI chats trap you in a single, messy thread. You lose track of
-						experiments, you cannot safely share context, and switching models
-						means starting over. Fork AI fixes this by treating each idea as a
-						branch you can grow, prune, and share.
+						Unlike traditional AI chat tools like ChatGPT or Claude, Fork AI
+						allows you to work with multiple AI models in one place—without
+						restarting conversations or losing valuable context.
 					</p>
 				</div>
 				<FollowerPointerCard
