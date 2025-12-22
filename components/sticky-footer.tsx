@@ -1,10 +1,11 @@
 'use client'
-import { motion, AnimatePresence } from 'framer-motion'
-import { useState, useEffect } from 'react'
+import { AnimatePresence, motion } from 'framer-motion'
 import { GitBranch } from 'lucide-react'
+import { useEffect, useState } from 'react'
 
 export function StickyFooter() {
 	const [isAtBottom, setIsAtBottom] = useState(false)
+	const [hasScrolled, setHasScrolled] = useState(false)
 
 	useEffect(() => {
 		let ticking = false
@@ -15,9 +16,16 @@ export function StickyFooter() {
 					const scrollTop = window.scrollY
 					const windowHeight = window.innerHeight
 					const documentHeight = document.documentElement.scrollHeight
+
+					// User must scroll at least 50px before we consider showing the footer
+					if (scrollTop > 50) {
+						setHasScrolled(true)
+					}
+
 					const isNearBottom = scrollTop + windowHeight >= documentHeight - 100
 
-					setIsAtBottom(isNearBottom)
+					// Only show footer if user has scrolled AND is near bottom
+					setIsAtBottom(hasScrolled && isNearBottom)
 					ticking = false
 				})
 				ticking = true
@@ -25,9 +33,9 @@ export function StickyFooter() {
 		}
 
 		window.addEventListener('scroll', handleScroll, { passive: true })
-		handleScroll()
+		// Don't call handleScroll on mount - wait for actual scroll
 		return () => window.removeEventListener('scroll', handleScroll)
-	}, [])
+	}, [hasScrolled])
 
 	return (
 		<AnimatePresence>
