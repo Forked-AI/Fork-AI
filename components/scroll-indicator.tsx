@@ -45,7 +45,7 @@ export function ScrollIndicator() {
 					className="w-full flex justify-center pt-8 pb-4"
 				>
 					<motion.div
-						className="flex flex-col items-center gap-2 group cursor-pointer"
+						className="relative flex flex-col items-center gap-2 group cursor-pointer"
 						whileHover={{ scale: 1.1 }}
 						whileTap={{ scale: 0.9 }}
 						onClick={() => {
