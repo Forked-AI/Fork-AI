@@ -19,7 +19,7 @@ export const organizationSchema = {
 	url: 'https://forkai.tech',
 	logo: 'https://forkai.tech/icon.svg',
 	description:
-		'Fork AI is a revolutionary multi-AI platform that lets you explore different conversation paths, compare AI models side-by-side, and unlock the full potential of artificial intelligence.',
+		'Fork AI is a free multi-AI chat platform with smart branching, seamless model switching between ChatGPT, Claude, and Gemini, and privacy-first sharing.',
 	sameAs: [
 		// Add your social media URLs here when ready
 		// 'https://twitter.com/forkai',
@@ -48,7 +48,7 @@ export const softwareApplicationSchema = {
 	// NOTE: Aggregate rating removed - add back when you have real reviews
 	// Having fake reviews violates Google's structured data guidelines
 	description:
-		'Multi-AI platform with branching conversations. Explore different conversation paths, compare AI models side-by-side, and unlock the full potential of artificial intelligence.',
+		'Free multi-AI chat platform with smart branching. Switch between ChatGPT, Claude, and Gemini without losing context. Branch conversations and organize AI chats effortlessly.',
 	featureList: [
 		'Branching conversations',
 		'Multi-AI model support',

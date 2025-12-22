@@ -1,13 +1,13 @@
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = {
-	title: 'Join the Waitlist - Coming Soon',
+	title: 'Join the Waitlist – Free Multi-AI Chat Platform',
 	description:
-		'Be among the first to experience Fork AI. Join our waitlist and get early access to the revolutionary multi-AI platform with branching conversations.',
+		'Be among the first to experience Fork AI – a free multi-AI chat platform. Switch between ChatGPT, Claude, and Gemini seamlessly. Join the waitlist for early access.',
 	openGraph: {
-		title: 'Join the Fork AI Waitlist - Coming Soon',
+		title: 'Join the Fork AI Waitlist – Coming Soon',
 		description:
-			'Be among the first to experience the revolutionary multi-AI platform. Join our waitlist for early access.',
+			'Get early access to the free multi-AI chat platform. Branch conversations, switch models, and start free.',
 	},
 }
 

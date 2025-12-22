@@ -2,7 +2,7 @@ import { ImageResponse } from 'next/og'
 
 export const runtime = 'edge'
 
-export const alt = 'Fork AI - Multi-AI Platform'
+export const alt = 'Fork AI - Branch, Compare & Switch AI Models in One Chat'
 export const size = {
 	width: 1200,
 	height: 630,
@@ -56,7 +56,7 @@ export default async function Image() {
 					marginBottom: '30px',
 				}}
 			>
-				Multi-AI Platform with Branching Conversations
+				Branch, Compare & Switch AI Models in One Chat
 			</div>
 
 			{/* Description */}
@@ -69,7 +69,7 @@ export default async function Image() {
 					lineHeight: '1.4',
 				}}
 			>
-				Explore different paths • Compare AI models • Unlock AI potential
+				ChatGPT • Claude • Gemini — All in one workspace
 			</div>
 		</div>,
 		{
