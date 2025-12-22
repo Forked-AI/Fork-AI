@@ -1,63 +1,95 @@
-'use client'
-
-import { ScrollIndicator } from '@/components/scroll-indicator'
-import { SiteHeader } from '@/components/site-header'
-import { StickyFooter } from '@/components/sticky-footer'
+import {
+	JsonLd,
+	organizationSchema,
+	softwareApplicationSchema,
+} from '@/components/json-ld'
+import { Providers } from '@/components/providers'
 import { GeistMono } from 'geist/font/mono'
 import { GeistSans } from 'geist/font/sans'
-import { usePathname } from 'next/navigation'
+import type { Metadata } from 'next'
 import type React from 'react'
 import './globals.css'
+
+export const metadata: Metadata = {
+	title: {
+		default: 'Fork AI - Multi-AI Platform with Branching Conversations',
+		template: '%s | Fork AI',
+	},
+	description:
+		'Fork AI is a revolutionary multi-AI platform that lets you explore different conversation paths, compare AI models side-by-side, and unlock the full potential of artificial intelligence.',
+	keywords: [
+		'AI platform',
+		'multi-AI',
+		'branching conversations',
+		'AI comparison',
+		'ChatGPT alternative',
+		'Claude AI',
+		'Gemini',
+		'conversation fork',
+		'AI chat',
+	],
+	authors: [{ name: 'Fork AI Team' }],
+	creator: 'Fork AI',
+	publisher: 'Fork AI',
+	metadataBase: new URL(
+		process.env.NEXT_PUBLIC_BASE_URL || 'https://fork-ai.com'
+	),
+	openGraph: {
+		type: 'website',
+		locale: 'en_US',
+		url: '/',
+		siteName: 'Fork AI',
+		title: 'Fork AI - Multi-AI Platform with Branching Conversations',
+		description:
+			'Explore different conversation paths, compare AI models side-by-side, and unlock the full potential of artificial intelligence.',
+		images: [
+			{
+				url: '/opengraph-image',
+				width: 1200,
+				height: 630,
+				alt: 'Fork AI - Multi-AI Platform',
+			},
+		],
+	},
+	twitter: {
+		card: 'summary_large_image',
+		title: 'Fork AI - Multi-AI Platform with Branching Conversations',
+		description:
+			'Explore different conversation paths, compare AI models side-by-side, and unlock the full potential of artificial intelligence.',
+		images: ['/opengraph-image'],
+		creator: '@forkai',
+	},
+	robots: {
+		index: true,
+		follow: true,
+		googleBot: {
+			index: true,
+			follow: true,
+			'max-video-preview': -1,
+			'max-image-preview': 'large',
+			'max-snippet': -1,
+		},
+	},
+	verification: {
+		// Add your verification codes here when ready
+		// google: 'your-google-verification-code',
+		// yandex: 'your-yandex-verification-code',
+	},
+}
 
 export default function RootLayout({
 	children,
 }: Readonly<{
 	children: React.ReactNode
 }>) {
-	const pathname = usePathname()
-	const pathWithoutFooter = ['/admin', '/login', '/prelaunch']
-	const shouldHideFooter = pathWithoutFooter.some((path) =>
-		pathname?.startsWith(path)
-	)
-	const isAdminRoute = pathname?.startsWith('/admin')
-
-	// Routes with short content that need extra padding for footer
-	const shortContentRoutes = ['/signup', '/policy', '/landing, /login']
-	const needsExtraPadding =
-		shortContentRoutes.some((path) => pathname?.startsWith(path)) &&
-		!shouldHideFooter
-	console.log(
-		'RootLayout: pathname=',
-		pathname,
-		' needsExtraPadding=',
-		needsExtraPadding,
-		' shouldHideFooter=',
-		shouldHideFooter
-	)
-
-	// Show scroll indicator on pages with footer and potentially short content
-	const showScrollIndicator = !shouldHideFooter && needsExtraPadding
-
 	return (
-		<html lang="en" className="dark">
+		<html lang="en" className={`dark ${GeistSans.variable} ${GeistMono.variable}`}>
 			<head>
-				<title>Fork AI</title>
-				<meta name="description" content="Fork AI" />
-				<style>{`
-html {
-  font-family: ${GeistSans.style.fontFamily};
-  --font-sans: ${GeistSans.variable};
-  --font-mono: ${GeistMono.variable};
-}
-        `}</style>
+				<JsonLd data={organizationSchema} />
+				<JsonLd data={softwareApplicationSchema} />
 			</head>
 			<body className="dark" suppressHydrationWarning>
-				{!isAdminRoute && <SiteHeader />}
-				<main className={needsExtraPadding ? 'min-h-screen pb-96' : ''}>
-					{children}
-				</main>
-				{showScrollIndicator && <ScrollIndicator />}
-				{!shouldHideFooter && <StickyFooter />}
+				<Providers>{children}</Providers>
 			</body>
 		</html>
 	)

@@ -6,23 +6,29 @@
  * SEE: PRELAUNCH-RESTORATION.md for restoration instructions when ready to launch.
  */
 
-'use client'
 import Hero from '@/components/hero'
 import { AuroraBackground } from '@/components/ui/aurora-background'
-import { useEffect } from 'react'
+import type { Metadata } from 'next'
+
+export const metadata: Metadata = {
+	title: 'Multi-AI Platform with Branching Conversations',
+	description:
+		'Fork AI lets you explore different conversation paths, compare AI models side-by-side, and unlock the full potential of artificial intelligence. Experience the future of AI interaction.',
+	openGraph: {
+		title: 'Fork AI - Multi-AI Platform with Branching Conversations',
+		description:
+			'Explore different conversation paths, compare AI models side-by-side, and unlock the full potential of artificial intelligence.',
+	},
+}
 
 export default function Landing() {
-	useEffect(() => {
-		const root = window.document.documentElement
-		root.classList.remove('light', 'system')
-		root.classList.add('dark')
-	}, [])
-
 	return (
 		<AuroraBackground className="min-h-screen w-full">
 			<div className="min-h-screen w-full relative">
 				{/* Hero Section */}
 				<Hero />
+
+
 
 				{/* 
           ═══════════════════════════════════════════════════════════════

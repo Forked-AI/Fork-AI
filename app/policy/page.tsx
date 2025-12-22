@@ -1,9 +1,9 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { motion } from 'framer-motion'
 import { AuroraBackground } from '@/components/ui/aurora-background'
-import { Shield, FileText, Lock, Eye, Mail, GitBranch } from 'lucide-react'
+import { motion } from 'framer-motion'
+import { Eye, FileText, Lock, Mail, Shield } from 'lucide-react'
+import { useEffect, useState } from 'react'
 
 const policySection = [
 	{

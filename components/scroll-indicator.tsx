@@ -1,6 +1,6 @@
 'use client'
 
-import { motion, AnimatePresence } from 'framer-motion'
+import { AnimatePresence, motion } from 'framer-motion'
 import { ChevronDown } from 'lucide-react'
 import { useEffect, useState } from 'react'
 
@@ -38,22 +38,22 @@ export function ScrollIndicator() {
 		<AnimatePresence>
 			{isVisible && (
 				<motion.div
-					initial={{ opacity: 0, y: -20 }}
+					initial={{ opacity: 0, y: 20 }}
 					animate={{ opacity: 1, y: 0 }}
-					exit={{ opacity: 0, y: -20 }}
+					exit={{ opacity: 0, y: 20 }}
 					transition={{ duration: 0.5, delay: 1 }}
-					className="fixed bottom-8 left-1/2 -translate-x-1/2 z-40 cursor-pointer"
-					onClick={() => {
-						window.scrollTo({
-							top: document.documentElement.scrollHeight,
-							behavior: 'smooth',
-						})
-					}}
+					className="w-full flex justify-center pt-8 pb-4"
 				>
 					<motion.div
-						className="flex flex-col items-center gap-2 group"
+						className="flex flex-col items-center gap-2 group cursor-pointer"
 						whileHover={{ scale: 1.1 }}
 						whileTap={{ scale: 0.9 }}
+						onClick={() => {
+							window.scrollTo({
+								top: document.documentElement.scrollHeight,
+								behavior: 'smooth',
+							})
+						}}
 					>
 						{/* Scroll Text */}
 						<motion.p

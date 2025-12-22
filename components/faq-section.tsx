@@ -1,8 +1,9 @@
 'use client'
 
+import { JsonLd } from '@/components/json-ld'
+import { AnimatePresence, motion } from 'framer-motion'
+import { Minus, Plus } from 'lucide-react'
 import { useState } from 'react'
-import { Plus, Minus } from 'lucide-react'
-import { motion, AnimatePresence } from 'framer-motion'
 
 export function FAQSection() {
 	const [openItems, setOpenItems] = useState<number[]>([])
@@ -41,8 +42,24 @@ export function FAQSection() {
 		},
 	]
 
+	// Generate FAQ Schema for SEO
+	const faqSchema = {
+		'@context': 'https://schema.org',
+		'@type': 'FAQPage',
+		mainEntity: faqs.map((faq) => ({
+			'@type': 'Question',
+			name: faq.question,
+			acceptedAnswer: {
+				'@type': 'Answer',
+				text: faq.answer,
+			},
+		})),
+	}
+
 	return (
-		<section id="faq" className="relative overflow-hidden pb-120 pt-24">
+		<>
+			<JsonLd data={faqSchema} />
+			<section id="faq" className="relative overflow-hidden pb-120 pt-24">
 			<div className="absolute top-1/2 -right-20 z-[-1] h-64 w-64 rounded-full bg-[#cbd5e1]/10 opacity-80 blur-3xl"></div>
 			<div className="absolute top-1/2 -left-20 z-[-1] h-64 w-64 rounded-full bg-[#cbd5e1]/10 opacity-80 blur-3xl"></div>
 
@@ -142,5 +159,6 @@ export function FAQSection() {
 				</div>
 			</div>
 		</section>
+		</>
 	)
 }

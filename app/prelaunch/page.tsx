@@ -2,6 +2,7 @@
 
 import type React from 'react'
 
+import { ScrollIndicator } from '@/components/scroll-indicator'
 import { AuroraBackground } from '@/components/ui/aurora-background'
 import { AnimatePresence, motion } from 'framer-motion'
 import { Clock, Loader2, Mail, Sparkles } from 'lucide-react'
@@ -339,6 +340,10 @@ export default function PrelaunchPage() {
 						</motion.div>
 					</div>
 				</main>
+				{/* Scroll indicator at bottom of content */}
+				<ScrollIndicator />
+				{/* Spacer for sticky footer */}
+				<div className="h-96" />
 			</div>
 		</AuroraBackground>
 	)
