@@ -1,15 +1,18 @@
 /**
- * PRELAUNCH REDIRECT
- * This page temporarily redirects to /prelaunch during the prelaunch phase.
- * The full landing page with all sections is available at /landing (with sections masked).
- *
- * SEE: PRELAUNCH-RESTORATION.md for restoration instructions when ready to launch.
+ * HOME PAGE - FULL LANDING PAGE
+ * This is the main landing page with all sections unmasked.
  */
 
+import { FAQSection } from '@/components/faq-section'
+import Features from '@/components/features'
+import Hero from '@/components/hero'
+import { NewReleasePromo } from '@/components/new-release-promo'
+import { PricingSection } from '@/components/pricing-section'
+import { TestimonialsSection as Testimonials } from '@/components/testimonials'
+import { AuroraBackground } from '@/components/ui/aurora-background'
 import type { Metadata } from 'next'
-import { redirect } from 'next/navigation'
 
-// SEO: Ensure home page has metadata even when redirecting
+// SEO: Ensure home page has metadata
 export const metadata: Metadata = {
 	title: 'Fork AI | Multi-AI Platform & Branching Conversations',
 	description:
@@ -20,6 +23,35 @@ export const metadata: Metadata = {
 }
 
 export default function Home() {
-	// Redirect to prelaunch page during prelaunch phase
-	redirect('/prelaunch')
+	return (
+		<AuroraBackground className="min-h-screen w-full">
+			<div className="min-h-screen w-full relative">
+				{/* Hero Section */}
+				<Hero />
+
+				{/* Features Section */}
+				<div id="features">
+					<Features />
+				</div>
+
+				{/* Pricing Section */}
+				<div id="pricing">
+					<PricingSection />
+				</div>
+
+				{/* Testimonials Section */}
+				<div id="testimonials">
+					<Testimonials />
+				</div>
+
+				{/* New Release Promo */}
+				<NewReleasePromo />
+
+				{/* FAQ Section */}
+				<div id="faq">
+					<FAQSection />
+				</div>
+			</div>
+		</AuroraBackground>
+	)
 }

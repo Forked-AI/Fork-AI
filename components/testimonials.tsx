@@ -1,4 +1,5 @@
 import { Marquee } from '@/components/magicui/marquee'
+import Image from 'next/image'
 
 const testimonials = [
 	{
@@ -79,11 +80,11 @@ const TestimonialCard = ({
 			<div className="text-white/90 leading-relaxed">{body}</div>
 
 			<div className="mt-5 flex items-center gap-2">
-				<img
+				<Image
 					src={img || '/placeholder.svg'}
 					alt={name}
-					height="40"
-					width="40"
+					height={40}
+					width={40}
 					className="h-10 w-10 rounded-full ring-2 ring-white/10 group-hover:ring-white/20 transition-all"
 				/>
 				<div className="flex flex-col">

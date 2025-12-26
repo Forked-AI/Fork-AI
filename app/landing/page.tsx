@@ -6,7 +6,12 @@
  * SEE: PRELAUNCH-RESTORATION.md for restoration instructions when ready to launch.
  */
 
+import { FAQSection } from '@/components/faq-section'
+import Features from '@/components/features'
 import Hero from '@/components/hero'
+import { NewReleasePromo } from '@/components/new-release-promo'
+import { PricingSection } from '@/components/pricing-section'
+import { TestimonialsSection as Testimonials } from '@/components/testimonials'
 import { AuroraBackground } from '@/components/ui/aurora-background'
 import type { Metadata } from 'next'
 
@@ -29,45 +34,28 @@ export default function Landing() {
 				{/* Hero Section */}
 				<Hero />
 
-				{/* 
-          ═══════════════════════════════════════════════════════════════
-          MASKED DURING PRELAUNCH PHASE
-          ═══════════════════════════════════════════════════════════════
-          The sections below are hidden from the DOM during prelaunch.
-          
-          TO RESTORE: Uncomment all sections below when ready to launch.
-          SEE: PRELAUNCH-RESTORATION.md for complete restoration steps.
-          ═══════════════════════════════════════════════════════════════
-        */}
-
 				{/* Features Section */}
-				{/* <div id="features">
-          <Features />
-        </div> */}
+				<div id="features">
+					<Features />
+				</div>
 
 				{/* Pricing Section */}
-				{/* <div id="pricing">
-          <PricingSection />
-        </div> */}
+				<div id="pricing">
+					<PricingSection />
+				</div>
 
 				{/* Testimonials Section */}
-				{/* <div id="testimonials">
-          <TestimonialsSection />
-        </div> */}
+				<div id="testimonials">
+					<Testimonials />
+				</div>
 
 				{/* New Release Promo */}
-				{/* <NewReleasePromo /> */}
+				<NewReleasePromo />
 
 				{/* FAQ Section */}
-				{/* <div id="faq">
-          <FAQSection />
-        </div> */}
-
-				{/* 
-          ═══════════════════════════════════════════════════════════════
-          END OF MASKED SECTIONS
-          ═══════════════════════════════════════════════════════════════
-        */}
+				<div id="faq">
+					<FAQSection />
+				</div>
 			</div>
 		</AuroraBackground>
 	)

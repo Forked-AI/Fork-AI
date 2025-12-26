@@ -58,3 +58,22 @@ export const softwareApplicationSchema = {
 		'Real-time AI switching',
 	],
 }
+
+// Product Schema
+export const productSchema = {
+	'@context': 'https://schema.org',
+	'@type': 'Product',
+	name: 'Fork AI',
+	description:
+		'Multi-AI platform for branching conversations with ChatGPT, Claude, and Gemini.',
+	brand: {
+		'@type': 'Brand',
+		name: 'Fork AI',
+	},
+	offers: {
+		'@type': 'Offer',
+		price: '0',
+		priceCurrency: 'USD',
+		availability: 'https://schema.org/InStock',
+	},
+}
