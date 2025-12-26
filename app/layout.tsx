@@ -1,12 +1,14 @@
 import {
 	JsonLd,
 	organizationSchema,
+	productSchema,
 	softwareApplicationSchema,
 } from '@/components/json-ld'
 import { Providers } from '@/components/providers'
 import { GeistMono } from 'geist/font/mono'
 import { GeistSans } from 'geist/font/sans'
 import type { Metadata } from 'next'
+import Script from 'next/script'
 import type React from 'react'
 import './globals.css'
 
@@ -96,6 +98,19 @@ export default function RootLayout({
 			<head>
 				<JsonLd data={organizationSchema} />
 				<JsonLd data={softwareApplicationSchema} />
+				<JsonLd data={productSchema} />
+				<Script
+					src={`https://www.googletagmanager.com/gtag/js?id=${process.env.NEXT_PUBLIC_GA_ID}`}
+					strategy="afterInteractive"
+				/>
+				<Script id="google-analytics" strategy="afterInteractive">
+					{`
+						window.dataLayer = window.dataLayer || [];
+						function gtag(){dataLayer.push(arguments);}
+						gtag('js', new Date());
+						gtag('config', '${process.env.NEXT_PUBLIC_GA_ID}');
+					`}
+				</Script>
 			</head>
 			<body className="dark" suppressHydrationWarning>
 				<Providers>{children}</Providers>
