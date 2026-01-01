@@ -6,9 +6,13 @@ import {
 	ChartTooltip,
 	ChartTooltipContent,
 } from '@/components/ui/chart'
+import { authClient } from '@/lib/auth-client'
+import { Session, User } from 'better-auth'
 import { Calendar, Clock, Loader2, TrendingUp, Users } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Area, AreaChart, ResponsiveContainer, XAxis, YAxis } from 'recharts'
+
+export const dynamic = 'force-dynamic'
 
 interface Stats {
 	total: number
@@ -22,15 +26,37 @@ interface ChartDataPoint {
 	signups: number
 }
 
+type ExtendedUser = User & { role: string }
+
 export default function AdminDashboard() {
+	const [session, setSession] = useState<{ user: ExtendedUser; session: Session } | null>(null)
+	const [sessionLoading, setSessionLoading] = useState(true)
+
 	const [stats, setStats] = useState<Stats | null>(null)
 	const [chartData, setChartData] = useState<ChartDataPoint[]>([])
 	const [isLoading, setIsLoading] = useState(true)
 	const [error, setError] = useState('')
 
 	useEffect(() => {
-		fetchStats()
+		fetchSession()
 	}, [])
+
+	const fetchSession = async () => {
+		try {
+			const { data } = await authClient.getSession()
+			setSession(data)
+		} catch (error) {
+			setError('Failed to get session')
+		} finally {
+			setSessionLoading(false)
+		}
+	}
+
+	useEffect(() => {
+		if (session) {
+			fetchStats()
+		}
+	}, [session])
 
 	const fetchStats = async () => {
 		try {
@@ -49,6 +75,22 @@ export default function AdminDashboard() {
 		} finally {
 			setIsLoading(false)
 		}
+	}
+
+	if (sessionLoading) {
+		return (
+			<div className="flex items-center justify-center h-full">
+				<Loader2 className="w-8 h-8 animate-spin text-white/60" />
+			</div>
+		)
+	}
+
+	if (!session || session.user.role !== 'admin') {
+		return (
+			<div className="min-h-screen flex items-center justify-center text-white">
+				Unauthorized
+			</div>
+		)
 	}
 
 	if (isLoading) {
