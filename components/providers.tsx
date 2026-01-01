@@ -3,11 +3,14 @@
 import { ScrollIndicator } from '@/components/scroll-indicator'
 import { SiteHeader } from '@/components/site-header'
 import { StickyFooter } from '@/components/sticky-footer'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { usePathname } from 'next/navigation'
 import type React from 'react'
+import { useState } from 'react'
 
 export function Providers({ children }: { children: React.ReactNode }) {
 	const pathname = usePathname()
+	const [queryClient] = useState(() => new QueryClient())
 	const pathWithoutFooter = ['/admin']
 	const shouldHideFooter = pathWithoutFooter.some((path) =>
 		pathname?.startsWith(path)
@@ -33,13 +36,13 @@ export function Providers({ children }: { children: React.ReactNode }) {
 	const showScrollIndicator = !shouldHideFooter && needsExtraPadding
 
 	return (
-		<>
+		<QueryClientProvider client={queryClient}>
 			{!isAdminRoute && <SiteHeader />}
 			<main className={needsExtraPadding ? 'min-h-screen pb-96' : ''}>
 				{children}
 				{showScrollIndicator && <ScrollIndicator />}
 			</main>
 			{!shouldHideFooter && <StickyFooter />}
-		</>
+		</QueryClientProvider>
 	)
 }

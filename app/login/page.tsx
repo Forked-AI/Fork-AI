@@ -6,22 +6,39 @@ import { AuroraBackground } from '@/components/ui/aurora-background'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { authClient } from '@/lib/auth-client'
 import { motion } from 'framer-motion'
 import Link from 'next/link'
 import { useState } from 'react'
+
+export const dynamic = 'force-dynamic'
 
 export default function LoginPage() {
 	const [email, setEmail] = useState('')
 	const [password, setPassword] = useState('')
 	const [isLoading, setIsLoading] = useState(false)
+	const [error, setError] = useState('')
 
 	const handleSubmit = async (e: React.FormEvent) => {
 		e.preventDefault()
 		setIsLoading(true)
-		// Simulate login process
-		await new Promise((resolve) => setTimeout(resolve, 1000))
-		setIsLoading(false)
-		console.log('[v0] Login attempt:', { email, password })
+		setError('')
+		try {
+			await authClient.signIn.email({ email, password })
+			// Redirect will be handled by Better Auth
+		} catch (err) {
+			setError('Invalid email or password')
+		} finally {
+			setIsLoading(false)
+		}
+	}
+
+	const handleGoogleSignIn = async () => {
+		try {
+			await authClient.signIn.social({ provider: 'google' })
+		} catch (err) {
+			setError('Failed to sign in with Google')
+		}
 	}
 
 	const containerVariants = {
@@ -140,6 +157,15 @@ export default function LoginPage() {
 								</motion.div>
 							</form>
 
+							{error && (
+								<motion.div
+									variants={itemVariants}
+									className="mt-4 text-red-400 text-sm text-center"
+								>
+									{error}
+								</motion.div>
+							)}
+
 							<motion.div variants={itemVariants} className="mt-6 text-center">
 								<p className="text-muted-foreground">
 									Don't have an account?{' '}
@@ -168,6 +194,7 @@ export default function LoginPage() {
 
 							<div className="mt-6 grid grid-cols-2 gap-3">
 								<motion.button
+									onClick={handleGoogleSignIn}
 									whileHover={{
 										scale: 1.02,
 										backgroundColor: 'rgba(255, 255, 255, 1)',

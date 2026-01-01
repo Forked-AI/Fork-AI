@@ -5,9 +5,12 @@ import type React from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { authClient } from '@/lib/auth-client'
 import { motion } from 'framer-motion'
 import Link from 'next/link'
 import { useState } from 'react'
+
+export const dynamic = 'force-dynamic'
 
 export default function SignupPage() {
 	const [formData, setFormData] = useState({
@@ -17,6 +20,7 @@ export default function SignupPage() {
 		confirmPassword: '',
 	})
 	const [isLoading, setIsLoading] = useState(false)
+	const [error, setError] = useState('')
 
 	const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
 		setFormData((prev) => ({
@@ -28,14 +32,31 @@ export default function SignupPage() {
 	const handleSubmit = async (e: React.FormEvent) => {
 		e.preventDefault()
 		if (formData.password !== formData.confirmPassword) {
-			console.log('[v0] Password mismatch')
+			setError('Passwords do not match')
 			return
 		}
 		setIsLoading(true)
-		// Simulate signup process
-		await new Promise((resolve) => setTimeout(resolve, 1000))
-		setIsLoading(false)
-		console.log('[v0] Signup attempt:', formData)
+		setError('')
+		try {
+			await authClient.signUp.email({
+				name: formData.name,
+				email: formData.email,
+				password: formData.password,
+			})
+			// Redirect handled by Better Auth
+		} catch (err) {
+			setError('Failed to sign up')
+		} finally {
+			setIsLoading(false)
+		}
+	}
+
+	const handleGoogleSignUp = async () => {
+		try {
+			await authClient.signIn.social({ provider: 'google' })
+		} catch (err) {
+			setError('Failed to sign up with Google')
+		}
 	}
 
 	return (
@@ -201,6 +222,10 @@ export default function SignupPage() {
 						</Button>
 					</form>
 
+					{error && (
+						<div className="mt-4 text-red-400 text-sm text-center">{error}</div>
+					)}
+
 					<div className="mt-6 text-center">
 						<p className="text-zinc-400">
 							Already have an account?{' '}
@@ -234,6 +259,7 @@ export default function SignupPage() {
 
 					<div className="mt-6 grid grid-cols-2 gap-3">
 						<Button
+							onClick={handleGoogleSignUp}
 							variant="outline"
 							className="bg-zinc-900/50 border-zinc-800 text-zinc-300 hover:bg-white hover:text-black hover:border-white transition-all duration-200 group"
 						>

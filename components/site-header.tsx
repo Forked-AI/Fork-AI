@@ -11,12 +11,28 @@ import { GitBranch } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useEffect, useState } from 'react'
+import { authClient } from '@/lib/auth-client'
 
 export function SiteHeader() {
 	const [isScrolled, setIsScrolled] = useState(false)
 	const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
 	const [lastScrollY, setLastScrollY] = useState(0)
 	const pathname = usePathname()
+
+	const [session, setSession] = useState<any>(null)
+
+	useEffect(() => {
+		const getSession = async () => {
+			try {
+				const { data } = await authClient.getSession()
+				setSession(data)
+			} catch (error) {
+				console.error('Failed to get session:', error)
+			}
+		}
+		getSession()
+	}, [])
+
 	// Check if on landing page (where sections exist) during prelaunch
 	const isHomePage = pathname === '/' || pathname === '/landing'
 
@@ -123,21 +139,38 @@ export function SiteHeader() {
 				</div>
 
 				<div className="flex items-center gap-4 z-50">
-					<Link
-						href="/login"
-						prefetch={false}
-						className="font-medium text-muted-foreground text-sm cursor-pointer transition-all duration-200 hover:text-white hover:scale-105 relative group"
-					>
-						Log In
-						<span className="absolute -bottom-0.5 left-0 w-0 h-0.5 bg-gradient-to-r from-[#cbd5e1] to-[#94a3b8] transition-all duration-300 group-hover:w-full"></span>
-					</Link>
+					{session ? (
+						<div className="flex items-center gap-4">
+							<span className="text-sm text-white">
+								Welcome, {session.user.name}
+							</span>
+							<button
+								onClick={() => authClient.signOut()}
+								className="font-medium text-muted-foreground text-sm cursor-pointer transition-all duration-200 hover:text-white hover:scale-105 relative group"
+							>
+								Log Out
+								<span className="absolute -bottom-0.5 left-0 w-0 h-0.5 bg-gradient-to-r from-[#cbd5e1] to-[#94a3b8] transition-all duration-300 group-hover:w-full"></span>
+							</button>
+						</div>
+					) : (
+						<>
+							<Link
+								href="/login"
+								prefetch={false}
+								className="font-medium text-muted-foreground text-sm cursor-pointer transition-all duration-200 hover:text-white hover:scale-105 relative group"
+							>
+								Log In
+								<span className="absolute -bottom-0.5 left-0 w-0 h-0.5 bg-gradient-to-r from-[#cbd5e1] to-[#94a3b8] transition-all duration-300 group-hover:w-full"></span>
+							</Link>
 
-					<Link
-						href="/prelaunch"
-						className="rounded-full font-bold relative cursor-pointer hover:-translate-y-0.5 transition-all duration-200 inline-block text-center bg-gradient-to-r from-[#e2e8f0] to-white text-black shadow-xl shadow-white/20 hover:shadow-2xl hover:shadow-white/30 px-6 py-2 text-sm shimmer-hover"
-					>
-						Get Early Access
-					</Link>
+							<Link
+								href="/prelaunch"
+								className="rounded-full font-bold relative cursor-pointer hover:-translate-y-0.5 transition-all duration-200 inline-block text-center bg-gradient-to-r from-[#e2e8f0] to-white text-black shadow-xl shadow-white/20 hover:shadow-2xl hover:shadow-white/30 px-6 py-2 text-sm shimmer-hover"
+							>
+								Get Early Access
+							</Link>
+						</>
+					)}
 				</div>
 			</header>
 
@@ -196,18 +229,34 @@ export function SiteHeader() {
 								</Link>
 							))}
 							<div className="border-t border-white/10 pt-4 mt-4 flex flex-col space-y-3">
-								<Link
-									href="/login"
-									className="px-4 py-3 text-lg font-medium text-muted-foreground hover:text-white transition-all rounded-lg hover:bg-white/10 cursor-pointer"
-								>
-									Login
-								</Link>
-								<Link
-									href="/prelaunch"
-									className="px-4 py-3 text-lg font-bold text-center bg-gradient-to-r from-[#e2e8f0] to-white text-black rounded-full shadow-xl hover:shadow-2xl hover:-translate-y-0.5 transition-all duration-200"
-								>
-									Get Early Access
-								</Link>
+								{session ? (
+									<>
+										<span className="px-4 py-3 text-lg font-medium text-white">
+											Welcome, {session.user.name}
+										</span>
+										<button
+											onClick={() => authClient.signOut()}
+											className="px-4 py-3 text-lg font-medium text-muted-foreground hover:text-white transition-all rounded-lg hover:bg-white/10 cursor-pointer"
+										>
+											Log Out
+										</button>
+									</>
+								) : (
+									<>
+										<Link
+											href="/login"
+											className="px-4 py-3 text-lg font-medium text-muted-foreground hover:text-white transition-all rounded-lg hover:bg-white/10 cursor-pointer"
+										>
+											Login
+										</Link>
+										<Link
+											href="/prelaunch"
+											className="px-4 py-3 text-lg font-bold text-center bg-gradient-to-r from-[#e2e8f0] to-white text-black rounded-full shadow-xl hover:shadow-2xl hover:-translate-y-0.5 transition-all duration-200"
+										>
+											Get Early Access
+										</Link>
+									</>
+								)}
 							</div>
 						</nav>
 					</div>
