@@ -5,8 +5,7 @@ import {
 	softwareApplicationSchema,
 } from '@/components/json-ld'
 import { Providers } from '@/components/providers'
-import { GeistMono } from 'geist/font/mono'
-import { GeistSans } from 'geist/font/sans'
+import { fraunces, manrope } from '@/lib/fonts'
 import type { Metadata } from 'next'
 import Script from 'next/script'
 import type React from 'react'
@@ -91,11 +90,15 @@ export default function RootLayout({
 	children: React.ReactNode
 }>) {
 	return (
-		<html
-			lang="en"
-			className={`dark ${GeistSans.variable} ${GeistMono.variable}`}
-		>
+		<html lang="en" className={`dark ${manrope.variable} ${fraunces.variable}`}>
 			<head>
+				{process.env.NODE_ENV === 'development' && (
+					<Script
+						src="//unpkg.com/react-grab/dist/index.global.js"
+						crossOrigin="anonymous"
+						strategy="beforeInteractive"
+					/>
+				)}
 				<JsonLd data={organizationSchema} />
 				<JsonLd data={softwareApplicationSchema} />
 				<JsonLd data={productSchema} />

@@ -11,7 +11,7 @@ import { useState } from 'react'
 export function Providers({ children }: { children: React.ReactNode }) {
 	const pathname = usePathname()
 	const [queryClient] = useState(() => new QueryClient())
-	const pathWithoutFooter = ['/admin']
+	const pathWithoutFooter = ['/admin', '/chat']
 	const shouldHideFooter = pathWithoutFooter.some((path) =>
 		pathname?.startsWith(path)
 	)

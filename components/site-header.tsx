@@ -7,17 +7,22 @@
 
 'use client'
 
+import { authClient } from '@/lib/auth-client'
 import { GitBranch } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useEffect, useState } from 'react'
-import { authClient } from '@/lib/auth-client'
 
 export function SiteHeader() {
 	const [isScrolled, setIsScrolled] = useState(false)
 	const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
 	const [lastScrollY, setLastScrollY] = useState(0)
 	const pathname = usePathname()
+
+	// Hide header on chat page
+	if (pathname === '/chat') {
+		return null
+	}
 
 	const [session, setSession] = useState<any>(null)
 
