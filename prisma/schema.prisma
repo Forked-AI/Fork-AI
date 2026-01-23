@@ -20,16 +20,22 @@ model WaitlistEntry {
 }
 
 model User {
-  id            String    @id
+  id            String         @id
   name          String
   email         String
-  emailVerified Boolean   @default(false)
+  emailVerified Boolean        @default(false)
   image         String?
-  role          String    @default("user")
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  role          String         @default("user")
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
   sessions      Session[]
   accounts      Account[]
+  collections   Collection[]
+  conversations Conversation[]
+
+  banned     Boolean?  @default(false)
+  banReason  String?
+  banExpires DateTime?
 
   @@unique([email])
   @@map("user")
@@ -45,6 +51,8 @@ model Session {
   userAgent String?
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  impersonatedBy String?
 
   @@unique([token])
   @@index([userId])
@@ -81,4 +89,51 @@ model Verification {
 
   @@index([identifier])
   @@map("verification")
+}
+
+model Collection {
+  id            String         @id @default(cuid())
+  name          String
+  color         String         @default("#57FCFF")
+  userId        String
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  isDefault     Boolean        @default(false)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  conversations Conversation[]
+
+  @@index([userId])
+  @@map("collection")
+}
+
+model Conversation {
+  id           String      @id @default(cuid())
+  title        String
+  userId       String
+  user         User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  collectionId String?
+  collection   Collection? @relation(fields: [collectionId], references: [id], onDelete: SetNull)
+  messages     Message[]
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  @@index([userId])
+  @@index([collectionId])
+  @@map("conversation")
+}
+
+model Message {
+  id               String       @id @default(cuid())
+  role             String       // "user" | "assistant" | "system"
+  content          String       @db.Text
+  model            String?      // e.g., "mistral-large-latest"
+  promptTokens     Int?
+  completionTokens Int?
+  isError          Boolean      @default(false) // For failed stream recovery
+  conversationId   String
+  conversation     Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  createdAt        DateTime     @default(now())
+
+  @@index([conversationId])
+  @@map("message")
 }
