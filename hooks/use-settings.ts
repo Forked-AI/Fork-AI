@@ -6,12 +6,16 @@ export interface Settings {
 	compactMode: boolean
 	theme: 'dark' | 'light'
 	defaultModel: string
+	messageTruncateLength: number
+	sendKeybinding: 'enter' | 'ctrl-enter'
 }
 
 const DEFAULT_SETTINGS: Settings = {
 	compactMode: false,
 	theme: 'dark',
 	defaultModel: 'gpt-4',
+	messageTruncateLength: 300,
+	sendKeybinding: 'enter',
 }
 
 export function useSettings() {
