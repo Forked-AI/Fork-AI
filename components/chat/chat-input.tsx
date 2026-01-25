@@ -7,28 +7,35 @@ import {
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { ArrowUp, ChevronDown, Mic, Paperclip, Sparkles, Star } from 'lucide-react'
-import { useState } from 'react'
+import { useSettings } from '@/hooks/use-settings'
+import { ArrowUp, ChevronDown, Mic, Paperclip, Pause, Sparkles, Star } from 'lucide-react'
+import { forwardRef, KeyboardEvent, useCallback, useState } from 'react'
 import { ModelsModal, type Model } from './models-modal'
 
 const ALL_MODELS: Model[] = [
-	{ id: 'gpt-4', name: 'GPT-4', description: 'Most capable, best for complex tasks', provider: 'OpenAI', contextWindow: '128K context', isFavorite: true },
-	{ id: 'claude-3.5', name: 'Claude 3.5 Sonnet', description: 'Great for creative writing and analysis', provider: 'Anthropic', contextWindow: '200K context', isFavorite: true },
-	{ id: 'gemini', name: 'Gemini Pro', description: 'Fast and efficient for everyday tasks', provider: 'Google', contextWindow: '1M context', isFavorite: true },
-	{ id: 'gpt-3.5', name: 'GPT-3.5 Turbo', description: 'Quick responses and cost-effective', provider: 'OpenAI', contextWindow: '16K context', isFavorite: true },
-	{ id: 'claude-opus', name: 'Claude 3 Opus', description: 'Highest intelligence for complex reasoning', provider: 'Anthropic', contextWindow: '200K context', isFavorite: false },
-	{ id: 'gpt-4-turbo', name: 'GPT-4 Turbo', description: 'Faster GPT-4 with updated knowledge', provider: 'OpenAI', contextWindow: '128K context', isFavorite: false },
-	{ id: 'gemini-ultra', name: 'Gemini Ultra', description: 'Most capable Gemini model', provider: 'Google', contextWindow: '1M context', isFavorite: false },
-	{ id: 'llama-3', name: 'Llama 3 70B', description: 'Open-source powerhouse', provider: 'Meta', contextWindow: '8K context', isFavorite: false },
-	{ id: 'mistral-large', name: 'Mistral Large', description: 'Top-tier open model for complex tasks', provider: 'Mistral', contextWindow: '32K context', isFavorite: false },
-	{ id: 'cohere', name: 'Command R+', description: 'Enterprise-ready with RAG capabilities', provider: 'Cohere', contextWindow: '128K context', isFavorite: false },
+	{ id: 'mistral-large', name: 'Mistral Large', description: 'Top-tier open model for complex tasks', provider: 'Mistral', contextWindow: '32K context', isFavorite: true },
+	{ id: 'mistral-small', name: 'Mistral Small', description: 'Fast and efficient for everyday tasks', provider: 'Mistral', contextWindow: '32K context', isFavorite: true },
+	{ id: 'codestral', name: 'Codestral', description: 'Specialized for code generation', provider: 'Mistral', contextWindow: '32K context', isFavorite: true },
+	{ id: 'ministral-8b', name: 'Ministral 8B', description: 'Lightweight and fast responses', provider: 'Mistral', contextWindow: '128K context', isFavorite: true },
+	{ id: 'ministral-3b', name: 'Ministral 3B', description: 'Ultra-fast for simple tasks', provider: 'Mistral', contextWindow: '128K context', isFavorite: false },
+	{ id: 'pixtral-large', name: 'Pixtral Large', description: 'Multimodal with vision capabilities', provider: 'Mistral', contextWindow: '128K context', isFavorite: false },
+	{ id: 'open-mistral-nemo', name: 'Mistral Nemo', description: 'Open-weight model for general use', provider: 'Mistral', contextWindow: '128K context', isFavorite: false },
 ]
 
-export function ChatInput() {
+interface ChatInputProps {
+	onSendMessage: (content: string, model: string) => Promise<void>;
+	onStop?: () => void;
+	isStreaming?: boolean;
+	disabled?: boolean;
+}
+
+export const ChatInput = forwardRef<HTMLTextAreaElement, ChatInputProps>(
+	function ChatInput({ onSendMessage, onStop, isStreaming = false, disabled = false }, ref) {
 	const [message, setMessage] = useState('')
 	const [models, setModels] = useState(ALL_MODELS)
 	const [selectedModel, setSelectedModel] = useState(models.find(m => m.isFavorite) || models[0])
 	const [modelsModalOpen, setModelsModalOpen] = useState(false)
+	const { settings } = useSettings()
 
 	const favoriteModels = models.filter(m => m.isFavorite)
 
@@ -41,6 +48,45 @@ export function ChatInput() {
 	const handleSelectModel = (model: Model) => {
 		setSelectedModel(model)
 	}
+
+	const handleSend = useCallback(async () => {
+		if (!message.trim() || isStreaming || disabled) return
+		
+		const content = message.trim()
+		setMessage('') // Clear input immediately for better UX
+		
+		try {
+			await onSendMessage(content, selectedModel.id)
+		} catch (error) {
+			// Restore message if send fails
+			setMessage(content)
+			console.error('Failed to send message:', error)
+		}
+	}, [message, selectedModel.id, isStreaming, disabled, onSendMessage])
+
+	const handleKeyDown = useCallback((e: KeyboardEvent<HTMLTextAreaElement>) => {
+		// Shift+Enter always creates new line
+		if (e.key === 'Enter' && e.shiftKey) {
+			return
+		}
+		
+		// Check send keybinding setting
+		if (settings.sendKeybinding === 'enter') {
+			// Enter sends, Ctrl+Enter creates new line
+			if (e.key === 'Enter' && !e.ctrlKey) {
+				e.preventDefault()
+				handleSend()
+			}
+		} else {
+			// Ctrl+Enter sends, Enter creates new line
+			if (e.key === 'Enter' && e.ctrlKey) {
+				e.preventDefault()
+				handleSend()
+			}
+		}
+	}, [handleSend, settings.sendKeybinding])
+
+	const isDisabled = isStreaming || disabled || !message.trim()
 
 	return (
 		<div className="relative w-full">
@@ -57,14 +103,17 @@ export function ChatInput() {
 				))}
 			</div>
 
-			<div className="relative flex flex-col w-full bg-card/50 backdrop-blur-xl border border-border/50 rounded-2xl shadow-sm transition-all hover:border-primary/50 focus-within:border-primary focus-within:ring-1 focus-within:ring-primary/20 overflow-hidden">
+			<div className="relative flex flex-col w-full bg-[#252525] backdrop-blur-xl border border-border/50 rounded-2xl shadow-sm transition-all hover:border-primary/50 focus-within:border-primary focus-within:ring-1 focus-within:ring-primary/20 overflow-hidden">
 				{/* Input Field */}
 				<textarea
+					ref={ref}
 					value={message}
 					onChange={(e) => setMessage(e.target.value)}
+					onKeyDown={handleKeyDown}
 					placeholder="Start a new branch..."
-					className="w-full min-h-[60px] max-h-[200px] p-4 bg-transparent border-none outline-none text-base text-foreground placeholder:text-muted-foreground/50 resize-none font-sans"
+					className="w-full min-h-[60px] max-h-[200px] p-4 bg-transparent border-none outline-none text-base text-foreground placeholder:text-muted-foreground/50 resize-none font-sans disabled:opacity-50"
 					rows={1}
+					disabled={isStreaming || disabled}
 				/>
 
 				{/* Bottom Actions */}
@@ -128,13 +177,45 @@ export function ChatInput() {
 							</DropdownMenuContent>
 						</DropdownMenu>
 
-						<button
-							className="p-2 rounded-lg bg-primary text-primary-foreground shadow-[0_0_15px_-3px_var(--primary)] hover:opacity-90 transition-opacity"
-							disabled={!message}
-							aria-label="Send message"
+						{isStreaming ? (
+							<button
+								onClick={onStop}
+						className="relative p-2 rounded-lg hover:scale-105 transition-all duration-200 group"
+							aria-label="Stop generating"
+							title="Stop generating"
 						>
-							<ArrowUp className="w-4 h-4" />
-						</button>
+							<div className="relative w-8 h-8 flex items-center justify-center">
+								{/* Spinner ring */}
+								<svg
+								className="absolute inset-0 w-8 h-8 animate-spin group-hover:opacity-100 transition-opacity"
+									viewBox="0 0 32 32"
+									fill="none"
+								>
+									<circle
+										cx="16"
+										cy="16"
+										r="12"
+										stroke="currentColor"
+										strokeWidth="2.5"
+										strokeLinecap="round"
+										strokeDasharray="60 20"
+									className="text-primary opacity-80 group-hover:opacity-100"
+									/>
+								</svg>
+								{/* Pause icon in center */}
+							<Pause className="w-4 h-4 text-primary z-10 group-hover:scale-110 transition-transform" />
+							</div>
+							</button>
+						) : (
+							<button
+								onClick={handleSend}
+								className="p-2 rounded-lg bg-primary text-primary-foreground shadow-[0_0_15px_-3px_var(--primary)] hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
+								disabled={isDisabled}
+								aria-label="Send message"
+							>
+								<ArrowUp className="w-4 h-4" />
+							</button>
+						)}
 					</div>
 				</div>
 			</div>
@@ -155,4 +236,4 @@ export function ChatInput() {
 			/>
 		</div>
 	)
-}
+})
