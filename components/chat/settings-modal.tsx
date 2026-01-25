@@ -1,16 +1,23 @@
 'use client'
 
 import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogHeader,
-    DialogTitle,
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogHeader,
+	DialogTitle,
 } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { useSettings } from '@/hooks/use-settings'
-import { Check, Keyboard, Moon, PanelLeft, Settings as SettingsIcon } from 'lucide-react'
+import { Check, Keyboard, MessageSquare, Moon, PanelLeft, Settings as SettingsIcon } from 'lucide-react'
 import { useState } from 'react'
 
 interface SettingsModalProps {
@@ -35,15 +42,27 @@ export function SettingsModal({
 		showSavedIndicator()
 	}
 
+	const handleTruncateLengthChange = (value: string) => {
+		updateSettings({ messageTruncateLength: parseInt(value) })
+		showSavedIndicator()
+	}
+
+	const handleKeybindingChange = (value: 'enter' | 'ctrl-enter') => {
+		updateSettings({ sendKeybinding: value })
+		showSavedIndicator()
+	}
+
 	const showSavedIndicator = () => {
 		setShowSaved(true)
 		setTimeout(() => setShowSaved(false), 2000)
 	}
 
 	const keyboardShortcuts = [
+		{ keys: ['Ctrl', 'I'], description: 'Focus input' },
 		{ keys: ['Cmd', 'B'], description: 'Toggle sidebar' },
 		{ keys: ['Cmd', '/'], description: 'Open settings' },
 		{ keys: ['Esc'], description: 'Close modal' },
+		{ keys: ['Shift', 'Enter'], description: 'New line in message' },
 		{ keys: ['Cmd', 'K'], description: 'Command palette (coming soon)' },
 	]
 
@@ -121,6 +140,74 @@ export function SettingsModal({
 									onCheckedChange={handleCompactModeToggle}
 									className="data-[state=checked]:bg-[#57FCFF]"
 								/>
+							</div>
+						</div>
+					</div>
+
+					{/* Chat Section */}
+					<div className="space-y-4">
+						<div className="flex items-center gap-2 pb-2 border-b border-border/50">
+							<MessageSquare className="w-4 h-4 text-muted-foreground" />
+							<h3 className="text-sm font-semibold text-foreground uppercase tracking-wider">
+								Chat Preferences
+							</h3>
+						</div>
+						
+						<div className="space-y-4 pl-6">
+							<div className="space-y-2">
+								<Label htmlFor="truncate" className="text-sm font-medium text-foreground">
+									Message Truncate Length
+								</Label>
+								<p className="text-xs text-muted-foreground mb-2">
+									Long user messages will be collapsed beyond this length
+								</p>
+								<Select
+									value={settings.messageTruncateLength.toString()}
+									onValueChange={handleTruncateLengthChange}
+								>
+									<SelectTrigger id="truncate" className="w-full bg-sidebar/30 border-border/50">
+										<SelectValue />
+									</SelectTrigger>
+									<SelectContent className="bg-[#0a0d11]/95 backdrop-blur-xl border-border/50">
+										<SelectItem value="150">150 characters</SelectItem>
+										<SelectItem value="200">200 characters</SelectItem>
+										<SelectItem value="300">300 characters</SelectItem>
+										<SelectItem value="400">400 characters</SelectItem>
+										<SelectItem value="500">500 characters</SelectItem>
+										<SelectItem value="1000">1000 characters</SelectItem>
+									</SelectContent>
+								</Select>
+							</div>
+
+							<div className="space-y-2">
+								<Label htmlFor="keybinding" className="text-sm font-medium text-foreground">
+									Send Message Keybinding
+								</Label>
+								<p className="text-xs text-muted-foreground mb-2">
+									Choose how to send messages
+								</p>
+								<Select
+									value={settings.sendKeybinding}
+									onValueChange={(value) => handleKeybindingChange(value as 'enter' | 'ctrl-enter')}
+								>
+									<SelectTrigger id="keybinding" className="w-full bg-sidebar/30 border-border/50">
+										<SelectValue />
+									</SelectTrigger>
+									<SelectContent className="bg-[#0a0d11]/95 backdrop-blur-xl border-border/50">
+										<SelectItem value="enter">
+											<div className="flex flex-col items-start">
+												<span className="font-medium">Enter to send</span>
+												<span className="text-xs text-muted-foreground">Shift+Enter for new line</span>
+											</div>
+										</SelectItem>
+										<SelectItem value="ctrl-enter">
+											<div className="flex flex-col items-start">
+												<span className="font-medium">Ctrl+Enter to send</span>
+												<span className="text-xs text-muted-foreground">Enter for new line</span>
+											</div>
+										</SelectItem>
+									</SelectContent>
+								</Select>
 							</div>
 						</div>
 					</div>
