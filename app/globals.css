@@ -29,7 +29,7 @@
 	--chart-4: #f4a261;
 	--chart-5: #e76e50;
 	--radius: 0.5rem;
-    --sidebar: #f8fafc;
+	--sidebar: #f8fafc;
 	--sidebar-foreground: #0f172a;
 	--sidebar-primary: #18181b;
 	--sidebar-primary-foreground: #fafafa;
@@ -38,10 +38,10 @@
 	--sidebar-border: #e4e4e7;
 	--sidebar-ring: #a1a1aa;
 
-    /* Font variables mapped from Next.js */
+	/* Font variables mapped from Next.js */
 	--font-sans: var(--font-sans);
 	--font-serif: var(--font-serif);
-    --font-mono: Courier New, monospace;
+	--font-mono: Courier New, monospace;
 }
 
 .dark {
@@ -69,7 +69,7 @@
 	--chart-3: #fbbf24;
 	--chart-4: #a78bfa;
 	--chart-5: #fb7185;
-    --sidebar: #020617;
+	--sidebar: #020617;
 	--sidebar-foreground: #f8fafc;
 	--sidebar-primary: #f8fafc;
 	--sidebar-primary-foreground: #020617;
@@ -123,8 +123,8 @@
 }
 
 body {
-    background-color: var(--background);
-    color: var(--foreground);
-    font-family: var(--font-sans);
-    -webkit-font-smoothing: antialiased;
+	background-color: var(--background);
+	color: var(--foreground);
+	font-family: var(--font-sans);
+	-webkit-font-smoothing: antialiased;
 }

@@ -91,7 +91,10 @@ export default function RootLayout({
 	children: React.ReactNode
 }>) {
 	return (
-		<html lang="en" className={`dark ${manrope.variable} ${fraunces.variable} ${geist.variable}`}>
+		<html
+			lang="en"
+			className={`dark ${manrope.variable} ${fraunces.variable} ${geist.variable}`}
+		>
 			<head>
 				{process.env.NODE_ENV === 'development' && (
 					<Script
