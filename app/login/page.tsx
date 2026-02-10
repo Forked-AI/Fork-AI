@@ -16,6 +16,7 @@ export const dynamic = 'force-dynamic'
 export default function LoginPage() {
 	const [email, setEmail] = useState('')
 	const [password, setPassword] = useState('')
+	const [rememberMe, setRememberMe] = useState(false)
 	const [isLoading, setIsLoading] = useState(false)
 	const [error, setError] = useState('')
 
@@ -24,7 +25,7 @@ export default function LoginPage() {
 		setIsLoading(true)
 		setError('')
 		try {
-			await authClient.signIn.email({ email, password })
+			await authClient.signIn.email({ email, password, rememberMe })
 			// Redirect will be handled by Better Auth
 		} catch (err) {
 			setError('Invalid email or password')
@@ -35,7 +36,10 @@ export default function LoginPage() {
 
 	const handleGoogleSignIn = async () => {
 		try {
-			await authClient.signIn.social({ provider: 'google' })
+			await authClient.signIn.social({
+				provider: 'google',
+				callbackURL: '/chat',
+			})
 		} catch (err) {
 			setError('Failed to sign in with Google')
 		}
@@ -129,6 +133,8 @@ export default function LoginPage() {
 										<input
 											type="checkbox"
 											className="rounded border-white/20 bg-white/5 text-white focus:ring-white/20 transition-colors group-hover:border-white/40"
+											aria-label="Remember me"
+											onChange={(e) => setRememberMe(e.target.checked)}
 										/>
 										<span className="text-muted-foreground group-hover:text-white transition-colors">
 											Remember me

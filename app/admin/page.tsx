@@ -29,7 +29,10 @@ interface ChartDataPoint {
 type ExtendedUser = User & { role: string }
 
 export default function AdminDashboard() {
-	const [session, setSession] = useState<{ user: ExtendedUser; session: Session } | null>(null)
+	const [session, setSession] = useState<{
+		user: ExtendedUser
+		session: Session
+	} | null>(null)
 	const [sessionLoading, setSessionLoading] = useState(true)
 
 	const [stats, setStats] = useState<Stats | null>(null)
