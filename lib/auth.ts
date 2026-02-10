@@ -24,7 +24,6 @@ async function checkAccountStatus(email: string): Promise<{
 		where: { email },
 		select: {
 			id: true,
-			status: true,
 			banned: true,
 			banExpires: true,
 			banReason: true,
@@ -34,19 +33,6 @@ async function checkAccountStatus(email: string): Promise<{
 	if (!user) {
 		// User doesn't exist - let the normal flow handle this
 		return { isBlocked: false };
-	}
-
-	// Check if account is deactivated (soft deleted)
-	if (user.status === false) {
-		console.warn(
-			`[Auth] Blocked password reset attempt for deactivated account: ${email}`
-		);
-		return {
-			isBlocked: true,
-			errorCode: AUTH_ERROR_CODES.ACCOUNT_DEACTIVATED,
-			errorMessage:
-				"Your account has been deactivated. Please contact support if you wish to reactivate your account.",
-		};
 	}
 
 	// Check if account is banned
