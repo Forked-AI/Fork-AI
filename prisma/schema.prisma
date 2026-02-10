@@ -107,15 +107,16 @@ model Collection {
 }
 
 model Conversation {
-  id           String      @id @default(cuid())
-  title        String
-  userId       String
-  user         User        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  collectionId String?
-  collection   Collection? @relation(fields: [collectionId], references: [id], onDelete: SetNull)
-  messages     Message[]
-  createdAt    DateTime    @default(now())
-  updatedAt    DateTime    @updatedAt
+  id               String      @id @default(cuid())
+  title            String
+  userId           String
+  user             User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  collectionId     String?
+  collection       Collection? @relation(fields: [collectionId], references: [id], onDelete: SetNull)
+  messages         Message[]
+  activeMessageIds String?     @db.Text // JSON array of message IDs representing the active branch path
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
 
   @@index([userId])
   @@index([collectionId])
@@ -133,9 +134,25 @@ model Message {
   conversationId   String
   conversation     Conversation      @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   feedback         MessageFeedback[]
+  
+  // Tree structure for branching
+  parentMessageId  String?           @map("parent_message_id")
+  parentMessage    Message?          @relation("MessageTree", fields: [parentMessageId], references: [id], onDelete: SetNull)
+  childMessages    Message[]         @relation("MessageTree")
+  
+  // Graph visualization
+  positionX        Float?
+  positionY        Float?
+  
+  // Root nodes for branching history
+  isRootNode       Boolean           @default(false)
+  rootNodeName     String?
+  
   createdAt        DateTime          @default(now())
 
   @@index([conversationId])
+  @@index([parentMessageId])
+  @@index([isRootNode])
   @@map("message")
 }
 
