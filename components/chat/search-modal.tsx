@@ -8,10 +8,7 @@ import {
 	CommandItem,
 	CommandList,
 } from '@/components/ui/command'
-import {
-	Dialog,
-	DialogContent,
-} from '@/components/ui/dialog'
+import { Dialog, DialogContent } from '@/components/ui/dialog'
 import { History, Loader2, MessageSquare } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
@@ -62,9 +59,9 @@ export function SearchModal({ open, onOpenChange }: SearchModalProps) {
 				limit: '10',
 				...(search && { search }),
 			})
-			
+
 			const response = await fetch(`/api/conversations?${params}`)
-			
+
 			if (response.ok) {
 				const data = await response.json()
 				setResults(data.conversations)
@@ -81,19 +78,22 @@ export function SearchModal({ open, onOpenChange }: SearchModalProps) {
 	}, [])
 
 	// Debounced search
-	const handleSearchChange = useCallback((value: string) => {
-		setSearchQuery(value)
-		
-		// Clear previous debounce
-		if (debounceRef.current) {
-			clearTimeout(debounceRef.current)
-		}
+	const handleSearchChange = useCallback(
+		(value: string) => {
+			setSearchQuery(value)
 
-		// Debounce the search
-		debounceRef.current = setTimeout(() => {
-			fetchConversations(value)
-		}, 300)
-	}, [fetchConversations])
+			// Clear previous debounce
+			if (debounceRef.current) {
+				clearTimeout(debounceRef.current)
+			}
+
+			// Debounce the search
+			debounceRef.current = setTimeout(() => {
+				fetchConversations(value)
+			}, 300)
+		},
+		[fetchConversations]
+	)
 
 	// Cleanup debounce on unmount
 	useEffect(() => {
@@ -108,9 +108,11 @@ export function SearchModal({ open, onOpenChange }: SearchModalProps) {
 		// Navigate to the conversation
 		window.history.replaceState({}, '', `/chat?c=${conversationId}`)
 		// Trigger custom event to reload chat
-		window.dispatchEvent(new CustomEvent('chatChanged', { 
-			detail: { conversationId } 
-		}))
+		window.dispatchEvent(
+			new CustomEvent('chatChanged', {
+				detail: { conversationId },
+			})
+		)
 		onOpenChange(false)
 	}
 
@@ -133,14 +135,21 @@ export function SearchModal({ open, onOpenChange }: SearchModalProps) {
 	// Highlight matching text
 	const highlightMatch = (text: string, query: string) => {
 		if (!query.trim()) return text
-		
-		const regex = new RegExp(`(${query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi')
+
+		const regex = new RegExp(
+			`(${query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`,
+			'gi'
+		)
 		const parts = text.split(regex)
-		
-		return parts.map((part, i) => 
+
+		return parts.map((part, i) =>
 			regex.test(part) ? (
-				<span key={i} className="text-[#57FCFF] font-medium">{part}</span>
-			) : part
+				<span key={i} className="text-[#57FCFF] font-medium">
+					{part}
+				</span>
+			) : (
+				part
+			)
 		)
 	}
 
@@ -165,10 +174,10 @@ export function SearchModal({ open, onOpenChange }: SearchModalProps) {
 						) : (
 							<>
 								<CommandEmpty className="py-16 text-center text-muted-foreground/60">
-									{hasSearched 
-										? (searchQuery 
-											? `No results for "${searchQuery}"` 
-											: 'No conversations yet')
+									{hasSearched
+										? searchQuery
+											? `No results for "${searchQuery}"`
+											: 'No conversations yet'
 										: 'Start typing to search...'}
 								</CommandEmpty>
 								<CommandGroup className="p-0">
@@ -198,7 +207,9 @@ export function SearchModal({ open, onOpenChange }: SearchModalProps) {
 														{conversation.messageCount}
 													</span>
 													<span>•</span>
-													<span>{formatRelativeTime(conversation.updatedAt)}</span>
+													<span>
+														{formatRelativeTime(conversation.updatedAt)}
+													</span>
 												</div>
 											</div>
 										</CommandItem>

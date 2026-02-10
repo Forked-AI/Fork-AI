@@ -1,11 +1,11 @@
 'use client'
 
 import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogHeader,
-    DialogTitle,
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogHeader,
+	DialogTitle,
 } from '@/components/ui/dialog'
 import { LucideIcon } from 'lucide-react'
 
@@ -41,9 +41,12 @@ export function PlaceholderModal({
 					<div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-sidebar border border-border/50 mb-4">
 						<Icon className="w-8 h-8 text-muted-foreground" />
 					</div>
-					<h3 className="text-lg font-medium text-foreground mb-2">Coming Soon</h3>
+					<h3 className="text-lg font-medium text-foreground mb-2">
+						Coming Soon
+					</h3>
 					<p className="text-sm text-muted-foreground max-w-xs mx-auto">
-						This feature is currently under development and will be available in an upcoming release.
+						This feature is currently under development and will be available in
+						an upcoming release.
 					</p>
 				</div>
 			</DialogContent>

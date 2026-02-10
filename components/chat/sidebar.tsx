@@ -39,11 +39,13 @@ export function Sidebar() {
 	const { settings, updateSettings, isLoaded } = useSettings()
 	const [compactMode, setCompactMode] = useState(false)
 	const [isHovered, setIsHovered] = useState(false)
-	const [generatingTitles, setGeneratingTitles] = useState<Set<string>>(new Set())
+	const [generatingTitles, setGeneratingTitles] = useState<Set<string>>(
+		new Set()
+	)
 
 	// Fetch real conversations from API
-	const { 
-		conversations, 
+	const {
+		conversations,
 		isLoading: conversationsLoading,
 		deleteConversation,
 		isDeleting,
@@ -98,12 +100,16 @@ export function Sidebar() {
 
 	// Listen for title generation events
 	useEffect(() => {
-		const handleTitleGenerating = (e: CustomEvent<{ conversationId: string }>) => {
-			setGeneratingTitles(prev => new Set(prev).add(e.detail.conversationId))
+		const handleTitleGenerating = (
+			e: CustomEvent<{ conversationId: string }>
+		) => {
+			setGeneratingTitles((prev) => new Set(prev).add(e.detail.conversationId))
 		}
 
-		const handleTitleGenerated = (e: CustomEvent<{ conversationId: string }>) => {
-			setGeneratingTitles(prev => {
+		const handleTitleGenerated = (
+			e: CustomEvent<{ conversationId: string }>
+		) => {
+			setGeneratingTitles((prev) => {
 				const next = new Set(prev)
 				next.delete(e.detail.conversationId)
 				return next
@@ -111,45 +117,64 @@ export function Sidebar() {
 			invalidateConversations()
 		}
 
-		window.addEventListener('titleGenerating', handleTitleGenerating as EventListener)
-		window.addEventListener('titleGenerated', handleTitleGenerated as EventListener)
+		window.addEventListener(
+			'titleGenerating',
+			handleTitleGenerating as EventListener
+		)
+		window.addEventListener(
+			'titleGenerated',
+			handleTitleGenerated as EventListener
+		)
 		return () => {
-			window.removeEventListener('titleGenerating', handleTitleGenerating as EventListener)
-			window.removeEventListener('titleGenerated', handleTitleGenerated as EventListener)
+			window.removeEventListener(
+				'titleGenerating',
+				handleTitleGenerating as EventListener
+			)
+			window.removeEventListener(
+				'titleGenerated',
+				handleTitleGenerated as EventListener
+			)
 		}
 	}, [invalidateConversations])
 
 	const handleChatClick = useCallback((conversationId: string) => {
 		// Update URL and dispatch event
 		window.history.replaceState({}, '', `/chat?c=${conversationId}`)
-		window.dispatchEvent(new CustomEvent('chatChanged', { 
-			detail: { conversationId } 
-		}))
+		window.dispatchEvent(
+			new CustomEvent('chatChanged', {
+				detail: { conversationId },
+			})
+		)
 		setActiveItem(conversationId)
 	}, [])
 
 	const handleNewChat = useCallback(() => {
 		setActiveItem('new-chat')
 		window.history.replaceState({}, '', '/chat')
-		window.dispatchEvent(new CustomEvent('chatChanged', { 
-			detail: { newChat: true } 
-		}))
+		window.dispatchEvent(
+			new CustomEvent('chatChanged', {
+				detail: { newChat: true },
+			})
+		)
 	}, [])
 
-	const handleDeleteConversation = useCallback(async (e: React.MouseEvent, conversationId: string) => {
-		e.stopPropagation()
-		if (isDeleting) return
-		
-		try {
-			await deleteConversation(conversationId)
-			// If we deleted the active conversation, clear it
-			if (activeItem === conversationId) {
-				handleNewChat()
+	const handleDeleteConversation = useCallback(
+		async (e: React.MouseEvent, conversationId: string) => {
+			e.stopPropagation()
+			if (isDeleting) return
+
+			try {
+				await deleteConversation(conversationId)
+				// If we deleted the active conversation, clear it
+				if (activeItem === conversationId) {
+					handleNewChat()
+				}
+			} catch (error) {
+				console.error('Failed to delete conversation:', error)
 			}
-		} catch (error) {
-			console.error('Failed to delete conversation:', error)
-		}
-	}, [deleteConversation, isDeleting, activeItem, handleNewChat])
+		},
+		[deleteConversation, isDeleting, activeItem, handleNewChat]
+	)
 
 	const toggleCompactMode = () => {
 		const newCompact = !compactMode
@@ -208,7 +233,11 @@ export function Sidebar() {
 							<button
 								onClick={toggleCompactMode}
 								className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-sidebar-accent/30 rounded-md transition-all"
-								title={compactMode ? "Keep expanded" : "Collapse sidebar (hover to peek)"}
+								title={
+									compactMode
+										? 'Keep expanded'
+										: 'Collapse sidebar (hover to peek)'
+								}
 							>
 								{compactMode ? (
 									<PanelLeftOpen className="w-4 h-4" />
@@ -308,9 +337,13 @@ export function Sidebar() {
 											}`}
 										>
 											<div className="relative z-10 flex-shrink-0 mt-0.5">
-												<div className={`w-1.5 h-1.5 rounded-full transition-colors ${
-													activeItem === conv.id ? 'bg-primary' : 'bg-border group-hover:bg-foreground'
-												}`} />
+												<div
+													className={`w-1.5 h-1.5 rounded-full transition-colors ${
+														activeItem === conv.id
+															? 'bg-primary'
+															: 'bg-border group-hover:bg-foreground'
+													}`}
+												/>
 											</div>
 											<div className="min-w-0 flex-1">
 												{generatingTitles.has(conv.id) ? (

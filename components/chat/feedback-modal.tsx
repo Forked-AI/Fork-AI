@@ -128,7 +128,9 @@ export function FeedbackModal({
 					</button>
 					<button
 						onClick={handleSubmit}
-						disabled={isSubmitting || (selectedReasons.length === 0 && !comment.trim())}
+						disabled={
+							isSubmitting || (selectedReasons.length === 0 && !comment.trim())
+						}
 						className={cn(
 							'px-4 py-2 text-sm font-medium rounded-lg transition-colors',
 							isSubmitting || (selectedReasons.length === 0 && !comment.trim())

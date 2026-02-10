@@ -1,16 +1,16 @@
 'use client'
 
 import {
-    Dialog,
-    DialogContent,
-    DialogHeader,
-    DialogTitle,
+	Dialog,
+	DialogContent,
+	DialogHeader,
+	DialogTitle,
 } from '@/components/ui/dialog'
 import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuTrigger,
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { MoreVertical, Search, Star, X } from 'lucide-react'
 import { useState } from 'react'
@@ -44,7 +44,7 @@ export function ModelsModal({
 		useState<Model | null>(null)
 
 	const MAX_FAVORITES = 4
-	const favoriteCount = models.filter(m => m.isFavorite).length
+	const favoriteCount = models.filter((m) => m.isFavorite).length
 
 	const filteredModels = models.filter(
 		(model) =>
@@ -54,7 +54,7 @@ export function ModelsModal({
 	)
 
 	const handleToggleFavoriteWithLimit = (modelId: string) => {
-		const model = models.find(m => m.id === modelId)
+		const model = models.find((m) => m.id === modelId)
 		if (model && !model.isFavorite && favoriteCount >= MAX_FAVORITES) {
 			// Cannot add more favorites
 			return
@@ -72,17 +72,17 @@ export function ModelsModal({
 			<Dialog open={open} onOpenChange={onOpenChange}>
 				<DialogContent className="max-w-[95vw] sm:max-w-[85vw] md:max-w-[80vw] lg:max-w-[1200px] w-full h-[85vh] p-0 bg-[#0a0d11]/95 backdrop-blur-2xl border-[#57FCFF]/30 overflow-hidden">
 					<DialogHeader className="px-6 pt-6 pb-4 border-b border-[#57FCFF]/20">
-					<div className="flex items-center justify-between">
-						<DialogTitle className="text-xl font-semibold">
-							All Models
-						</DialogTitle>
-						<div className="flex items-center mr-3 gap-2 px-3 py-1.5 bg-card/30 border border-border/50 rounded-lg">
-							<Star className="w-4 h-4 fill-[#57FCFF] text-[#57FCFF]" />
-							<span className="text-sm font-medium text-foreground">
-								{favoriteCount}/{MAX_FAVORITES}
-							</span>
+						<div className="flex items-center justify-between">
+							<DialogTitle className="text-xl font-semibold">
+								All Models
+							</DialogTitle>
+							<div className="flex items-center mr-3 gap-2 px-3 py-1.5 bg-card/30 border border-border/50 rounded-lg">
+								<Star className="w-4 h-4 fill-[#57FCFF] text-[#57FCFF]" />
+								<span className="text-sm font-medium text-foreground">
+									{favoriteCount}/{MAX_FAVORITES}
+								</span>
+							</div>
 						</div>
-					</div>
 						{/* Search Bar */}
 						<div className="relative mt-4">
 							<Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -132,10 +132,12 @@ export function ModelsModal({
 												<DropdownMenuItem
 													onClick={(e) => {
 														e.stopPropagation()
-													handleToggleFavoriteWithLimit(model.id)
-												}}
-												className="flex items-center gap-2 cursor-pointer focus:bg-[#57FCFF]/10"
-												disabled={!model.isFavorite && favoriteCount >= MAX_FAVORITES}
+														handleToggleFavoriteWithLimit(model.id)
+													}}
+													className="flex items-center gap-2 cursor-pointer focus:bg-[#57FCFF]/10"
+													disabled={
+														!model.isFavorite && favoriteCount >= MAX_FAVORITES
+													}
 												>
 													<Star
 														className={`w-4 h-4 ${
@@ -270,7 +272,10 @@ export function ModelsModal({
 							<div className="flex gap-2 pt-4">
 								<button
 									onClick={() => {
-										if (!selectedModelDetails.isFavorite && favoriteCount >= MAX_FAVORITES) {
+										if (
+											!selectedModelDetails.isFavorite &&
+											favoriteCount >= MAX_FAVORITES
+										) {
 											return
 										}
 										onToggleFavorite(selectedModelDetails.id)
@@ -279,7 +284,10 @@ export function ModelsModal({
 											isFavorite: !selectedModelDetails.isFavorite,
 										})
 									}}
-									disabled={!selectedModelDetails.isFavorite && favoriteCount >= MAX_FAVORITES}
+									disabled={
+										!selectedModelDetails.isFavorite &&
+										favoriteCount >= MAX_FAVORITES
+									}
 									className="flex items-center gap-2 px-4 py-2 bg-card/50 border border-border/50 rounded-lg hover:border-[#57FCFF]/50 hover:bg-card/70 transition-all text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
 								>
 									<Star

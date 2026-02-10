@@ -17,14 +17,8 @@ export function SiteHeader() {
 	const [isScrolled, setIsScrolled] = useState(false)
 	const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
 	const [lastScrollY, setLastScrollY] = useState(0)
-	const pathname = usePathname()
-
-	// Hide header on chat page
-	if (pathname === '/chat') {
-		return null
-	}
-
 	const [session, setSession] = useState<any>(null)
+	const pathname = usePathname()
 
 	useEffect(() => {
 		const getSession = async () => {
@@ -92,6 +86,11 @@ export function SiteHeader() {
 		{ name: 'FAQ', id: 'faq' },
 	]
 
+	// Hide header on chat page
+	if (pathname === '/chat') {
+		return null
+	}
+
 	return (
 		<>
 			{/* Desktop Header */}
@@ -150,7 +149,17 @@ export function SiteHeader() {
 								Welcome, {session.user.name}
 							</span>
 							<button
-								onClick={() => authClient.signOut()}
+								onClick={async () => {
+									try {
+										await authClient.signOut()
+										// Refresh session state
+										setSession(null)
+										// Redirect to home page
+										window.location.href = '/'
+									} catch (error) {
+										console.error('Failed to logout:', error)
+									}
+								}}
 								className="font-medium text-muted-foreground text-sm cursor-pointer transition-all duration-200 hover:text-white hover:scale-105 relative group"
 							>
 								Log Out
@@ -240,7 +249,18 @@ export function SiteHeader() {
 											Welcome, {session.user.name}
 										</span>
 										<button
-											onClick={() => authClient.signOut()}
+											onClick={async () => {
+												try {
+													await authClient.signOut()
+													// Close mobile menu and refresh session
+													setIsMobileMenuOpen(false)
+													setSession(null)
+													// Redirect to home page
+													window.location.href = '/'
+												} catch (error) {
+													console.error('Failed to logout:', error)
+												}
+											}}
 											className="px-4 py-3 text-lg font-medium text-muted-foreground hover:text-white transition-all rounded-lg hover:bg-white/10 cursor-pointer"
 										>
 											Log Out
