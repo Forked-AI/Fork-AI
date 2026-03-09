@@ -2,9 +2,9 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
-	ChartContainer,
-	ChartTooltip,
-	ChartTooltipContent,
+    ChartContainer,
+    ChartTooltip,
+    ChartTooltipContent,
 } from '@/components/ui/chart'
 import { authClient } from '@/lib/auth-client'
 import { Session, User } from 'better-auth'
@@ -26,7 +26,7 @@ interface ChartDataPoint {
 	signups: number
 }
 
-type ExtendedUser = User & { role: string }
+type ExtendedUser = User & { role?: string | null }
 
 export default function AdminDashboard() {
 	const [session, setSession] = useState<{
