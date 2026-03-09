@@ -63,7 +63,9 @@ async function fetchConversations(
 		params.append("search", search.trim());
 	}
 
-	const response = await fetch(`/api/conversations?${params}`);
+	const response = await fetch(`/api/conversations?${params}`, {
+		credentials: "include",
+	});
 
 	if (!response.ok) {
 		const error = await response.json();
@@ -81,6 +83,7 @@ async function createConversation(data: {
 	const response = await fetch("/api/conversations", {
 		method: "POST",
 		headers: { "Content-Type": "application/json" },
+		credentials: "include",
 		body: JSON.stringify(data),
 	});
 
@@ -96,6 +99,7 @@ async function createConversation(data: {
 async function deleteConversation(id: string): Promise<void> {
 	const response = await fetch(`/api/conversations/${id}`, {
 		method: "DELETE",
+		credentials: "include",
 	});
 
 	if (!response.ok) {
@@ -112,6 +116,7 @@ async function updateConversation(
 	const response = await fetch(`/api/conversations/${id}`, {
 		method: "PATCH",
 		headers: { "Content-Type": "application/json" },
+		credentials: "include",
 		body: JSON.stringify(data),
 	});
 
@@ -215,6 +220,7 @@ export function useConversations(options: UseConversationsOptions = {}) {
 					`/api/conversations/${conversationId}/generate-title`,
 					{
 						method: "POST",
+						credentials: "include",
 					}
 				);
 
@@ -269,7 +275,8 @@ export function useConversation(conversationId: string | null) {
 			if (!conversationId) return null;
 
 			const response = await fetch(
-				`/api/conversations/${conversationId}`
+				`/api/conversations/${conversationId}`,
+				{ credentials: "include" }
 			);
 			if (!response.ok) {
 				const error = await response.json();

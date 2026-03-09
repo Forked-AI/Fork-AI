@@ -2,8 +2,9 @@
 
 import type { ChatGraph } from '@/lib/graph-adapter'
 import * as api from '@/lib/graph-api'
+import { fetchGraph } from '@/lib/graph-api'
 import { applyAutoLayout, calculateTreeLayout } from '@/lib/graph-layout'
-import { loadGraph, saveGraph, setConversationId } from '@/lib/graph-service'
+import { saveGraph, setConversationId } from '@/lib/graph-service'
 import { isDescendant } from '@/lib/tree'
 import { cn } from '@/lib/utils'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -59,6 +60,7 @@ export default function GraphMap({
 		x: number
 		y: number
 		nodeId: string
+		nodeRole: string
 	} | null>(null)
 	const dragOffset = useRef({ x: 0, y: 0 })
 
@@ -84,7 +86,8 @@ export default function GraphMap({
 	const { data: graph = { id: conversationId, nodes: [] } as ChatGraph } =
 		useQuery({
 			queryKey: ['chatGraph', conversationId],
-			queryFn: loadGraph,
+			queryFn: () => fetchGraph(conversationId),
+			enabled: !!conversationId,
 		})
 
 	// Apply auto-layout to nodes without positions
@@ -777,12 +780,15 @@ export default function GraphMap({
 
 	const handleContextMenu = (e: React.MouseEvent) => {
 		e.preventDefault()
-		const target = e.target as HTMLElement
-		if (target.dataset.nodeId) {
+		const target = (e.target as HTMLElement).closest(
+			'[data-node-id]'
+		) as HTMLElement | null
+		if (target?.dataset.nodeId) {
 			setContextMenu({
 				x: e.clientX,
 				y: e.clientY,
 				nodeId: target.dataset.nodeId,
+				nodeRole: target.dataset.nodeRole ?? '',
 			})
 		}
 	}
@@ -892,23 +898,25 @@ export default function GraphMap({
 		>
 			<div className="graph-vignette" />
 
-			<div className="absolute top-4 left-4 z-30 bg-background/90 backdrop-blur-sm border border-border rounded-lg p-3 text-xs space-y-2">
+			<div className="absolute top-4 left-4 z-30 bg-background/90 backdrop-blur-sm border border-border rounded-lg p-4 text-xs space-y-2">
 				<div className="flex items-center gap-2">
-					<div className="w-3 h-3 rounded-full bg-white shadow-[0_0_20px_rgba(255,255,255,0.8)]" />
-					<span className="text-foreground/80">Selected / Hovered</span>
+					<div className="w-3 h-3 rounded-full bg-white" />
+					<span className="text-foreground/80">User message</span>
 				</div>
 				<div className="flex items-center gap-2">
-					<div className="w-3 h-3 rounded-full bg-accent shadow-[0_0_12px_rgba(139,92,246,0.6)]" />
-					<span className="text-foreground/80">Connected (Parent/Child)</span>
+					<div className="w-3 h-3 rounded-full bg-accent" />
+					<span className="text-foreground/80">AI response</span>
 				</div>
 				<div className="flex items-center gap-2">
-					<div className="w-3 h-3 rounded-full bg-secondary" />
-					<span className="text-foreground/80">Unrelated</span>
+					<div className="relative w-3 h-3 rounded-full bg-amber-400">
+						<div className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-amber-400 border border-background rounded-full" />
+					</div>
+					<span className="text-foreground/80">Branch point</span>
 				</div>
-				<div className="flex items-center gap-2">
-					<div className="w-3 h-3 rounded-full ring-4 ring-accent animate-pulse" />
-					<span className="text-foreground/80">Drop Target</span>
-				</div>
+				{/* <div className="flex items-center gap-2">
+					<div className="w-3 h-3 rounded-full bg-white shadow-[0_0_20px_rgba(255,255,255,0.8)] ring-2 ring-white" />
+					<span className="text-foreground/80">Selected / active</span>
+				</div> */}
 			</div>
 
 			{/* Selection Counter */}
@@ -1119,6 +1127,7 @@ export default function GraphMap({
 						<div
 							key={node.id}
 							data-node-id={node.id}
+							data-node-role={node.role}
 							className={cn(
 								'absolute -translate-x-1/2 -translate-y-1/2 rounded-full cursor-pointer group transition-all duration-300 ease-out',
 								isSelected && 'ring-2 ring-white scale-125 z-20',
@@ -1127,9 +1136,11 @@ export default function GraphMap({
 								isDimmed ? 'opacity-10 scale-50' : 'opacity-100',
 								node.role === 'user'
 									? 'bg-white'
-									: node.role === 'assistant'
-										? 'bg-accent'
-										: 'bg-secondary'
+									: node.role === 'assistant' && childCount > 1
+										? 'bg-amber-400'
+										: node.role === 'assistant'
+											? 'bg-accent'
+											: 'bg-secondary'
 							)}
 							style={{
 								left: displayX,
@@ -1146,8 +1157,8 @@ export default function GraphMap({
 							onPointerEnter={() => setHoveredNodeId(node.id)}
 							onPointerLeave={() => setHoveredNodeId(null)}
 						>
-							{childCount > 0 && (
-								<div className="absolute -top-1 -right-1 w-3 h-3 bg-accent text-white text-[9px] font-bold rounded-full flex items-center justify-center z-10 shadow-sm border border-background">
+{childCount > 1 && (
+								<div className="absolute -top-1 -right-1 w-3 h-3 bg-background text-foreground text-[9px] font-bold rounded-full flex items-center justify-center z-10 shadow-sm border border-amber-400">
 									{childCount}
 								</div>
 							)}
@@ -1277,6 +1288,7 @@ export default function GraphMap({
 					x={contextMenu.x}
 					y={contextMenu.y}
 					nodeId={contextMenu.nodeId}
+					nodeRole={contextMenu.nodeRole}
 					onClose={() => setContextMenu(null)}
 					onAction={handleAction}
 				/>

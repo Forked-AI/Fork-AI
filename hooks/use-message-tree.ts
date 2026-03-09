@@ -161,8 +161,8 @@ export function useMessageTree(messages: Message[]): MessageTreeReturn {
 				const activeId = activeMessageIds.get(currentParentId);
 				const activeChild: Message = activeId
 					? (children.find((c: Message) => c.id === activeId) ??
-						children[0])
-					: children[0];
+						children[children.length - 1])
+					: children[children.length - 1];
 
 				path.push(activeChild);
 				currentParentId = activeChild.id;

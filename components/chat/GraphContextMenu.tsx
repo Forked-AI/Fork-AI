@@ -7,6 +7,7 @@ interface ContextMenuProps {
 	x: number
 	y: number
 	nodeId: string
+	nodeRole: string
 	onClose: () => void
 	onAction: (action: string) => void
 }
@@ -15,6 +16,7 @@ export default function ContextMenu({
 	x,
 	y,
 	nodeId,
+	nodeRole,
 	onClose,
 	onAction,
 }: ContextMenuProps) {
@@ -57,16 +59,18 @@ export default function ContextMenu({
 				<Copy size={14} className="text-gray-400 group-hover:text-white" />{' '}
 				Duplicate...
 			</button>
-			<button
-				onClick={() => {
-					onAction('branch')
-					onClose()
-				}}
-				className="w-full flex items-center gap-3 px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-accent-foreground hover:text-white hover:bg-accent/20 rounded-md transition-all group"
-			>
-				<GitBranch size={14} className="text-accent group-hover:text-white" />{' '}
-				Branch from Here
-			</button>
+			{nodeRole === 'assistant' && (
+				<button
+					onClick={() => {
+						onAction('branch')
+						onClose()
+					}}
+					className="w-full flex items-center gap-3 px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-accent-foreground hover:text-white hover:bg-accent/20 rounded-md transition-all group"
+				>
+					<GitBranch size={14} className="text-accent group-hover:text-white" />{' '}
+					Branch from Here
+				</button>
+			)}
 
 			<div className="h-px bg-border my-1" />
 

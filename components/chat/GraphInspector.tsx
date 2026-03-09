@@ -39,7 +39,7 @@ export default function InspectorPanel({
 		const childrenNodes = graph.nodes.filter((n) => childrenIds.includes(n.id))
 
 		return (
-			<div className="absolute top-0 right-0 w-96 h-full bg-background/80 backdrop-blur-xl border-l border-border z-30 flex flex-col custom-scrollbar overflow-y-auto">
+			<div className="absolute top-0 right-0 w-80 h-full bg-background/80 backdrop-blur-xl border-l border-border z-30 flex flex-col overflow-y-auto overflow-x-hidden custom-scrollbar">
 				<div className="p-6 flex items-center justify-between border-b border-border">
 					<div>
 						<span className="text-[10px] font-bold uppercase tracking-[0.2em] text-accent">
@@ -85,7 +85,7 @@ export default function InspectorPanel({
 						<h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-secondary">
 							Message
 						</h3>
-						<div className="text-sm leading-relaxed font-serif text-foreground/90 whitespace-pre-wrap selection:bg-accent/30">
+						<div className="text-sm leading-relaxed font-serif text-foreground/90 whitespace-pre-wrap break-words selection:bg-accent/30">
 							{selectedNode.text || 'No content'}
 						</div>
 					</div>
@@ -154,7 +154,7 @@ export default function InspectorPanel({
 
 	// Multi-node selection - show summary and batch actions
 	return (
-		<div className="absolute top-0 right-0 w-96 h-full bg-background/80 backdrop-blur-xl border-l border-border z-30 flex flex-col custom-scrollbar overflow-y-auto">
+		<div className="absolute top-0 right-0 w-80 h-full bg-background/80 backdrop-blur-xl border-l border-border z-30 flex flex-col overflow-y-auto overflow-x-hidden custom-scrollbar">
 			<div className="p-6 flex items-center justify-between border-b border-border">
 				<div>
 					<span className="text-[10px] font-bold uppercase tracking-[0.2em] text-accent">

@@ -12,7 +12,8 @@ const API_BASE = "/api";
  */
 export async function fetchGraph(conversationId: string): Promise<ChatGraph> {
 	const response = await fetch(
-		`${API_BASE}/conversations/${conversationId}/graph`
+		`${API_BASE}/conversations/${conversationId}/graph`,
+		{ credentials: "include" }
 	);
 
 	if (!response.ok) {
@@ -33,6 +34,7 @@ export async function updateNodePosition(
 	const response = await fetch(`${API_BASE}/messages/${nodeId}/position`, {
 		method: "PATCH",
 		headers: { "Content-Type": "application/json" },
+		credentials: "include",
 		body: JSON.stringify({ positionX: x, positionY: y }),
 	});
 
@@ -50,6 +52,7 @@ export async function batchUpdatePositions(
 	const response = await fetch(`${API_BASE}/messages/batch/position`, {
 		method: "PATCH",
 		headers: { "Content-Type": "application/json" },
+		credentials: "include",
 		body: JSON.stringify({ updates }),
 	});
 
@@ -70,6 +73,7 @@ export async function attachNodeToParent(
 	const response = await fetch(`${API_BASE}/messages/${nodeId}/attach`, {
 		method: "PATCH",
 		headers: { "Content-Type": "application/json" },
+		credentials: "include",
 		body: JSON.stringify({ parentMessageId: parentId }),
 	});
 
@@ -90,6 +94,7 @@ export async function attachAndUpdatePosition(
 	const response = await fetch(`${API_BASE}/messages/${nodeId}/drop`, {
 		method: "PATCH",
 		headers: { "Content-Type": "application/json" },
+		credentials: "include",
 		body: JSON.stringify({
 			parentMessageId: parentId,
 			positionX: x,
@@ -109,6 +114,7 @@ export async function duplicateNode(nodeId: string): Promise<GraphNode> {
 	const response = await fetch(`${API_BASE}/messages/${nodeId}/duplicate`, {
 		method: "POST",
 		headers: { "Content-Type": "application/json" },
+		credentials: "include",
 	});
 
 	if (!response.ok) {
@@ -129,6 +135,7 @@ export async function deleteNode(
 		`${API_BASE}/messages/${nodeId}?keepReplies=${keepReplies}`,
 		{
 			method: "DELETE",
+			credentials: "include",
 		}
 	);
 
