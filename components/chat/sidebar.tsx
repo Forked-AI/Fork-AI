@@ -5,6 +5,7 @@ import { PlaceholderModal } from '@/components/chat/placeholder-modal'
 import { SearchModal } from '@/components/chat/search-modal'
 import { SettingsModal } from '@/components/chat/settings-modal'
 import { Skeleton } from '@/components/ui/skeleton'
+import { useAuth } from '@/contexts/auth-context'
 import { useConversations } from '@/hooks/use-conversations'
 import { useSettings } from '@/hooks/use-settings'
 import {
@@ -37,6 +38,7 @@ export function Sidebar() {
 	const [collectionsOpen, setCollectionsOpen] = useState(false)
 	const [branchesOpen, setBranchesOpen] = useState(false)
 	const { settings, updateSettings, isLoaded } = useSettings()
+	const { user } = useAuth()
 	const [compactMode, setCompactMode] = useState(false)
 	const [isHovered, setIsHovered] = useState(false)
 	const [generatingTitles, setGeneratingTitles] = useState<Set<string>>(
@@ -50,7 +52,7 @@ export function Sidebar() {
 		deleteConversation,
 		isDeleting,
 		invalidateConversations,
-	} = useConversations({ limit: 10 })
+	} = useConversations({ limit: 10, enabled: !!user })
 
 	// Initialize compact mode from settings or screen size
 	useEffect(() => {
