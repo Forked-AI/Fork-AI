@@ -1,5 +1,6 @@
 'use client'
 
+import { ThemeApplier } from '@/components/chat/theme-applier'
 import { Toaster } from '@/components/ui/toaster'
 import { useEffect } from 'react'
 
@@ -24,6 +25,7 @@ export default function ChatLayoutWrapper({
 
 	return (
 		<>
+			<ThemeApplier />
 			{children}
 			<Toaster />
 		</>

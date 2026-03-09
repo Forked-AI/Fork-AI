@@ -3,6 +3,8 @@
 import { ScrollIndicator } from '@/components/scroll-indicator'
 import { SiteHeader } from '@/components/site-header'
 import { StickyFooter } from '@/components/sticky-footer'
+import { ThemeProvider } from '@/components/theme-provider'
+import { ThemeSynchronizer } from '@/components/theme-synchronizer'
 import { AuthProvider } from '@/contexts/auth-context'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { usePathname } from 'next/navigation'
@@ -38,14 +40,22 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
 	return (
 		<QueryClientProvider client={queryClient}>
-			<AuthProvider>
-				{!isAdminRoute && <SiteHeader />}
-				<main className={needsExtraPadding ? 'min-h-screen pb-96' : ''}>
-					{children}
-					{showScrollIndicator && <ScrollIndicator />}
-				</main>
-				{!shouldHideFooter && <StickyFooter />}
-			</AuthProvider>
+			<ThemeProvider
+				attribute="class"
+				defaultTheme="dark"
+				enableSystem
+				disableTransitionOnChange={false}
+			>
+				<ThemeSynchronizer />
+				<AuthProvider>
+					{!isAdminRoute && <SiteHeader />}
+					<main className={needsExtraPadding ? 'min-h-screen pb-96' : ''}>
+						{children}
+						{showScrollIndicator && <ScrollIndicator />}
+					</main>
+					{!shouldHideFooter && <StickyFooter />}
+				</AuthProvider>
+			</ThemeProvider>
 		</QueryClientProvider>
 	)
 }

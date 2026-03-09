@@ -1,31 +1,39 @@
 'use client'
 
+import { Button } from '@/components/ui/button'
 import {
-	Dialog,
-	DialogContent,
-	DialogDescription,
-	DialogHeader,
-	DialogTitle,
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogHeader,
+    DialogTitle,
 } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
 } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { useSettings } from '@/hooks/use-settings'
 import {
-	Check,
-	Keyboard,
-	MessageSquare,
-	Moon,
-	PanelLeft,
-	Settings as SettingsIcon,
+    Check,
+    ChevronRight,
+    Keyboard,
+    MessageSquare,
+    Moon,
+    Palette,
+    PanelLeft,
+    RotateCcw,
+    Settings as SettingsIcon,
+    Sparkles,
+    Zap,
 } from 'lucide-react'
 import { useState } from 'react'
+import { ChatBehaviorModal } from './chat-behavior-modal'
+import { ThemeCustomizationModal } from './theme-customization-modal'
 
 interface SettingsModalProps {
 	open: boolean
@@ -40,8 +48,10 @@ export function SettingsModal({
 	compactMode,
 	onCompactModeChange,
 }: SettingsModalProps) {
-	const { settings, updateSettings } = useSettings()
+	const { settings, updateSettings, resetToDefaults } = useSettings()
 	const [showSaved, setShowSaved] = useState(false)
+	const [themeModalOpen, setThemeModalOpen] = useState(false)
+	const [chatBehaviorModalOpen, setChatBehaviorModalOpen] = useState(false)
 
 	const handleCompactModeToggle = (checked: boolean) => {
 		onCompactModeChange(checked)
@@ -57,6 +67,26 @@ export function SettingsModal({
 	const handleKeybindingChange = (value: 'enter' | 'ctrl-enter') => {
 		updateSettings({ sendKeybinding: value })
 		showSavedIndicator()
+	}
+
+	const handleFeatureToggle = (
+		feature: keyof typeof settings.enabledFeatures,
+		checked: boolean
+	) => {
+		updateSettings({
+			enabledFeatures: {
+				...settings.enabledFeatures,
+				[feature]: checked,
+			},
+		})
+		showSavedIndicator()
+	}
+
+	const handleResetAll = () => {
+		if (confirm('Reset all settings to defaults? This cannot be undone.')) {
+			resetToDefaults()
+			showSavedIndicator()
+		}
 	}
 
 	const showSavedIndicator = () => {
@@ -75,16 +105,16 @@ export function SettingsModal({
 
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
-			<DialogContent className="bg-[#0a0d11]/80 backdrop-blur-xl border border-[#57FCFF]/20 sm:max-w-2xl max-h-[85vh] overflow-y-auto">
+			<DialogContent className="bg-[#0a0d11]/80 backdrop-blur-xl border border-primary/20 sm:max-w-2xl max-h-[85vh] overflow-y-auto">
 				<DialogHeader>
 					<DialogTitle className="text-foreground flex items-center gap-2">
-						<SettingsIcon className="w-5 h-5 text-[#57FCFF]" />
+						<SettingsIcon className="w-5 h-5 text-primary" />
 						Preferences
 					</DialogTitle>
 					<DialogDescription className="text-muted-foreground flex items-center gap-2">
 						Customize your Fork AI experience
 						{showSaved && (
-							<span className="inline-flex items-center gap-1 text-xs text-[#57FCFF]">
+							<span className="inline-flex items-center gap-1 text-xs text-primary">
 								<Check className="w-3 h-3" />
 								Saved locally
 							</span>
@@ -93,7 +123,203 @@ export function SettingsModal({
 				</DialogHeader>
 
 				<div className="space-y-6 py-4">
-					{/* Appearance Section */}
+					{/* Theme Section - Simplified */}
+					<div className="space-y-4">
+						<div className="flex items-center gap-2 pb-2 border-b border-border/50">
+							<Palette className="w-4 h-4 text-muted-foreground" />
+							<h3 className="text-sm font-semibold text-foreground uppercase tracking-wider">
+								Theme
+							</h3>
+						</div>
+
+						<div className="space-y-3 pl-6">
+							<button
+								onClick={() => setThemeModalOpen(true)}
+								className="w-full flex items-center justify-between p-3 rounded-lg border border-border/50 hover:border-primary/50 hover:bg-primary/5 transition-all text-left group"
+							>
+								<div className="flex-1">
+									<div className="flex items-center gap-2 mb-1">
+										<p className="text-sm font-medium">Customize Theme</p>
+										{settings.activePreset && (
+											<span className="text-xs text-muted-foreground">
+												({settings.activePreset})
+											</span>
+										)}
+									</div>
+									<p className="text-xs text-muted-foreground">
+										Colors, gradients, and visual effects
+									</p>
+								</div>
+								<div className="flex items-center gap-3">
+									<div className="flex items-center gap-1.5">
+										{/* Show theme preview: background, primary, secondary */}
+										<div
+											className="w-5 h-5 rounded-md border border-white/20"
+											style={{ backgroundColor: settings.themeBackground }}
+											title="Background"
+										/>
+										<div
+											className="w-4 h-4 rounded-full border border-white/20"
+											style={{ backgroundColor: settings.themePrimary }}
+											title="Primary"
+										/>
+										<div
+											className="w-3 h-3 rounded-full border border-white/20"
+											style={{ backgroundColor: settings.themeSecondary }}
+											title="Secondary"
+										/>
+									</div>
+									<ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" />
+								</div>
+							</button>
+
+							<div className="flex items-center justify-between">
+								<div className="space-y-0.5">
+									<Label className="text-sm font-medium">Theme Mode</Label>
+									<p className="text-xs text-muted-foreground">
+										{settings.theme === 'system'
+											? 'Follow system'
+											: settings.theme === 'dark'
+												? 'Dark'
+												: 'Light'}
+									</p>
+								</div>
+								<Select
+									value={settings.theme}
+									onValueChange={(value: 'dark' | 'light' | 'system') => {
+										updateSettings({ theme: value })
+										showSavedIndicator()
+									}}
+								>
+									<SelectTrigger className="w-32 bg-sidebar/30 border-border/50">
+										<SelectValue />
+									</SelectTrigger>
+									<SelectContent className="bg-[#0a0d11]/95 backdrop-blur-xl border-border/50">
+										<SelectItem value="dark">Dark</SelectItem>
+										<SelectItem value="light">Light</SelectItem>
+										<SelectItem value="system">System</SelectItem>
+									</SelectContent>
+								</Select>
+							</div>
+						</div>
+					</div>
+
+					{/* Chat Behavior Section - Simplified */}
+					<div className="space-y-4">
+						<div className="flex items-center gap-2 pb-2 border-b border-border/50">
+							<Zap className="w-4 h-4 text-muted-foreground" />
+							<h3 className="text-sm font-semibold text-foreground uppercase tracking-wider">
+								Chat Behavior
+							</h3>
+						</div>
+
+						<div className="space-y-3 pl-6">
+							<button
+								onClick={() => setChatBehaviorModalOpen(true)}
+								className="w-full flex items-center justify-between p-3 rounded-lg border border-border/50 hover:border-primary/50 hover:bg-primary/5 transition-all text-left group"
+							>
+								<div className="flex-1">
+									<p className="text-sm font-medium mb-1">
+										Configure AI Behavior
+									</p>
+									<p className="text-xs text-muted-foreground">
+										Temperature: {settings.chatTemperature.toFixed(1)} •
+										{settings.systemPrompt
+											? ' Custom prompt set'
+											: ' No prompt'}
+									</p>
+								</div>
+								<ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" />
+							</button>
+						</div>
+					</div>
+
+					{/* Feature Toggles Section */}
+					<div className="space-y-4">
+						<div className="flex items-center gap-2 pb-2 border-b border-border/50">
+							<Sparkles className="w-4 h-4 text-muted-foreground" />
+							<h3 className="text-sm font-semibold text-foreground uppercase tracking-wider">
+								Feature Toggles
+							</h3>
+						</div>
+
+						<div className="space-y-4 pl-6">
+							<div className="space-y-3">
+								<p className="text-xs font-medium text-muted-foreground">
+									Chat UI
+								</p>
+
+								<div className="flex items-center justify-between">
+									<Label className="text-sm font-medium">Show Timestamps</Label>
+									<Switch
+										checked={settings.enabledFeatures.showMessageTimestamps}
+										onCheckedChange={(checked) =>
+											handleFeatureToggle('showMessageTimestamps', checked)
+										}
+										className="data-[state=checked]:bg-primary"
+									/>
+								</div>
+
+								<div className="flex items-center justify-between">
+									<Label className="text-sm font-medium">
+										Markdown Preview
+									</Label>
+									<Switch
+										checked={settings.enabledFeatures.enableMarkdownPreview}
+										onCheckedChange={(checked) =>
+											handleFeatureToggle('enableMarkdownPreview', checked)
+										}
+										className="data-[state=checked]:bg-primary"
+									/>
+								</div>
+
+								<div className="flex items-center justify-between">
+									<Label className="text-sm font-medium">
+										Show Token Count
+									</Label>
+									<Switch
+										checked={settings.enabledFeatures.showTokenCount}
+										onCheckedChange={(checked) =>
+											handleFeatureToggle('showTokenCount', checked)
+										}
+										className="data-[state=checked]:bg-primary"
+									/>
+								</div>
+							</div>
+
+							<div className="space-y-3 pt-2">
+								<p className="text-xs font-medium text-muted-foreground">
+									System
+								</p>
+
+								<div className="flex items-center justify-between">
+									<Label className="text-sm font-medium">
+										Auto-Save Conversations
+									</Label>
+									<Switch
+										checked={settings.enabledFeatures.autoSaveConversations}
+										onCheckedChange={(checked) =>
+											handleFeatureToggle('autoSaveConversations', checked)
+										}
+										className="data-[state=checked]:bg-primary"
+									/>
+								</div>
+
+								<div className="flex items-center justify-between">
+									<Label className="text-sm font-medium">Sound Effects</Label>
+									<Switch
+										checked={settings.enabledFeatures.enableSoundEffects}
+										onCheckedChange={(checked) =>
+											handleFeatureToggle('enableSoundEffects', checked)
+										}
+										className="data-[state=checked]:bg-primary"
+									/>
+								</div>
+							</div>
+						</div>
+					</div>
+
+					{/* Appearance Section (simplified) */}
 					<div className="space-y-4">
 						<div className="flex items-center gap-2 pb-2 border-b border-border/50">
 							<Moon className="w-4 h-4 text-muted-foreground" />
@@ -102,27 +328,7 @@ export function SettingsModal({
 							</h3>
 						</div>
 
-						<div className="space-y-4 pl-6">
-							<div className="flex items-center justify-between">
-								<div className="space-y-0.5">
-									<Label
-										htmlFor="theme"
-										className="text-sm font-medium text-foreground"
-									>
-										Dark Mode
-									</Label>
-									<p className="text-xs text-muted-foreground">
-										Currently active (light mode coming soon)
-									</p>
-								</div>
-								<Switch
-									id="theme"
-									checked={true}
-									disabled
-									className="data-[state=checked]:bg-[#57FCFF]"
-								/>
-							</div>
-						</div>
+						<div className="space-y-4 pl-6"></div>
 					</div>
 
 					{/* Sidebar Section */}
@@ -151,7 +357,7 @@ export function SettingsModal({
 									id="compact"
 									checked={compactMode}
 									onCheckedChange={handleCompactModeToggle}
-									className="data-[state=checked]:bg-[#57FCFF]"
+									className="data-[state=checked]:bg-primary"
 								/>
 							</div>
 						</div>
@@ -278,6 +484,19 @@ export function SettingsModal({
 						</div>
 					</div>
 
+					{/* Reset Button */}
+					<div className="flex items-center justify-between pt-2">
+						<Button
+							variant="destructive"
+							size="sm"
+							onClick={handleResetAll}
+							className="gap-2"
+						>
+							<RotateCcw className="w-4 h-4" />
+							Reset All to Defaults
+						</Button>
+					</div>
+
 					{/* Info Note */}
 					<div className="bg-sidebar/30 border border-border/50 rounded-lg p-4">
 						<p className="text-xs text-muted-foreground">
@@ -288,6 +507,20 @@ export function SettingsModal({
 					</div>
 				</div>
 			</DialogContent>
+
+			{/* Sub-modals */}
+			<ThemeCustomizationModal
+				open={themeModalOpen}
+				onOpenChange={setThemeModalOpen}
+				settings={settings}
+				updateSettings={updateSettings}
+				showSavedIndicator={showSavedIndicator}
+			/>
+
+			<ChatBehaviorModal
+				open={chatBehaviorModalOpen}
+				onOpenChange={setChatBehaviorModalOpen}
+			/>
 		</Dialog>
 	)
 }

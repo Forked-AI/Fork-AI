@@ -1,23 +1,23 @@
 'use client'
 
 import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuSeparator,
-    DropdownMenuTrigger,
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuSeparator,
+	DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { useSettings } from '@/hooks/use-settings'
 import {
-    ArrowUp,
-    ChevronDown,
-    GitBranch,
-    Mic,
-    Paperclip,
-    Pause,
-    Sparkles,
-    Star,
-    X,
+	ArrowUp,
+	ChevronDown,
+	GitBranch,
+	Mic,
+	Paperclip,
+	Pause,
+	Sparkles,
+	Star,
+	X,
 } from 'lucide-react'
 import { forwardRef, KeyboardEvent, useCallback, useState } from 'react'
 import { ModelsModal, type Model } from './models-modal'
@@ -192,7 +192,7 @@ export const ChatInput = forwardRef<HTMLTextAreaElement, ChatInputProps>(
 								<GitBranch className="w-4 h-4 text-primary" />
 								<div className="flex-1 min-w-0">
 									<p className="text-xs text-primary font-medium">
-									Branching from message (editing creates alternative version)
+										Branching from message (editing creates alternative version)
 									</p>
 									<p className="text-xs text-muted-foreground truncate">
 										{branchContext.preview}
@@ -217,7 +217,7 @@ export const ChatInput = forwardRef<HTMLTextAreaElement, ChatInputProps>(
 							placeholder={
 								branchContext
 									? 'Continue from this point...'
-									: 'Start a new branch...'
+									: 'Ask anything...'
 							}
 							className="flex-1 resize-none border-0 bg-transparent px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none min-h-[44px] max-h-32"
 							rows={1}
@@ -251,22 +251,22 @@ export const ChatInput = forwardRef<HTMLTextAreaElement, ChatInputProps>(
 									</DropdownMenuTrigger>
 									<DropdownMenuContent
 										align="end"
-										className="w-72 bg-[#0a0d11]/95 backdrop-blur-2xl border-[#57FCFF]/30 shadow-xl"
+										className="w-72 bg-[#0a0d11]/95 backdrop-blur-2xl border-primary/30 shadow-xl"
 									>
 										{favoriteModels.map((model) => (
 											<DropdownMenuItem
 												key={model.id}
 												onSelect={() => handleSelectModel(model)}
-												className="flex items-start gap-3 px-3 py-2.5 cursor-pointer focus:bg-[#57FCFF]/10 focus:text-foreground"
+												className="flex items-start gap-3 px-3 py-2.5 cursor-pointer focus:bg-primary/10 focus:text-foreground"
 											>
-												<Star className="w-4 h-4 mt-0.5 fill-[#57FCFF] text-[#57FCFF] flex-shrink-0" />
+												<Star className="w-4 h-4 mt-0.5 fill-primary text-primary flex-shrink-0" />
 												<div className="flex-1 min-w-0">
 													<div className="flex items-center gap-2">
 														<span className="font-medium text-sm">
 															{model.name}
 														</span>
 														{selectedModel.id === model.id && (
-															<div className="w-1.5 h-1.5 rounded-full bg-[#57FCFF]" />
+															<div className="w-1.5 h-1.5 rounded-full bg-primary" />
 														)}
 													</div>
 													<span className="text-xs text-muted-foreground line-clamp-1">
@@ -276,11 +276,11 @@ export const ChatInput = forwardRef<HTMLTextAreaElement, ChatInputProps>(
 											</DropdownMenuItem>
 										))}
 
-										<DropdownMenuSeparator className="bg-[#57FCFF]/20" />
+										<DropdownMenuSeparator className="bg-primary/20" />
 
 										<DropdownMenuItem
 											onSelect={() => setModelsModalOpen(true)}
-											className="flex items-center gap-2 px-3 py-2.5 cursor-pointer focus:bg-[#57FCFF]/10 focus:text-foreground"
+											className="flex items-center gap-2 px-3 py-2.5 cursor-pointer focus:bg-primary/10 focus:text-foreground"
 										>
 											<Sparkles className="w-4 h-4 text-muted-foreground" />
 											<span className="font-medium text-sm">

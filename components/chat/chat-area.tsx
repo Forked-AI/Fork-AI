@@ -205,6 +205,10 @@ export function ChatArea() {
 					break
 				case 'branch':
 					if (nodeId) {
+						if (!user) {
+							setShowSignInModal(true)
+							return
+						}
 						setBranchFromMessageId(nodeId)
 						setShowGraphView(false)
 						scrollToMessage(nodeId)
@@ -231,7 +235,7 @@ export function ChatArea() {
 					console.log('Graph action:', action, nodeId)
 			}
 		},
-		[scrollToMessage]
+		[scrollToMessage, user]
 	)
 
 	const handleStartAttach = useCallback((nodeId: string) => {
@@ -352,9 +356,16 @@ export function ChatArea() {
 
 	const handleSendMessage = useCallback(
 		async (content: string, model: string) => {
-			await sendMessage(content, model)
+			// Branching requires an account — prompt guests to sign up
+			if (branchFromMessageId && !user) {
+				setShowSignInModal(true)
+				return
+			}
+			const branchId = branchFromMessageId
+			if (branchId) setBranchFromMessageId(null)
+			await sendMessage(content, model, branchId ?? undefined)
 		},
-		[sendMessage]
+		[sendMessage, branchFromMessageId, user]
 	)
 
 	const handleRetry = useCallback(
@@ -408,7 +419,7 @@ export function ChatArea() {
 		<main
 			className="flex-1 h-full relative flex flex-col overflow-hidden rounded-l-[29px]"
 			style={{
-				background: 'linear-gradient(180deg, #0A2727 0%, #0C1110 100%)',
+				background: 'var(--chat-background, var(--background))',
 			}}
 		>
 			{/* Static Blur Effect - Top Right */}
@@ -538,7 +549,7 @@ export function ChatArea() {
 
 			{/* Graph View */}
 			{showGraphView && conversationId && (
-				<div className="flex-1 relative z-30">
+				<div className="flex-1 relative z-30 overflow-hidden">
 					<GraphMap
 						conversationId={conversationId}
 						selectedNodeIds={selectedNodeIds}
@@ -553,7 +564,7 @@ export function ChatArea() {
 					{selectedNodeIds.size > 0 && (
 						<GraphInspector
 							selectedNodeIds={selectedNodeIds}
-							selectedNodes={displayedMessages
+							selectedNodes={messages
 								.filter((m) => selectedNodeIds.has(m.id))
 								.map((m) => ({
 									id: m.id,
@@ -571,7 +582,7 @@ export function ChatArea() {
 								}))}
 							graph={{
 								id: conversationId,
-								nodes: displayedMessages.map((m) => ({
+								nodes: messages.map((m) => ({
 									id: m.id,
 									role: m.role,
 									text: m.content,
@@ -618,6 +629,18 @@ export function ChatArea() {
 						onSendMessage={handleSendMessage}
 						onStop={stopGeneration}
 						isStreaming={isStreaming}
+						branchContext={
+							branchFromMessageId
+								? {
+										messageId: branchFromMessageId,
+										preview:
+											messages
+												.find((m) => m.id === branchFromMessageId)
+												?.content.slice(0, 80) ?? '',
+								  }
+								: null
+						}
+						onClearBranchContext={() => setBranchFromMessageId(null)}
 					/>
 				</div>
 			)}
@@ -989,12 +1012,12 @@ function MessageBubble({
 					{siblingNav && siblingNav.totalCount > 1 && (
 						<div className="mt-2 pt-2 border-t border-border/30 flex items-center justify-between">
 							<span className="text-xs text-muted-foreground">
-								Version {siblingNav.currentIndex + 1} of {siblingNav.totalCount}
+								Version {siblingNav.currentIndex} of {siblingNav.totalCount}
 							</span>
 							<div className="flex items-center gap-1">
 								<button
 									onClick={siblingNav.onPrevious}
-									disabled={siblingNav.currentIndex === 0}
+									disabled={siblingNav.currentIndex === 1}
 									className="p-1 rounded hover:bg-primary/10 disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
 									title="Previous version"
 								>
@@ -1003,7 +1026,7 @@ function MessageBubble({
 								<button
 									onClick={siblingNav.onNext}
 									disabled={
-										siblingNav.currentIndex === siblingNav.totalCount - 1
+										siblingNav.currentIndex === siblingNav.totalCount
 									}
 									className="p-1 rounded hover:bg-primary/10 disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
 									title="Next version"

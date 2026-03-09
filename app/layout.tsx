@@ -1,8 +1,8 @@
 import {
-	JsonLd,
-	organizationSchema,
-	productSchema,
-	softwareApplicationSchema,
+    JsonLd,
+    organizationSchema,
+    productSchema,
+    softwareApplicationSchema,
 } from '@/components/json-ld'
 import { Providers } from '@/components/providers'
 import { fraunces, geist, manrope } from '@/lib/fonts'
@@ -93,7 +93,8 @@ export default function RootLayout({
 	return (
 		<html
 			lang="en"
-			className={`dark ${manrope.variable} ${fraunces.variable} ${geist.variable}`}
+			className={`${manrope.variable} ${fraunces.variable} ${geist.variable}`}
+			suppressHydrationWarning
 		>
 			<head>
 				{process.env.NODE_ENV === 'development' && (
@@ -119,7 +120,7 @@ export default function RootLayout({
 					`}
 				</Script>
 			</head>
-			<body className="dark" suppressHydrationWarning>
+			<body suppressHydrationWarning>
 				<Providers>{children}</Providers>
 			</body>
 		</html>

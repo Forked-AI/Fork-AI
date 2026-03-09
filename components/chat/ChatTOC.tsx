@@ -146,7 +146,7 @@ export function ChatTOC({
 				<Checkbox
 					checked={allSelected}
 					onCheckedChange={handleSelectAllToggle}
-					className="h-3.5 w-3.5 border-white/20 data-[state=checked]:bg-[#57FCFF] data-[state=checked]:text-black"
+					className="h-3.5 w-3.5"
 				/>
 				<span className="text-[10px] font-semibold text-muted-foreground/90 flex-1 uppercase tracking-wider">
 					{allSelected ? 'Deselect' : 'Select all'}
@@ -154,7 +154,7 @@ export function ChatTOC({
 				{someSelected && (
 					<button
 						onClick={handleShare}
-						className="flex items-center gap-1.5 px-2 py-0.5 text-[10px] font-bold text-[#57FCFF] bg-[#57FCFF]/10 hover:bg-[#57FCFF]/20 rounded transition-all hover:scale-105"
+						className="flex items-center gap-1.5 px-2 py-0.5 text-[10px] font-bold text-primary bg-primary/10 hover:bg-primary/20 rounded transition-all hover:scale-105"
 					>
 						<Share2 className="w-3 h-3" />
 						<span>{selectedMessageIds.size}</span>
@@ -179,25 +179,25 @@ export function ChatTOC({
 												className={cn(
 													'flex items-center gap-3 px-4 py-2 cursor-pointer group',
 													'transition-all duration-200',
-													'hover:bg-white/5',
+													'hover:bg-accent/50',
 													isActive &&
-														'bg-white/[0.03] border-l-2 border-[#57FCFF] pl-[14px]', // Compensate padding for border
+														'bg-accent/10 border-l-2 border-primary pl-[14px]', // Compensate padding for border
 													!isActive && 'border-l-2 border-transparent',
 													!isUser && 'pl-7' // Indent assistant messages
 												)}
 											>
-												<Checkbox
-													checked={isSelected}
-													onCheckedChange={() => onToggleSelection(message.id)}
-													onClick={(e) => e.stopPropagation()}
-													className={cn(
-														'h-3 w-3 shrink-0 rounded-sm border-white/20 transition-opacity',
-														'data-[state=checked]:bg-[#57FCFF] data-[state=checked]:text-black',
-														isSelected || isActive
-															? 'opacity-100'
-															: 'opacity-0 group-hover:opacity-100' // Hide checkbox unless selected, active or hovered
-													)}
-												/>
+													<Checkbox
+														checked={isSelected}
+														onCheckedChange={() => onToggleSelection(message.id)}
+														onClick={(e) => e.stopPropagation()}
+														className={cn(
+															'h-3 w-3 shrink-0 border-border transition-opacity',
+															'data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground',
+															isSelected || isActive
+																? 'opacity-100'
+																: 'opacity-0 group-hover:opacity-100' // Hide checkbox unless selected, active or hovered
+														)}
+													/>
 												<div
 													className="flex items-start gap-2.5 flex-1 min-w-0"
 													onClick={() => {
@@ -206,7 +206,7 @@ export function ChatTOC({
 													}}
 												>
 													{isUser ? (
-														<User className="w-3.5 h-3.5 text-[#57FCFF] shrink-0 mt-0.5" />
+														<User className="w-3.5 h-3.5 text-primary shrink-0 mt-0.5" />
 													) : (
 														<Bot className="w-3.5 h-3.5 text-muted-foreground/60 shrink-0 mt-0.5" />
 													)}
@@ -217,7 +217,7 @@ export function ChatTOC({
 																isUser
 																	? 'text-foreground/90 font-medium'
 																	: 'text-muted-foreground/70',
-																isActive && 'text-[#57FCFF]'
+																isActive && 'text-primary'
 															)}
 														>
 															{truncateText(message.content, 30)}
@@ -228,10 +228,10 @@ export function ChatTOC({
 										</TooltipTrigger>
 										<TooltipContent
 											side="left"
-											className="max-w-[280px] text-xs backdrop-blur-xl bg-[#0C1110]/95 border-white/10 text-white/90 shadow-2xl"
+											className="max-w-[280px] text-xs backdrop-blur-xl bg-popover/95 border-border text-popover-foreground shadow-2xl"
 											sideOffset={10}
 										>
-											<p className="font-semibold mb-1.5 text-[#57FCFF] text-[10px] uppercase tracking-wider">
+											<p className="font-semibold mb-1.5 text-primary text-[10px] uppercase tracking-wider">
 												{isUser ? 'You' : message.model || 'Assistant'}
 											</p>
 											<p className="leading-relaxed opacity-80">
@@ -272,11 +272,11 @@ export function ChatTOC({
 							lineWidth,
 							isActive
 								? isUser
-									? 'bg-[#57FCFF] shadow-[0_0_8px_rgba(87,252,255,0.6)]'
-									: 'bg-white shadow-[0_0_8px_rgba(255,255,255,0.4)]'
-								: isUser
-									? 'bg-[#57FCFF]/40 hover:bg-[#57FCFF]/80'
-									: 'bg-white/20 hover:bg-white/50'
+										? 'bg-primary shadow-sm'
+										: 'bg-foreground shadow-sm'
+							: isUser
+								? 'bg-primary/40 hover:bg-primary/80'
+								: 'bg-foreground/20 hover:bg-foreground/50'
 						)}
 					/>
 				)
@@ -305,7 +305,7 @@ export function ChatTOC({
 					className={cn(
 						'w-full rounded-2xl overflow-hidden backdrop-blur-xl border transition-colors duration-300',
 						isExpanded
-							? 'bg-[#0A0F0F]/90 border-white/10 shadow-2xl shadow-black/50'
+						? 'bg-popover/90 border-border shadow-2xl shadow-black/50'
 							: 'bg-transparent border-transparent'
 					)}
 					layout
@@ -327,15 +327,15 @@ export function ChatTOC({
 						<button
 							className={cn(
 								'flex items-center justify-center w-11 h-11 rounded-full',
-								'bg-[#0C1110]/90 backdrop-blur-md border border-white/10',
-								'shadow-lg hover:bg-black hover:scale-105 relative',
-								'transition-all duration-300 ease-out',
-								'active:scale-95'
-							)}
-						>
-							<List className="w-5 h-5 text-white/90" />
-							{someSelected && (
-								<span className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-[#57FCFF] text-[10px] font-bold text-black flex items-center justify-center shadow-md">
+							'bg-popover/90 backdrop-blur-md border border-border',
+							'shadow-lg hover:bg-card hover:scale-105 relative',
+							'transition-all duration-300 ease-out',
+							'active:scale-95'
+						)}
+					>
+						<List className="w-5 h-5 text-foreground/90" />
+						{someSelected && (
+							<span className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-primary text-[10px] font-bold text-primary-foreground flex items-center justify-center shadow-md">
 									{selectedMessageIds.size}
 								</span>
 							)}
@@ -343,10 +343,10 @@ export function ChatTOC({
 					</SheetTrigger>
 					<SheetContent
 						side="right"
-						className="w-[300px] p-0 border-l border-white/10 bg-[#0C1110]"
+						className="w-[300px] p-0 border-l border-border bg-popover"
 					>
-						<SheetHeader className="p-5 pb-2 border-b border-white/10">
-							<SheetTitle className="text-sm font-bold tracking-wide uppercase text-white/80">
+						<SheetHeader className="p-5 pb-2 border-b border-border">
+							<SheetTitle className="text-sm font-bold tracking-wide uppercase text-foreground/80">
 								Contents
 							</SheetTitle>
 						</SheetHeader>
