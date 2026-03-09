@@ -18,7 +18,7 @@ const updateCollectionSchema = z.object({
 
 export async function PUT(
 	request: Request,
-	{ params }: { params: { id: string } }
+	{ params }: { params: Promise<{ id: string }> }
 ) {
 	try {
 		const session = await auth.api.getSession({
@@ -33,7 +33,7 @@ export async function PUT(
 		}
 
 		const userId = session.user.id;
-		const collectionId = params.id;
+		const { id: collectionId } = await params;
 		const body = await request.json();
 
 		const result = updateCollectionSchema.safeParse(body);
@@ -78,7 +78,7 @@ export async function PUT(
 
 export async function DELETE(
 	request: Request,
-	{ params }: { params: { id: string } }
+	{ params }: { params: Promise<{ id: string }> }
 ) {
 	try {
 		const session = await auth.api.getSession({
@@ -93,7 +93,7 @@ export async function DELETE(
 		}
 
 		const userId = session.user.id;
-		const collectionId = params.id;
+		const { id: collectionId } = await params;
 
 		// Check ownership
 		const existing = await prisma.collection.findFirst({

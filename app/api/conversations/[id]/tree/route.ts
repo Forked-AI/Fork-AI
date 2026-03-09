@@ -10,7 +10,7 @@ import { NextRequest, NextResponse } from "next/server";
  */
 export async function GET(
 	request: NextRequest,
-	{ params }: { params: { id: string } }
+	{ params }: { params: Promise<{ id: string }> }
 ) {
 	try {
 		const session = await auth.api.getSession({
@@ -24,10 +24,12 @@ export async function GET(
 			);
 		}
 
+		const { id: conversationId } = await params;
+
 		// Verify conversation belongs to user
 		const conversation = await prisma.conversation.findFirst({
 			where: {
-				id: params.id,
+				id: conversationId,
 				userId: session.user.id,
 			},
 		});
@@ -42,7 +44,7 @@ export async function GET(
 		// Get all messages
 		const messages = await prisma.message.findMany({
 			where: {
-				conversationId: params.id,
+				conversationId,
 			},
 			orderBy: {
 				createdAt: "asc",

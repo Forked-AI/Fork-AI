@@ -100,7 +100,7 @@ export async function PATCH(
 		const { id: conversationId } = await params;
 		const body = await request.json();
 
-		const result = moveConversationSchema.safeParse(body);
+		const result = updateConversationSchema.safeParse(body);
 		if (!result.success) {
 			return NextResponse.json(
 				{ error: result.error.errors[0].message },
@@ -108,7 +108,7 @@ export async function PATCH(
 			);
 		}
 
-		const { collectionId } = result.data;
+		const { title, collectionId } = result.data;
 
 		// Check conversation ownership
 		const existing = await prisma.conversation.findFirst({
@@ -136,10 +136,15 @@ export async function PATCH(
 			}
 		}
 
+		// Build update data - only include provided fields
+		const updateData: { title?: string; collectionId?: string | null } = {};
+		if (title !== undefined) updateData.title = title;
+		if (collectionId !== undefined) updateData.collectionId = collectionId;
+
 		// Update conversation
 		const conversation = await prisma.conversation.update({
 			where: { id: conversationId },
-			data: { collectionId },
+			data: updateData,
 		});
 
 		return NextResponse.json({ conversation });

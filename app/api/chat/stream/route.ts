@@ -105,11 +105,63 @@ export async function POST(request: Request) {
 		// 5. Get or create conversation (skip for guests)
 		let conversation: any = null;
 		let isNewConversation = false;
-	let userMessage: any = null;
-	let messageHistory: Array<{
-		role: "user" | "assistant" | "system";
-		content: string;
+		let userMessage: any = null;
+		let messageHistory: Array<{
+			role: "user" | "assistant" | "system";
+			content: string;
 		}> = [];
+
+		const buildMessageHistory = async (
+			conversationIdToUse: string,
+			branchParentId?: string | null
+		): Promise<Array<{ role: "user" | "assistant" | "system"; content: string }>> => {
+			// Normal linear path: full ordered history
+			if (!branchParentId) {
+				const linearMessages = await prisma.message.findMany({
+					where: { conversationId: conversationIdToUse },
+					orderBy: { createdAt: "asc" },
+					select: { role: true, content: true },
+				});
+
+				return linearMessages.map((m) => ({
+					role: m.role as "user" | "assistant" | "system",
+					content: m.content,
+				}));
+			}
+
+			// Branch path: walk ancestors from selected parent back to root
+			const ancestorPath: Array<{ role: "user" | "assistant" | "system"; content: string }> = [];
+			let currentId: string | null = branchParentId;
+
+			while (currentId) {
+				const messageNode: {
+					role: string;
+					content: string;
+					parentMessageId: string | null;
+				} | null = await prisma.message.findFirst({
+					where: {
+						id: currentId,
+						conversationId: conversationIdToUse,
+					},
+					select: {
+						role: true,
+						content: true,
+						parentMessageId: true,
+					},
+				});
+
+				if (!messageNode) break;
+
+				ancestorPath.unshift({
+					role: messageNode.role as "user" | "assistant" | "system",
+					content: messageNode.content,
+				});
+
+				currentId = messageNode.parentMessageId ?? null;
+			}
+
+			return ancestorPath;
+		};
 
 		if (!isGuest) {
 			if (conversationId) {
@@ -152,28 +204,28 @@ export async function POST(request: Request) {
 				isNewConversation = true;
 			}
 
-			// 6. Save user message to database
-		userMessage = await prisma.message.create({
-			data: {
-				role: "user",
-				content: message,
-				conversationId: conversation.id,
-				parentMessageId: parentMessageId || null,
-			},
-		});
+			// 6. Build message history for Mistral
+			messageHistory = await buildMessageHistory(
+				conversation.id,
+				parentMessageId
+			);
 
-		// 7. Build message history for Mistral
-		messageHistory = [
-			...conversation.messages.map((m: any) => ({
-				role: m.role as "user" | "assistant" | "system",
-				content: m.content,
-			})),
-			{ role: "user" as const, content: message },
-		];
-	} else {
-		// For guest users, only send the current message (no history)
-		messageHistory = [{ role: "user" as const, content: message }];
-	}
+			// 7. Save user message to database
+			userMessage = await prisma.message.create({
+				data: {
+					role: "user",
+					content: message,
+					conversationId: conversation.id,
+					parentMessageId: parentMessageId || null,
+				},
+			});
+
+			// 8. Append current prompt as newest user turn
+			messageHistory = [...messageHistory, { role: "user", content: message }];
+		} else {
+			// For guest users, only send the current message (no history)
+			messageHistory = [{ role: "user", content: message }];
+		}
 
 	// 8. Create streaming response
 	const encoder = new TextEncoder();
@@ -289,6 +341,7 @@ export async function POST(request: Request) {
 							content: fullResponse,
 							model: mistralModel,
 							conversationId: conversation.id,
+							parentMessageId: userMessage?.id ?? null,
 							isError: true,
 						},
 					});
