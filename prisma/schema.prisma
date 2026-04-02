@@ -32,6 +32,7 @@ model User {
   accounts      Account[]
   collections   Collection[]
   conversations Conversation[]
+  sharedConversations SharedConversation[]
 
   banned     Boolean?  @default(false)
   banReason  String?
@@ -114,6 +115,7 @@ model Conversation {
   collectionId     String?
   collection       Collection? @relation(fields: [collectionId], references: [id], onDelete: SetNull)
   messages         Message[]
+  sharedConversations SharedConversation[]
   activeMessageIds String?     @db.Text // JSON array of message IDs representing the active branch path
   createdAt        DateTime    @default(now())
   updatedAt        DateTime    @updatedAt
@@ -169,4 +171,31 @@ model MessageFeedback {
   @@index([messageId])
   @@index([userId])
   @@map("message_feedback")
+}
+
+model SharedConversation {
+  id                 String    @id @default(cuid())
+  conversationId     String
+  shareToken         String    @unique                // 10-char random token used in public URL
+  createdBy          String
+  selectedMessageIds String    @db.Text               // JSON: string[] ordered list of message IDs
+  snapshotData       String    @db.Text               // JSON: MessageSnapshot[] frozen at share time
+  title              String                           // snapshot of conversation title at share time
+  createdAt          DateTime  @default(now())
+  expiresAt          DateTime?
+  isActive           Boolean   @default(true)
+  accessCount        Int       @default(0)
+
+  // Privacy settings
+  allowDownload      Boolean   @default(false)
+  showTimestamps     Boolean   @default(true)
+  showModel          Boolean   @default(true)
+
+  user               User      @relation(fields: [createdBy], references: [id], onDelete: Cascade)
+  conversation       Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([shareToken])
+  @@index([createdBy])
+  @@index([conversationId])
+  @@map("shared_conversation")
 }

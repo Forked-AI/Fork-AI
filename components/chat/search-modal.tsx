@@ -1,12 +1,12 @@
 'use client'
 
 import {
-	Command,
-	CommandEmpty,
-	CommandGroup,
-	CommandInput,
-	CommandItem,
-	CommandList,
+    Command,
+    CommandEmpty,
+    CommandGroup,
+    CommandInput,
+    CommandItem,
+    CommandList,
 } from '@/components/ui/command'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
 import { History, Loader2, MessageSquare } from 'lucide-react'
@@ -155,7 +155,7 @@ export function SearchModal({ open, onOpenChange }: SearchModalProps) {
 
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
-			<DialogContent className="bg-[#0a0d11]/95 backdrop-blur-2xl border border-[#57FCFF]/30 shadow-2xl sm:max-w-3xl p-0 gap-0 max-h-[600px]">
+			<DialogContent className="bg-popover border border-primary/30 shadow-2xl sm:max-w-3xl p-0 gap-0 max-h-[600px]">
 				<Command className="bg-transparent border-0" shouldFilter={false}>
 					<div className="px-6 py-5 border-b border-[#57FCFF]/20">
 						<CommandInput

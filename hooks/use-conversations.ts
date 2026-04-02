@@ -138,6 +138,11 @@ export function useConversations(options: UseConversationsOptions = {}) {
 	} = options;
 	const queryClient = useQueryClient();
 
+	const invalidateConversationRelatedQueries = () => {
+		queryClient.invalidateQueries({ queryKey: ["conversations"] });
+		queryClient.invalidateQueries({ queryKey: ["collections"] });
+	};
+
 	// Query for fetching conversations
 	const conversationsQuery = useQuery({
 		queryKey: ["conversations", { page, limit, collectionId, search }],
@@ -150,7 +155,7 @@ export function useConversations(options: UseConversationsOptions = {}) {
 	const createMutation = useMutation({
 		mutationFn: createConversation,
 		onSuccess: () => {
-			queryClient.invalidateQueries({ queryKey: ["conversations"] });
+			invalidateConversationRelatedQueries();
 		},
 	});
 
@@ -158,7 +163,7 @@ export function useConversations(options: UseConversationsOptions = {}) {
 	const deleteMutation = useMutation({
 		mutationFn: deleteConversation,
 		onSuccess: () => {
-			queryClient.invalidateQueries({ queryKey: ["conversations"] });
+			invalidateConversationRelatedQueries();
 		},
 	});
 
@@ -173,13 +178,13 @@ export function useConversations(options: UseConversationsOptions = {}) {
 			collectionId?: string | null;
 		}) => updateConversation(id, data),
 		onSuccess: () => {
-			queryClient.invalidateQueries({ queryKey: ["conversations"] });
+			invalidateConversationRelatedQueries();
 		},
 	});
 
 	// Helper to invalidate conversations cache
 	const invalidateConversations = () => {
-		queryClient.invalidateQueries({ queryKey: ["conversations"] });
+		invalidateConversationRelatedQueries();
 	};
 
 	return {

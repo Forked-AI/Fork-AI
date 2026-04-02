@@ -9,6 +9,35 @@ const createCollectionSchema = z.object({
 	color: z.string().regex(/^#[0-9A-Fa-f]{6}$/, "Invalid color format"),
 });
 
+async function normalizeLegacyDefaultCollections(userId: string) {
+	const legacyDefaults = await prisma.collection.findMany({
+		where: { userId, isDefault: true },
+		select: { id: true },
+	});
+
+	if (legacyDefaults.length === 0) {
+		return;
+	}
+
+	const legacyDefaultIds = legacyDefaults.map((collection) => collection.id);
+
+	await prisma.$transaction([
+		prisma.conversation.updateMany({
+			where: {
+				userId,
+				collectionId: { in: legacyDefaultIds },
+			},
+			data: { collectionId: null },
+		}),
+		prisma.collection.deleteMany({
+			where: {
+				userId,
+				id: { in: legacyDefaultIds },
+			},
+		}),
+	]);
+}
+
 export async function GET() {
 	try {
 		const session = await auth.api.getSession({
@@ -23,9 +52,13 @@ export async function GET() {
 		}
 
 		const userId = session.user.id;
+		await normalizeLegacyDefaultCollections(userId);
 
-		let collections = await prisma.collection.findMany({
-			where: { userId },
+		const collections = await prisma.collection.findMany({
+			where: {
+				userId,
+				isDefault: false,
+			},
 			orderBy: { createdAt: "asc" },
 			include: {
 				_count: {
@@ -33,24 +66,6 @@ export async function GET() {
 				},
 			},
 		});
-
-		// Auto-create "Uncategorized" if user has no collections
-		if (collections.length === 0) {
-			const defaultCollection = await prisma.collection.create({
-				data: {
-					name: "Uncategorized",
-					color: "#95A5A6",
-					userId,
-					isDefault: true,
-				},
-				include: {
-					_count: {
-						select: { conversations: true },
-					},
-				},
-			});
-			collections = [defaultCollection];
-		}
 
 		return NextResponse.json({ collections });
 	} catch (error) {

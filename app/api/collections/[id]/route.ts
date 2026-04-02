@@ -107,21 +107,15 @@ export async function DELETE(
 			);
 		}
 
-		// Prevent deletion of default collection
-		if (existing.isDefault) {
-			return NextResponse.json(
-				{ error: "Cannot delete default collection" },
-				{ status: 400 }
-			);
-		}
-
-		// Move conversations to uncategorized (null collectionId)
+		// "Uncategorized" is represented by a null collectionId.
 		await prisma.conversation.updateMany({
-			where: { collectionId },
+			where: {
+				userId,
+				collectionId,
+			},
 			data: { collectionId: null },
 		});
 
-		// Delete collection
 		await prisma.collection.delete({
 			where: { id: collectionId },
 		});

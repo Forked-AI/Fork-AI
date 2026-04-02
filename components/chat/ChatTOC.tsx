@@ -3,17 +3,17 @@
 import { Checkbox } from '@/components/ui/checkbox'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import {
-	Sheet,
-	SheetContent,
-	SheetHeader,
-	SheetTitle,
-	SheetTrigger,
+    Sheet,
+    SheetContent,
+    SheetHeader,
+    SheetTitle,
+    SheetTrigger,
 } from '@/components/ui/sheet'
 import {
-	Tooltip,
-	TooltipContent,
-	TooltipProvider,
-	TooltipTrigger,
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
 } from '@/components/ui/tooltip'
 import type { Message } from '@/hooks/use-chat'
 import { cn } from '@/lib/utils'
@@ -139,7 +139,7 @@ export function ChatTOC({
 			{/* Header with Select All */}
 			<div
 				className={cn(
-					'flex items-center gap-2.5 px-4 py-3 border-b border-border/10 backdrop-blur-sm shrink-0',
+					'flex items-center gap-2.5 px-4 py-3 border-b border-border/10 shrink-0',
 					isMobile ? 'bg-background' : ''
 				)}
 			>
@@ -228,7 +228,7 @@ export function ChatTOC({
 										</TooltipTrigger>
 										<TooltipContent
 											side="left"
-											className="max-w-[280px] text-xs backdrop-blur-xl bg-popover/95 border-border text-popover-foreground shadow-2xl"
+											className="max-w-[280px] text-xs bg-popover border-border text-popover-foreground shadow-2xl"
 											sideOffset={10}
 										>
 											<p className="font-semibold mb-1.5 text-primary text-[10px] uppercase tracking-wider">
@@ -303,9 +303,9 @@ export function ChatTOC({
 			>
 				<motion.div
 					className={cn(
-						'w-full rounded-2xl overflow-hidden backdrop-blur-xl border transition-colors duration-300',
+						'w-full rounded-2xl overflow-hidden border transition-colors duration-300',
 						isExpanded
-						? 'bg-popover/90 border-border shadow-2xl shadow-black/50'
+							? 'bg-popover border-border shadow-2xl shadow-black/50'
 							: 'bg-transparent border-transparent'
 					)}
 					layout
@@ -327,7 +327,7 @@ export function ChatTOC({
 						<button
 							className={cn(
 								'flex items-center justify-center w-11 h-11 rounded-full',
-							'bg-popover/90 backdrop-blur-md border border-border',
+								'bg-popover border border-border',
 							'shadow-lg hover:bg-card hover:scale-105 relative',
 							'transition-all duration-300 ease-out',
 							'active:scale-95'

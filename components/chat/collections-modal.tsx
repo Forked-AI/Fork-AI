@@ -14,6 +14,7 @@ import { Button } from '@/components/ui/button'
 import {
 	Dialog,
 	DialogContent,
+	DialogDescription,
 	DialogHeader,
 	DialogTitle,
 } from '@/components/ui/dialog'
@@ -40,6 +41,8 @@ import {
 	Calendar,
 	Check,
 	ChevronDown,
+	ChevronLeft,
+	ChevronRight,
 	Edit2,
 	Expand,
 	Folder,
@@ -65,6 +68,7 @@ const PRESET_COLORS = [
 	'#95A5A6',
 	'#E74C3C',
 ]
+const FOLDER_PAGE_SIZE = 100
 
 type DateFilter = 'all' | 'today' | 'week' | 'month' | 'older'
 type SortOrder = 'recent' | 'oldest' | 'alphabetical'
@@ -103,6 +107,7 @@ export function CollectionsModal({
 	// Search state
 	const [folderSearch, setFolderSearch] = useState('')
 	const [chatSearch, setChatSearch] = useState('')
+	const [folderPage, setFolderPage] = useState(1)
 
 	// Filter/sort state
 	const [dateFilter, setDateFilter] = useState<DateFilter>('all')
@@ -127,23 +132,28 @@ export function CollectionsModal({
 	// Fetch chats for the inspecting folder
 	const {
 		conversations: folderChats,
+		pagination: folderPagination,
 		isLoading: isLoadingChats,
 		updateConversation,
 		deleteConversation,
 		invalidateConversations,
 	} = useConversations({
+		page: folderPage,
 		collectionId: inspectingFolder?.id,
 		search: chatSearch,
-		limit: 100,
+		limit: FOLDER_PAGE_SIZE,
 		enabled: inspectingFolder !== null,
 	})
 
 	// Fetch uncategorized chats count
-	const { conversations: uncategorizedChats } = useConversations({
+	const { pagination: uncategorizedPagination } = useConversations({
+		page: 1,
 		collectionId: null,
-		limit: 100,
+		limit: FOLDER_PAGE_SIZE,
 		enabled: open && !inspectingFolder,
 	})
+	const totalFolderChats = folderPagination?.total ?? 0
+	const uncategorizedCount = uncategorizedPagination?.total ?? 0
 
 	// Filter folders by search
 	const filteredFolders = useMemo(() => {
@@ -242,12 +252,30 @@ export function CollectionsModal({
 			setInspectingFolder(null)
 			setFolderSearch('')
 			setChatSearch('')
+			setFolderPage(1)
 			setSelectedChats(new Set())
 			setIsSelectMode(false)
 			setDateFilter('all')
 			setSortOrder('recent')
 		}
 	}, [open])
+
+	useEffect(() => {
+		setSelectedChats(new Set())
+	}, [folderPage])
+
+	useEffect(() => {
+		setFolderPage(1)
+	}, [chatSearch])
+
+	useEffect(() => {
+		if (!inspectingFolder || !folderPagination) return
+
+		const lastPage = Math.max(folderPagination.totalPages, 1)
+		if (folderPage > lastPage) {
+			setFolderPage(lastPage)
+		}
+	}, [folderPage, folderPagination, inspectingFolder])
 
 	// Handlers
 	const handleCreate = async () => {
@@ -311,6 +339,7 @@ export function CollectionsModal({
 		name: string
 		color: string
 	}) => {
+		setFolderPage(1)
 		setInspectingFolder(folder)
 		setChatSearch('')
 		setSelectedChats(new Set())
@@ -318,6 +347,7 @@ export function CollectionsModal({
 	}
 
 	const handleBackToFolders = () => {
+		setFolderPage(1)
 		setInspectingFolder(null)
 		setChatSearch('')
 		setSelectedChats(new Set())
@@ -472,27 +502,27 @@ export function CollectionsModal({
 									color: '#6B7280',
 								})
 							}
-							className="group relative bg-white/[0.04] hover:bg-white/[0.08] border border-dashed border-white/20 rounded-[20px] p-6 transition-all backdrop-blur-[19.8px] cursor-pointer"
+							className="group relative bg-card/40 hover:bg-card/60 border border-dashed border-border/50 rounded-[20px] p-6 transition-all cursor-pointer"
 						>
 							<div className="flex flex-col items-center text-center space-y-3">
 								<FolderOpen className="w-[74px] h-[74px] text-gray-500" />
 								<div>
-									<h3 className="text-gray-400 font-bold text-[16px] mb-1">
-										Uncategorized
-									</h3>
-									<p className="text-[#9C9C9C] text-[12px]">
-										{uncategorizedChats?.length ?? 0} chat
-										{(uncategorizedChats?.length ?? 0) !== 1 ? 's' : ''}
-									</p>
+										<h3 className="text-gray-400 font-bold text-[16px] mb-1">
+											Uncategorized
+										</h3>
+										<p className="text-[#9C9C9C] text-[12px]">
+											{uncategorizedCount} chat
+											{uncategorizedCount !== 1 ? 's' : ''}
+										</p>
+									</div>
 								</div>
-							</div>
 						</div>
 
 						{/* Regular folders */}
 						{filteredFolders?.map((collection) => (
 							<div
 								key={collection.id}
-								className="group relative bg-white/[0.04] hover:bg-white/[0.06] border border-white/10 rounded-[20px] p-6 transition-all backdrop-blur-[19.8px] cursor-pointer"
+								className="group relative bg-card/40 hover:bg-card/50 border border-border/40 rounded-[20px] p-6 transition-all cursor-pointer"
 								onClick={() => {
 									if (editingId !== collection.id) {
 										handleFolderClick({
@@ -685,7 +715,7 @@ export function CollectionsModal({
 							<ChevronDown className="w-4 h-4 ml-2" />
 						</Button>
 					</DropdownMenuTrigger>
-					<DropdownMenuContent className="bg-[#0a0d11] border-white/20">
+					<DropdownMenuContent className="bg-popover border-border/50">
 						{(['all', 'today', 'week', 'month', 'older'] as DateFilter[]).map(
 							(filter) => (
 								<DropdownMenuItem
@@ -726,7 +756,7 @@ export function CollectionsModal({
 							<ChevronDown className="w-4 h-4 ml-2" />
 						</Button>
 					</DropdownMenuTrigger>
-					<DropdownMenuContent className="bg-[#0a0d11] border-white/20">
+					<DropdownMenuContent className="bg-popover border-border/50">
 						{(['recent', 'oldest', 'alphabetical'] as SortOrder[]).map(
 							(order) => (
 								<DropdownMenuItem
@@ -793,7 +823,7 @@ export function CollectionsModal({
 							key={chat.id}
 							className={`group flex items-center gap-3 p-4 rounded-[12px] transition-all ${
 								selectedChats.has(chat.id)
-									? 'bg-[#57FCFF]/10 border border-[#57FCFF]/30'
+									? 'bg-primary/10 border border-primary/30'
 									: 'bg-white/[0.03] hover:bg-white/[0.06] border border-transparent'
 							}`}
 						>
@@ -833,7 +863,7 @@ export function CollectionsModal({
 										</DropdownMenuTrigger>
 										<DropdownMenuContent
 											align="end"
-											className="bg-[#0a0d11] border-white/20 w-48"
+											className="bg-popover border-border/50 w-48"
 										>
 											<DropdownMenuItem
 												className="text-white hover:bg-white/10"
@@ -851,7 +881,7 @@ export function CollectionsModal({
 													<Folder className="w-4 h-4 mr-2" />
 													Move to...
 												</DropdownMenuSubTrigger>
-												<DropdownMenuSubContent className="bg-[#0a0d11] border-white/20">
+												<DropdownMenuSubContent className="bg-popover border-border/50">
 													<DropdownMenuItem
 														onClick={() => handleMoveSingleChat(chat.id, null)}
 														disabled={inspectingFolder?.id === null}
@@ -896,8 +926,43 @@ export function CollectionsModal({
 				)}
 			</div>
 
+			{folderPagination && folderPagination.totalPages > 1 && (
+				<div className="flex flex-col gap-3 pt-2 sm:flex-row sm:items-center sm:justify-between">
+					<p className="text-xs text-gray-500">
+						Page {folderPagination.page} of {folderPagination.totalPages} •{' '}
+						{totalFolderChats} chat{totalFolderChats !== 1 ? 's' : ''}
+					</p>
+					<div className="flex items-center gap-2">
+						<Button
+							variant="outline"
+							size="sm"
+							onClick={() => setFolderPage((current) => Math.max(1, current - 1))}
+							disabled={folderPage === 1}
+							className="border-white/20 text-white hover:bg-white/10"
+						>
+							<ChevronLeft className="mr-2 h-4 w-4" />
+							Previous
+						</Button>
+						<Button
+							variant="outline"
+							size="sm"
+							onClick={() =>
+								setFolderPage((current) =>
+									Math.min(folderPagination.totalPages, current + 1)
+								)
+							}
+							disabled={!folderPagination.hasMore}
+							className="border-white/20 text-white hover:bg-white/10"
+						>
+							Next
+							<ChevronRight className="ml-2 h-4 w-4" />
+						</Button>
+					</div>
+				</div>
+			)}
+
 			{isSelectMode && selectedChats.size > 0 && (
-				<div className="fixed bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-3 px-4 py-3 bg-[#0a0d11]/95 border border-[#57FCFF]/30 rounded-xl shadow-2xl backdrop-blur-xl z-50">
+				<div className="fixed bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-3 px-4 py-3 bg-popover border border-primary/30 rounded-xl shadow-2xl z-50">
 					<span className="text-white font-medium">
 						{selectedChats.size} chat{selectedChats.size !== 1 ? 's' : ''}{' '}
 						selected
@@ -928,28 +993,35 @@ export function CollectionsModal({
 		<>
 			<Dialog open={open} onOpenChange={onOpenChange}>
 				<DialogContent
-					className={`bg-[#0a0d11]/95 backdrop-blur-2xl border border-[#57FCFF]/30 overflow-hidden transition-all duration-300 ${
+					className={`bg-popover border border-primary/30 overflow-hidden transition-all duration-300 ${
 						isExpanded
 							? 'max-w-[98vw] w-[98vw] h-[95vh] max-h-[95vh]'
 							: 'max-w-[95vw] sm:max-w-[85vw] lg:max-w-[1041px] max-h-[90vh]'
 					}`}
 				>
 					<DialogHeader className="px-6 pt-6 pb-4 flex flex-row items-center justify-between">
-						<DialogTitle className="text-[32px] font-bold text-white">
-							{inspectingFolder ? inspectingFolder.name : 'Folders'}
-						</DialogTitle>
-						<Button
-							variant="ghost"
-							size="sm"
-							onClick={() => setIsExpanded(!isExpanded)}
-							className="h-8 w-8 p-0 hover:bg-white/10"
-						>
-							{isExpanded ? (
-								<Shrink className="w-4 h-4 text-gray-400" />
-							) : (
-								<Expand className="w-4 h-4 text-gray-400" />
-							)}
-						</Button>
+						<div className="flex min-w-0 flex-1 items-start justify-between gap-4">
+							<div className="min-w-0">
+								<DialogTitle className="text-[32px] font-bold text-white">
+									{inspectingFolder ? inspectingFolder.name : 'Folders'}
+								</DialogTitle>
+								<DialogDescription className="text-sm text-gray-400">
+									Manage folders and organize chats across pages.
+								</DialogDescription>
+							</div>
+							<Button
+								variant="ghost"
+								size="sm"
+								onClick={() => setIsExpanded(!isExpanded)}
+								className="h-8 w-8 p-0 hover:bg-white/10"
+							>
+								{isExpanded ? (
+									<Shrink className="w-4 h-4 text-gray-400" />
+								) : (
+									<Expand className="w-4 h-4 text-gray-400" />
+								)}
+							</Button>
+						</div>
 					</DialogHeader>
 
 					<div
@@ -965,7 +1037,7 @@ export function CollectionsModal({
 				open={!!deleteConfirm}
 				onOpenChange={() => setDeleteConfirm(null)}
 			>
-				<AlertDialogContent className="bg-[#0a0d11]/95 backdrop-blur-2xl border border-[#57FCFF]/30">
+				<AlertDialogContent className="bg-popover border border-primary/30">
 					<AlertDialogHeader>
 						<AlertDialogTitle className="text-white">
 							Delete Folder
@@ -997,7 +1069,7 @@ export function CollectionsModal({
 				open={!!deleteChatConfirm}
 				onOpenChange={() => setDeleteChatConfirm(null)}
 			>
-				<AlertDialogContent className="bg-[#0a0d11]/95 backdrop-blur-2xl border border-[#57FCFF]/30">
+				<AlertDialogContent className="bg-popover border border-primary/30">
 					<AlertDialogHeader>
 						<AlertDialogTitle className="text-white">
 							Delete Chat{deleteChatConfirm?.count !== 1 ? 's' : ''}
@@ -1026,9 +1098,12 @@ export function CollectionsModal({
 
 			{/* Move to Folder Dialog */}
 			<Dialog open={showMoveDialog} onOpenChange={setShowMoveDialog}>
-				<DialogContent className="bg-[#0a0d11]/95 backdrop-blur-2xl border border-[#57FCFF]/30 sm:max-w-md">
+				<DialogContent className="bg-popover border border-primary/30 sm:max-w-md">
 					<DialogHeader>
 						<DialogTitle className="text-white">Move to Folder</DialogTitle>
+						<DialogDescription className="text-gray-400">
+							Choose where to move the selected chats.
+						</DialogDescription>
 					</DialogHeader>
 					<div className="space-y-2 max-h-[300px] overflow-y-auto py-2">
 						<button

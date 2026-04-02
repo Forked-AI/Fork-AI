@@ -2,21 +2,21 @@
 
 import { Button } from '@/components/ui/button'
 import {
-	Dialog,
-	DialogContent,
-	DialogDescription,
-	DialogHeader,
-	DialogTitle,
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogHeader,
+    DialogTitle,
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import type { Message } from '@/hooks/use-chat'
 import { useToast } from '@/hooks/use-toast'
 import {
-	downloadFile,
-	exportAsJSON,
-	exportAsMarkdown,
-	exportAsText,
-	getExportFilename,
+    downloadFile,
+    exportAsJSON,
+    exportAsMarkdown,
+    exportAsText,
+    getExportFilename,
 } from '@/lib/export-utils'
 import { Check, Copy, Download, FileJson, FileText, Link2, Mail, Twitter } from 'lucide-react'
 import { useState } from 'react'
@@ -133,7 +133,7 @@ export function ShareModal({ open, onOpenChange, messages = [], conversationTitl
 
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
-			<DialogContent className="bg-[#0a0d11]/80 backdrop-blur-xl border border-[#57FCFF]/20 sm:max-w-xl">
+			<DialogContent className="bg-popover border border-primary/20 sm:max-w-xl">
 				<DialogHeader>
 					<DialogTitle className="text-foreground flex items-center gap-2">
 						<Link2 className="w-5 h-5 text-[#57FCFF]" />

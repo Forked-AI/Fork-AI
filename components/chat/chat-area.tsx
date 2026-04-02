@@ -7,19 +7,19 @@ import { useMessageTree } from '@/hooks/use-message-tree'
 import { useSettings } from '@/hooks/use-settings'
 import { cn } from '@/lib/utils'
 import {
-	AlertCircle,
-	Bot,
-	Check,
-	ChevronDown,
-	ChevronLeft,
-	ChevronRight,
-	Copy,
-	Pencil,
-	RefreshCw,
-	Square,
-	ThumbsDown,
-	ThumbsUp,
-	X,
+    AlertCircle,
+    Bot,
+    Check,
+    ChevronDown,
+    ChevronLeft,
+    ChevronRight,
+    Copy,
+    Pencil,
+    RefreshCw,
+    Square,
+    ThumbsDown,
+    ThumbsUp,
+    X,
 } from 'lucide-react'
 import dynamic from 'next/dynamic'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -28,6 +28,7 @@ import { ChatTOC } from './ChatTOC'
 import { EmptyState } from './empty-state'
 import { FeedbackModal } from './feedback-modal'
 import { MarkdownRenderer } from './markdown-renderer'
+import { SelectiveShareModal } from './selective-share-modal'
 import { SignInPromptModal } from './sign-in-prompt-modal'
 import { TopBar } from './top-bar'
 
@@ -53,6 +54,8 @@ export function ChatArea() {
 	)
 	const [activeMessageId, setActiveMessageId] = useState<string | null>(null)
 	const [showSignInModal, setShowSignInModal] = useState(false)
+	const [showSelectiveShareModal, setShowSelectiveShareModal] = useState(false)
+	const [shareModalMessageIds, setShareModalMessageIds] = useState<string[]>([])
 
 	const { user } = useAuth()
 
@@ -165,34 +168,29 @@ export function ChatArea() {
 	const handleShareMessages = useCallback(
 		(messageIds: string[]) => {
 			if (messageIds.length === 0) return
-
-			// Filter messages to share
-			const messagesToShare = messages.filter((m) => messageIds.includes(m.id))
-
-			// Create shareable text
-			const shareText = messagesToShare
-				.map((m) => {
-					const role = m.role === 'user' ? 'User' : 'Assistant'
-					return `**${role}:**\n${m.content}\n`
-				})
-				.join('\n')
-
-			// Copy to clipboard
-			navigator.clipboard
-				.writeText(shareText)
-				.then(() => {
-					console.log('Shared messages:', messageIds.length)
-					// Could show a toast notification here
-				})
-				.catch((err) => {
-					console.error('Failed to copy to clipboard:', err)
-				})
-
-			// Deselect all after sharing
-			handleDeselectAllMessages()
+			setShareModalMessageIds(messageIds)
+			setShowSelectiveShareModal(true)
 		},
-		[messages, handleDeselectAllMessages]
+		[]
 	)
+
+	// Listen for auto-complete pair events from SelectiveShareModal
+	useEffect(() => {
+		const handleAutoComplete = (e: Event) => {
+			const { messageIds } = (e as CustomEvent<{ messageIds: string[] }>).detail
+			setSelectedMessageIds((prev) => {
+				const next = new Set(prev)
+				messageIds.forEach((id) => next.add(id))
+				return next
+			})
+			setShareModalMessageIds((prev) => {
+				const combined = new Set([...prev, ...messageIds])
+				return Array.from(combined)
+			})
+		}
+		window.addEventListener('shareAutoComplete', handleAutoComplete)
+		return () => window.removeEventListener('shareAutoComplete', handleAutoComplete)
+	}, [])
 
 	const handleGraphAction = useCallback(
 		(action: string, nodeId?: string) => {
@@ -424,8 +422,8 @@ export function ChatArea() {
 		>
 			{/* Static Blur Effect - Top Right */}
 			<div
-				className="absolute top-[-68px] right-[46px] w-[373px] h-[373px] rounded-full bg-[#D9D9D9] opacity-[0.28] pointer-events-none"
-				style={{ filter: 'blur(481.8px)' }}
+				className="absolute top-[-68px] right-[46px] w-[373px] h-[373px] rounded-full bg-primary/20 opacity-[0.08] pointer-events-none"
+				style={{ filter: 'blur(280px)' }}
 			/>
 
 			{/* Top Bar */}
@@ -523,6 +521,21 @@ export function ChatArea() {
 				open={showSignInModal}
 				onOpenChange={setShowSignInModal}
 			/>
+
+			{/* Selective Share Modal */}
+			{conversationId && (
+				<SelectiveShareModal
+					open={showSelectiveShareModal}
+					onOpenChange={(v) => {
+						setShowSelectiveShareModal(v)
+						if (!v) handleDeselectAllMessages()
+					}}
+					conversationId={conversationId}
+					conversationTitle={conversation?.title ?? 'Untitled Conversation'}
+					selectedMessageIds={shareModalMessageIds}
+					allMessages={messages}
+				/>
+			)}
 			{/* Scroll to Bottom Button */}
 			{showScrollButton && (
 				<button

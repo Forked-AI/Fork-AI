@@ -702,8 +702,6 @@ export default function GraphMap({
 		})
 	}
 
-	// TODO: Remove sequential await - combine into single mutation using attachAndUpdatePosition from graphService for production
-	// TODO: Remove sequential await - combine into single mutation using attachAndUpdatePosition from graphService for production
 	const handlePointerUp = async (e: React.PointerEvent) => {
 		const currentNodeId = draggingNodeId
 		const currentDragPos = dragPos
@@ -729,10 +727,13 @@ export default function GraphMap({
 		if (currentNodeId) {
 			// Handle multi-node drag
 			if (currentMultiDragPos.size > 0) {
-				// Update positions for all dragged nodes
-				for (const [nodeId, pos] of currentMultiDragPos.entries()) {
-					await updatePosition.mutateAsync({ id: nodeId, x: pos.x, y: pos.y })
-				}
+				// Single atomic batch request instead of N sequential awaits
+				const updates = [...currentMultiDragPos.entries()].map(([id, pos]) => ({
+					id,
+					positionX: pos.x,
+					positionY: pos.y,
+				}))
+				await api.batchUpdatePositions(updates)
 			} else if (currentDragPos) {
 				// Single node drag
 				if (
@@ -869,8 +870,8 @@ export default function GraphMap({
 				deleteThread.mutate(id)
 				break
 			case 'attach':
-				// TODO: Implement attach mode where user can click another node to attach to
-				console.log('Attach mode not yet implemented')
+				// Bubble up to parent which manages attachMode prop and onAttachComplete callback
+				onAction('attach', id)
 				break
 			case 'branch':
 				// Trigger branch creation from this message

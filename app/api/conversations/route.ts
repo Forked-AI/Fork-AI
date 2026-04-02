@@ -169,7 +169,11 @@ export async function POST(request: Request) {
 		// If collection specified, verify ownership
 		if (collectionId) {
 			const collection = await prisma.collection.findFirst({
-				where: { id: collectionId, userId },
+				where: {
+					id: collectionId,
+					userId,
+					isDefault: false,
+				},
 			});
 
 			if (!collection) {

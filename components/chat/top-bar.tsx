@@ -61,7 +61,7 @@ export function TopBar({
 
 	return (
 		<>
-			<header className="h-16 px-6 flex items-center justify-between sticky top-0 z-20 bg-background/80 backdrop-blur-md border-b border-border/50">
+			<header className="h-16 px-6 flex items-center justify-between sticky top-0 z-20 bg-background border-b border-border/50">
 				{/* Left - New Chat Button */}
 				<div className="flex items-center gap-2">
 					{onNewChat && (

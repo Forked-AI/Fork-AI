@@ -125,7 +125,11 @@ export async function PATCH(
 		// If moving to a collection, verify collection ownership
 		if (collectionId) {
 			const collection = await prisma.collection.findFirst({
-				where: { id: collectionId, userId },
+				where: {
+					id: collectionId,
+					userId,
+					isDefault: false,
+				},
 			});
 
 			if (!collection) {

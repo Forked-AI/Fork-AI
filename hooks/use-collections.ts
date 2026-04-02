@@ -22,6 +22,11 @@ export interface Conversation {
 	updatedAt: string;
 }
 
+function invalidateCollectionRelatedQueries(queryClient: ReturnType<typeof useQueryClient>) {
+	queryClient.invalidateQueries({ queryKey: ["collections"] });
+	queryClient.invalidateQueries({ queryKey: ["conversations"] });
+}
+
 export function useCollections() {
 	return useQuery({
 		queryKey: ["collections"],
@@ -109,7 +114,7 @@ export function useDeleteCollection() {
 			return res.json();
 		},
 		onSuccess: () => {
-			queryClient.invalidateQueries({ queryKey: ["collections"] });
+			invalidateCollectionRelatedQueries(queryClient);
 		},
 	});
 }
@@ -138,7 +143,7 @@ export function useMoveConversation() {
 			return res.json();
 		},
 		onSuccess: () => {
-			queryClient.invalidateQueries({ queryKey: ["collections"] });
+			invalidateCollectionRelatedQueries(queryClient);
 		},
 	});
 }
