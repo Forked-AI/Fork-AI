@@ -14,19 +14,23 @@ import { Switch } from '@/components/ui/switch'
 import { ZenColorPicker } from '@/components/ui/zen-color-picker'
 import { type Settings } from '@/hooks/use-settings'
 import {
-	darkenColor,
-	lightenColor,
 	suggestContrastFix,
 	validateThemeContrast,
 } from '@/lib/color-utils'
 import {
+	buildCustomThemeFromColors,
+	getThemeSettingsFromPreset,
+	resolveEffectiveTheme,
+	resolveThemePalette,
+} from '@/lib/theme-engine'
+import {
 	ARTISTIC_PRESETS,
 	COMPLIANT_PRESETS,
-	getOptimalTextColor,
 	type ThemePreset,
 } from '@/lib/theme-presets'
 import { cn } from '@/lib/utils'
 import { AlertTriangle, ArrowLeft, Palette } from 'lucide-react'
+import { useTheme } from 'next-themes'
 import { useMemo, useState } from 'react'
 
 interface ThemeCustomizationModalProps {
@@ -46,73 +50,31 @@ export function ThemeCustomizationModal({
 	// const { settings, updateSettings } = useSettings() // Using props instead
 	const [showPresets, setShowPresets] = useState(true)
 	const [contrastDismissed, setContrastDismissed] = useState(false)
+	const { resolvedTheme } = useTheme()
+	const effectiveTheme =
+		resolveEffectiveTheme(settings.theme, resolvedTheme) ?? 'dark'
+	const resolvedPalette = useMemo(
+		() => resolveThemePalette(settings, effectiveTheme),
+		[effectiveTheme, settings]
+	)
 
 	// Calculate contrast report
 	const contrastReport = useMemo(() => {
 		return validateThemeContrast(
-			settings.themeText || '#FFFFFF',
-			settings.themeBackground || '#0d1117',
-			settings.themePrimary || '#57FCFF',
-			settings.themeCard || '#1a1d24'
+			resolvedPalette.themeText,
+			resolvedPalette.themeBackground,
+			resolvedPalette.themePrimary,
+			resolvedPalette.themeCard
 		)
-	}, [
-		settings.themeText,
-		settings.themeBackground,
-		settings.themePrimary,
-		settings.themeCard,
-	])
-
-	const handleThemeChange = (theme: 'dark' | 'light' | 'system') => {
-		updateSettings({ theme })
-	}
+	}, [resolvedPalette])
 
 	const handleThemeColorsChange = (colors: string[]) => {
-		// Primary color (Color 1) - base for everything
-		const primary = colors[0] || '#57FCFF'
-		const secondary = colors[1] || primary
-		const tertiary = colors[2] || primary
-
-		// Auto-calculate structure colors from primary
-		const background = primary
-		const card = lightenColor(primary, 5)
-		const sidebar = darkenColor(primary, 3)
-		const border = lightenColor(primary, 10)
-
-		// Auto-calculate text colors for contrast
-		const textColor = getOptimalTextColor(primary)
-		const textMutedColor = textColor === '#FFFFFF' ? '#a0a0a0' : '#606060'
-
-		updateSettings({
-			// Accent colors (from Zen Picker)
-			themePrimary: primary,
-			themeSecondary: secondary,
-			themeTertiary: tertiary,
-			// Structure colors (auto-calculated)
-			themeBackground: background,
-			themeCard: card,
-			themeSidebar: sidebar,
-			themeBorder: border,
-			// Text colors (auto-calculated)
-			themeText: textColor,
-			themeTextMuted: textMutedColor,
-			activePreset: null,
-		})
+		updateSettings(buildCustomThemeFromColors(colors))
 		setContrastDismissed(false)
 	}
 
 	const handlePresetSelect = (preset: ThemePreset) => {
-		updateSettings({
-			themeBackground: preset.background,
-			themeCard: preset.card,
-			themeSidebar: preset.sidebar,
-			themePrimary: preset.primary,
-			themeSecondary: preset.secondary,
-			themeTertiary: preset.tertiary,
-			themeBorder: preset.border,
-			themeText: preset.text,
-			themeTextMuted: preset.textMuted,
-			activePreset: preset.id,
-		})
+		updateSettings(getThemeSettingsFromPreset(preset))
 		setContrastDismissed(false)
 	}
 
@@ -126,20 +88,23 @@ export function ThemeCustomizationModal({
 
 	const handleContrastAutoFix = () => {
 		const fixedColor = suggestContrastFix(
-			settings.themePrimary || '#57FCFF',
-			settings.themeBackground || '#0d1117',
+			resolvedPalette.themePrimary || '#57FCFF',
+			resolvedPalette.themeBackground || '#0d1117',
 			4.5
 		)
-		updateSettings({
-			themePrimary: fixedColor,
-			activePreset: null,
-		})
+		updateSettings(
+			buildCustomThemeFromColors([
+				fixedColor,
+				settings.themeSecondary || fixedColor,
+				settings.themeTertiary || fixedColor,
+			])
+		)
 		setContrastDismissed(false)
 	}
 
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
-			<DialogContent className="bg-popover/80 backdrop-blur-xl border border-primary/20 sm:max-w-3xl max-h-[85vh] overflow-y-auto overflow-x-hidden">
+			<DialogContent className="bg-popover border border-primary/20 sm:max-w-3xl max-h-[85vh] overflow-y-auto overflow-x-hidden">
 				<DialogHeader>
 					<div className="flex items-start justify-between gap-4">
 						<div className="flex items-center gap-2 flex-1">
@@ -154,10 +119,10 @@ export function ThemeCustomizationModal({
 							<div>
 								<DialogTitle className="text-foreground flex items-center gap-2">
 									<Palette className="w-5 h-5 text-primary" />
-									Theme Customization
+									Palette Customization
 								</DialogTitle>
 								<DialogDescription className="text-muted-foreground text-sm mt-1">
-									Customize colors, gradients, and visual effects
+									Customize palette colors, gradients, and visual effects
 								</DialogDescription>
 							</div>
 						</div>
@@ -168,10 +133,10 @@ export function ThemeCustomizationModal({
 				</DialogHeader>
 
 				<div className="space-y-6 py-4">
-					{/* Preset Themes */}
+					{/* Preset Palettes */}
 					<div className="space-y-3">
 						<div className="flex items-center justify-between">
-							<Label className="text-sm font-medium">Preset Themes</Label>
+							<Label className="text-sm font-medium">Preset Palettes</Label>
 							<Button
 								size="sm"
 								variant="ghost"
@@ -205,7 +170,10 @@ export function ThemeCustomizationModal({
 													{/* Show theme colors: background, primary, secondary */}
 													<div
 														className="w-6 h-6 rounded-md border border-white/20"
-														style={{ backgroundColor: preset.background }}
+														style={{
+															background:
+																preset.chatBackground || preset.background,
+														}}
 														title="Background"
 													/>
 													<div
@@ -252,7 +220,10 @@ export function ThemeCustomizationModal({
 													{/* Show theme colors: background, primary, secondary */}
 													<div
 														className="w-6 h-6 rounded-md border border-white/20"
-														style={{ backgroundColor: preset.background }}
+														style={{
+															background:
+																preset.chatBackground || preset.background,
+														}}
 														title="Background"
 													/>
 													<div
@@ -278,10 +249,10 @@ export function ThemeCustomizationModal({
 						)}
 					</div>
 
-					{/* Custom Theme Colors */}
+					{/* Custom Palette Colors */}
 					<div className="space-y-3 pt-2 border-t border-border/50">
 						<div className="space-y-2">
-							<Label className="text-sm font-medium">Custom Theme Colors</Label>
+							<Label className="text-sm font-medium">Custom Palette Colors</Label>
 							<p className="text-xs text-muted-foreground">
 								Pick 1-3 colors to create your theme. Background, buttons, and
 								UI elements will use these colors.
@@ -298,8 +269,6 @@ export function ThemeCustomizationModal({
 								settings.themeTertiary,
 							]}
 							onChange={handleThemeColorsChange}
-							themeMode={settings.theme}
-							onThemeModeChange={handleThemeChange}
 							waveIntensity={settings.waveIntensity}
 							noiseAmount={settings.noiseAmount}
 							onWaveChange={handleWaveChange}
@@ -353,10 +322,15 @@ export function ThemeCustomizationModal({
 								<Switch
 									checked={settings.reducedEffects}
 									onCheckedChange={(checked) => {
-										updateSettings({ reducedEffects: checked })
-										if (checked) {
-											updateSettings({ waveIntensity: 0, noiseAmount: 0 })
-										}
+										updateSettings(
+											checked
+												? {
+														reducedEffects: true,
+														waveIntensity: 0,
+														noiseAmount: 0,
+													}
+												: { reducedEffects: false }
+										)
 									}}
 										className="data-[state=checked]:bg-primary"
 								/>

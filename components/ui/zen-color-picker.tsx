@@ -16,10 +16,7 @@ import {
 	ChevronLeft,
 	ChevronRight,
 	Minus,
-	Moon,
 	Plus,
-	Sparkles,
-	Sun,
 } from 'lucide-react'
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 
@@ -38,8 +35,6 @@ interface ColorDot {
 interface ZenColorPickerProps {
 	colors: string[] // 1-3 colors
 	onChange: (colors: string[]) => void
-	onThemeModeChange?: (mode: 'light' | 'dark' | 'system') => void
-	themeMode?: 'light' | 'dark' | 'system'
 	waveIntensity?: number
 	noiseAmount?: number
 	onWaveChange?: (intensity: number) => void
@@ -55,8 +50,6 @@ const DOT_SIZE_MOBILE = 32
 export function ZenColorPicker({
 	colors,
 	onChange,
-	onThemeModeChange,
-	themeMode = 'dark',
 	waveIntensity = 0,
 	noiseAmount = 0,
 	onWaveChange,
@@ -398,49 +391,6 @@ export function ZenColorPicker({
 
 	return (
 		<div className={cn('space-y-4', className)}>
-			{/* Theme mode toggle */}
-			<div className="flex items-center justify-between">
-				<Label className="text-sm font-medium">Theme Mode</Label>
-				<div className="flex items-center gap-1 p-1 bg-background/50 rounded-lg border">
-					<button
-						onClick={() => onThemeModeChange?.('light')}
-						className={cn(
-							'p-2 rounded transition-colors',
-							themeMode === 'light'
-								? 'bg-white/10 text-white'
-								: 'text-muted-foreground hover:text-foreground'
-						)}
-						title="Light mode"
-					>
-						<Sun className="size-4" />
-					</button>
-					<button
-						onClick={() => onThemeModeChange?.('system')}
-						className={cn(
-							'p-2 rounded transition-colors',
-							themeMode === 'system'
-								? 'bg-white/10 text-white'
-								: 'text-muted-foreground hover:text-foreground'
-						)}
-						title="System"
-					>
-						<Sparkles className="size-4" />
-					</button>
-					<button
-						onClick={() => onThemeModeChange?.('dark')}
-						className={cn(
-							'p-2 rounded transition-colors',
-							themeMode === 'dark'
-								? 'bg-white/10 text-white'
-								: 'text-muted-foreground hover:text-foreground'
-						)}
-						title="Dark mode"
-					>
-						<Moon className="size-4" />
-					</button>
-				</div>
-			</div>
-
 			{/* Canvas */}
 			<div className="flex items-center justify-center">
 				<div

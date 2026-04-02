@@ -2,35 +2,40 @@
 
 import { Button } from '@/components/ui/button'
 import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogHeader,
-    DialogTitle,
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogHeader,
+	DialogTitle,
 } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
 } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { useSettings } from '@/hooks/use-settings'
 import {
-    Check,
-    ChevronRight,
-    Keyboard,
-    MessageSquare,
-    Moon,
-    Palette,
-    PanelLeft,
-    RotateCcw,
-    Settings as SettingsIcon,
-    Sparkles,
-    Zap,
+	resolveEffectiveTheme,
+	resolveThemePalette,
+} from '@/lib/theme-engine'
+import {
+	Check,
+	ChevronRight,
+	Keyboard,
+	MessageSquare,
+	Moon,
+	Palette,
+	PanelLeft,
+	RotateCcw,
+	Settings as SettingsIcon,
+	Sparkles,
+	Zap,
 } from 'lucide-react'
+import { useTheme } from 'next-themes'
 import { useState } from 'react'
 import { ChatBehaviorModal } from './chat-behavior-modal'
 import { ThemeCustomizationModal } from './theme-customization-modal'
@@ -49,9 +54,13 @@ export function SettingsModal({
 	onCompactModeChange,
 }: SettingsModalProps) {
 	const { settings, updateSettings, resetToDefaults } = useSettings()
+	const { resolvedTheme } = useTheme()
 	const [showSaved, setShowSaved] = useState(false)
 	const [themeModalOpen, setThemeModalOpen] = useState(false)
 	const [chatBehaviorModalOpen, setChatBehaviorModalOpen] = useState(false)
+	const previewTheme =
+		resolveEffectiveTheme(settings.theme, resolvedTheme) ?? 'dark'
+	const previewPalette = resolveThemePalette(settings, previewTheme)
 
 	const handleCompactModeToggle = (checked: boolean) => {
 		onCompactModeChange(checked)
@@ -105,7 +114,7 @@ export function SettingsModal({
 
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
-			<DialogContent className="bg-[#0a0d11]/80 backdrop-blur-xl border border-primary/20 sm:max-w-2xl max-h-[85vh] overflow-y-auto">
+			<DialogContent className="bg-popover border border-primary/20 sm:max-w-2xl max-h-[85vh] overflow-y-auto">
 				<DialogHeader>
 					<DialogTitle className="text-foreground flex items-center gap-2">
 						<SettingsIcon className="w-5 h-5 text-primary" />
@@ -123,12 +132,12 @@ export function SettingsModal({
 				</DialogHeader>
 
 				<div className="space-y-6 py-4">
-					{/* Theme Section - Simplified */}
+					{/* Appearance Section */}
 					<div className="space-y-4">
 						<div className="flex items-center gap-2 pb-2 border-b border-border/50">
 							<Palette className="w-4 h-4 text-muted-foreground" />
 							<h3 className="text-sm font-semibold text-foreground uppercase tracking-wider">
-								Theme
+								Appearance
 							</h3>
 						</div>
 
@@ -139,7 +148,7 @@ export function SettingsModal({
 							>
 								<div className="flex-1">
 									<div className="flex items-center gap-2 mb-1">
-										<p className="text-sm font-medium">Customize Theme</p>
+										<p className="text-sm font-medium">Customize Palette</p>
 										{settings.activePreset && (
 											<span className="text-xs text-muted-foreground">
 												({settings.activePreset})
@@ -155,17 +164,21 @@ export function SettingsModal({
 										{/* Show theme preview: background, primary, secondary */}
 										<div
 											className="w-5 h-5 rounded-md border border-white/20"
-											style={{ backgroundColor: settings.themeBackground }}
+											style={{
+												background: previewPalette.themeChatBackground,
+											}}
 											title="Background"
 										/>
 										<div
 											className="w-4 h-4 rounded-full border border-white/20"
-											style={{ backgroundColor: settings.themePrimary }}
+											style={{ backgroundColor: previewPalette.themePrimary }}
 											title="Primary"
 										/>
 										<div
 											className="w-3 h-3 rounded-full border border-white/20"
-											style={{ backgroundColor: settings.themeSecondary }}
+											style={{
+												backgroundColor: previewPalette.themeSecondary,
+											}}
 											title="Secondary"
 										/>
 									</div>
@@ -175,7 +188,7 @@ export function SettingsModal({
 
 							<div className="flex items-center justify-between">
 								<div className="space-y-0.5">
-									<Label className="text-sm font-medium">Theme Mode</Label>
+									<Label className="text-sm font-medium">Appearance Mode</Label>
 									<p className="text-xs text-muted-foreground">
 										{settings.theme === 'system'
 											? 'Follow system'
@@ -194,13 +207,17 @@ export function SettingsModal({
 									<SelectTrigger className="w-32 bg-sidebar/30 border-border/50">
 										<SelectValue />
 									</SelectTrigger>
-									<SelectContent className="bg-[#0a0d11]/95 backdrop-blur-xl border-border/50">
+									<SelectContent className="bg-popover border-border/50">
 										<SelectItem value="dark">Dark</SelectItem>
 										<SelectItem value="light">Light</SelectItem>
 										<SelectItem value="system">System</SelectItem>
 									</SelectContent>
 								</Select>
 							</div>
+							<p className="text-xs text-muted-foreground">
+								Light mode uses an auto-derived version of your palette. Dark
+								mode uses your saved palette directly.
+							</p>
 						</div>
 					</div>
 
@@ -393,7 +410,7 @@ export function SettingsModal({
 									>
 										<SelectValue />
 									</SelectTrigger>
-									<SelectContent className="bg-[#0a0d11]/95 backdrop-blur-xl border-border/50">
+									<SelectContent className="bg-popover border-border/50">
 										<SelectItem value="150">150 characters</SelectItem>
 										<SelectItem value="200">200 characters</SelectItem>
 										<SelectItem value="300">300 characters</SelectItem>
@@ -426,7 +443,7 @@ export function SettingsModal({
 									>
 										<SelectValue />
 									</SelectTrigger>
-									<SelectContent className="bg-[#0a0d11]/95 backdrop-blur-xl border-border/50">
+									<SelectContent className="bg-popover border-border/50">
 										<SelectItem value="enter">
 											<div className="flex flex-col items-start">
 												<span className="font-medium">Enter to send</span>

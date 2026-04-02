@@ -1,5 +1,9 @@
 "use client";
 
+import {
+	DEFAULT_THEME_SETTINGS,
+	normalizeStoredThemeSettings,
+} from "@/lib/theme-engine";
 import { useEffect, useState } from "react";
 
 export interface EnabledFeatures {
@@ -18,6 +22,7 @@ export interface Settings {
 	sendKeybinding: "enter" | "ctrl-enter";
 	// Theme customization - complete theme package
 	themeBackground: string; // Main background
+	themeChatBackground: string; // Visible chat background (supports gradients)
 	themeCard: string; // Card background
 	themeSidebar: string; // Sidebar background
 	themePrimary: string; // Primary accent
@@ -47,18 +52,7 @@ const DEFAULT_SETTINGS: Settings = {
 	messageTruncateLength: 300,
 	sendKeybinding: "enter",
 	// Theme customization defaults (Default preset)
-	themeBackground: "#0a0d11",
-	themeCard: "#11151a",
-	themeSidebar: "#0a0d11",
-	themePrimary: "#57FCFF",
-	themeSecondary: "#9B59B6",
-	themeTertiary: "#2ECC71",
-	themeBorder: "#242b36",
-	themeText: "#f0f4f8",
-	themeTextMuted: "#94a3b8",
-	waveIntensity: 0,
-	noiseAmount: 0,
-	activePreset: "default",
+	...DEFAULT_THEME_SETTINGS,
 	strictContrastMode: false,
 	reducedEffects: false,
 	// Chat behavior defaults
@@ -86,7 +80,22 @@ export function useSettings() {
 			const stored = localStorage.getItem("fork-ai-settings");
 			if (stored) {
 				try {
-					setSettings({ ...DEFAULT_SETTINGS, ...JSON.parse(stored) });
+					const parsedSettings = JSON.parse(stored);
+					if (!parsedSettings || typeof parsedSettings !== "object") {
+						return;
+					}
+					const normalizedThemeSettings =
+						normalizeStoredThemeSettings(parsedSettings);
+					const nextSettings = {
+						...DEFAULT_SETTINGS,
+						...parsedSettings,
+						...normalizedThemeSettings,
+					};
+					setSettings(nextSettings);
+					localStorage.setItem(
+						"fork-ai-settings",
+						JSON.stringify(nextSettings)
+					);
 				} catch (e) {
 					console.error("Failed to parse settings:", e);
 				}
@@ -137,7 +146,7 @@ export function useSettings() {
 		};
 		setSettings(newSettings);
 		localStorage.setItem("fork-ai-settings", JSON.stringify(newSettings));
-		// Dispatch event to notify other components (like ThemeSynchronizer)
+		// Dispatch event to notify other components (like ThemeApplier)
 		window.dispatchEvent(new Event("fork-ai-settings-changed"));
 	};
 

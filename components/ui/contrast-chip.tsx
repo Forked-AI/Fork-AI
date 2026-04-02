@@ -3,6 +3,7 @@
 import type { ThemeContrastReport } from '@/lib/color-utils';
 import { cn } from '@/lib/utils';
 import { AlertTriangle, CheckCircle2, XCircle } from 'lucide-react';
+import React from 'react';
 
 interface ContrastChipProps {
   report: ThemeContrastReport;

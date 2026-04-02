@@ -16,3 +16,4 @@ coverage
 /app/generated/prisma
 /generated/prisma
 generated
+tests

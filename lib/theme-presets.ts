@@ -19,6 +19,7 @@ export interface ThemePreset {
 	name: string;
 	// Complete theme package
 	background: string; // Main background color
+	chatBackground?: string; // Visible chat surface (supports gradients)
 	card: string; // Card/surface background
 	sidebar: string; // Sidebar background
 	primary: string; // Primary accent (buttons, links)
@@ -43,16 +44,10 @@ export interface BackgroundPreset {
 	description?: string;
 }
 
+/**
+ * Legacy background-only presets kept for migrating older stored settings.
+ */
 export const BACKGROUND_PRESETS: BackgroundPreset[] = [
-	{
-		id: "default",
-		name: "Default",
-		value: "#0a0d11", // Original solid base
-		style: "linear-gradient(180deg, #0A2727 0%, #0C1110 100%)", // Original gradient
-		cardValue: "#11151a",
-		sidebarValue: "#0a0d11",
-		description: "Standard dark theme",
-	},
 	{
 		id: "midnight",
 		name: "Midnight",
@@ -69,14 +64,6 @@ export const BACKGROUND_PRESETS: BackgroundPreset[] = [
 		sidebarValue: "#0f172a",
 		description: "Clean slate gray",
 	},
-	{
-		id: "forest",
-		name: "Forest",
-		value: "#050a06", // deeply dark green
-		cardValue: "#052e16",
-		sidebarValue: "#050a06",
-		description: "Deep natural green",
-	},
 ];
 
 /**
@@ -91,6 +78,7 @@ export const COMPLIANT_PRESETS: ThemePreset[] = [
 		id: "default",
 		name: "Default",
 		background: "#0a0d11",
+		chatBackground: "linear-gradient(180deg, #0A2727 0%, #0C1110 100%)",
 		card: "#11151a",
 		sidebar: "#0a0d11",
 		primary: "#57FCFF",
@@ -284,6 +272,10 @@ export const ALL_PRESETS = [...COMPLIANT_PRESETS, ...ARTISTIC_PRESETS];
  */
 export function getPresetById(id: string): ThemePreset | undefined {
 	return ALL_PRESETS.find((preset) => preset.id === id);
+}
+
+export function getPresetChatBackground(preset: ThemePreset): string {
+	return preset.chatBackground || preset.background;
 }
 
 /**

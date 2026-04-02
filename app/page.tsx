@@ -10,6 +10,9 @@ import { NewReleasePromo } from '@/components/new-release-promo'
 import { PricingSection } from '@/components/pricing-section'
 import { TestimonialsSection as Testimonials } from '@/components/testimonials'
 import { AuroraBackground } from '@/components/ui/aurora-background'
+import { SmoothScroll } from '@/components/smooth-scroll'
+import { ScrollCanvas } from '@/components/scroll-canvas'
+import { SectionWipe } from '@/components/section-wipe'
 import type { Metadata } from 'next'
 
 // SEO: Ensure home page has metadata
@@ -24,34 +27,60 @@ export const metadata: Metadata = {
 
 export default function Home() {
 	return (
-		<AuroraBackground className="min-h-screen w-full">
-			<div className="min-h-screen w-full relative">
-				{/* Hero Section */}
-				<Hero />
+		<SmoothScroll>
+			{/* Fixed SVG energy paths that drift with scroll — behind everything */}
+			<ScrollCanvas />
 
-				{/* Features Section */}
-				<div id="features">
-					<Features />
+			<AuroraBackground className="min-h-screen w-full">
+				<div className="min-h-screen w-full relative">
+					{/* Hero Section */}
+					<Hero />
+
+					{/* Wipe curtain between Hero → Features */}
+					<SectionWipe
+						id="wipe-hero-features"
+						fromColor="rgba(5,5,10,0)"
+						toColor="rgba(5,5,10,0)"
+					/>
+
+					{/* Features Section */}
+					<div id="features">
+						<Features />
+					</div>
+
+					{/* Wipe curtain between Features → Pricing */}
+					<SectionWipe
+						id="wipe-features-pricing"
+						fromColor="rgba(5,5,10,0)"
+						toColor="rgba(15,10,30,0)"
+					/>
+
+					{/* Pricing Section */}
+					<div id="pricing">
+						<PricingSection />
+					</div>
+
+					{/* Wipe curtain between Pricing → Testimonials */}
+					<SectionWipe
+						id="wipe-pricing-testimonials"
+						fromColor="rgba(10,5,20,0)"
+						toColor="rgba(5,5,10,0)"
+					/>
+
+					{/* Testimonials Section */}
+					<div id="testimonials">
+						<Testimonials />
+					</div>
+
+					{/* New Release Promo */}
+					<NewReleasePromo />
+
+					{/* FAQ Section */}
+					<div id="faq">
+						<FAQSection />
+					</div>
 				</div>
-
-				{/* Pricing Section */}
-				<div id="pricing">
-					<PricingSection />
-				</div>
-
-				{/* Testimonials Section */}
-				<div id="testimonials">
-					<Testimonials />
-				</div>
-
-				{/* New Release Promo */}
-				<NewReleasePromo />
-
-				{/* FAQ Section */}
-				<div id="faq">
-					<FAQSection />
-				</div>
-			</div>
-		</AuroraBackground>
+			</AuroraBackground>
+		</SmoothScroll>
 	)
 }

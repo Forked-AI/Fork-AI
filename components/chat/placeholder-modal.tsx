@@ -1,11 +1,11 @@
 'use client'
 
 import {
-	Dialog,
-	DialogContent,
-	DialogDescription,
-	DialogHeader,
-	DialogTitle,
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogHeader,
+    DialogTitle,
 } from '@/components/ui/dialog'
 import { LucideIcon } from 'lucide-react'
 
@@ -26,7 +26,7 @@ export function PlaceholderModal({
 }: PlaceholderModalProps) {
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
-			<DialogContent className="bg-[#0a0d11]/80 backdrop-blur-xl border border-[#57FCFF]/20 sm:max-w-md">
+			<DialogContent className="bg-popover border border-primary/20 sm:max-w-md">
 				<DialogHeader>
 					<DialogTitle className="text-foreground flex items-center gap-2">
 						<Icon className="w-5 h-5 text-[#57FCFF]" />

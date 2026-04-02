@@ -1,492 +1,350 @@
 'use client'
 
-import type React from 'react'
-
 import { geist } from '@/lib/fonts'
 import { cn } from '@/lib/utils'
-import { motion, useInView } from 'framer-motion'
 import { ArrowLeftRight, GitBranch, Share2, Sparkles } from 'lucide-react'
-import { useRef, useState } from 'react'
-import { FollowerPointerCard } from './ui/following-pointer'
+import { useRef } from 'react'
+import gsap from 'gsap'
+import { ScrollTrigger } from 'gsap/ScrollTrigger'
+import { useGSAP } from '@gsap/react'
 
-// const ScrambleHover = dynamic(() => import("@/components/ui/scramble").then((mod) => mod.ScrambleHover), { ssr: false })
-// const Earth = lazy(() => import("./ui/globe").then((mod) => ({ default: mod.Earth })))
+gsap.registerPlugin(ScrollTrigger)
 
-type EarthProps = {
-	baseColor: [number, number, number]
-	markerColor: [number, number, number]
-	glowColor: [number, number, number]
-	dark: number
-}
+// ── Service tags (offground section-2 style horizontal row) ───────────────
+const SERVICE_TAGS = ['Branching', 'Multi-Model', 'Privacy', 'Speed']
 
-const baseColor: EarthProps['baseColor'] = [0.9, 0.9, 0.9]
-const glowColor: EarthProps['glowColor'] = [0.58, 0.64, 0.72]
-const dark = 1
+// ── Feature steps for Taiko-style pinned narrative ────────────────────────
+const STEPS = [
+  {
+    icon: GitBranch,
+    tag: 'Branching UI',
+    title: 'Fork your chat,\nnot your brain.',
+    body: 'Drag and drop to branch off alternatives, compare responses side-by-side, and keep your main line of thought clean. Each branch is its own thread.',
+    visual: (
+      <svg viewBox="0 0 240 200" className="w-full max-w-[220px]" aria-hidden="true">
+        <line x1="120" y1="20" x2="120" y2="80" stroke="#cbd5e1" strokeWidth="2.5" strokeLinecap="round" />
+        <line x1="120" y1="80" x2="60" y2="140" stroke="#94a3b8" strokeWidth="2" strokeLinecap="round" />
+        <line x1="120" y1="80" x2="180" y2="140" stroke="#94a3b8" strokeWidth="2" strokeLinecap="round" />
+        <line x1="60" y1="140" x2="35" y2="185" stroke="#64748b" strokeWidth="1.5" strokeLinecap="round" />
+        <line x1="60" y1="140" x2="85" y2="185" stroke="#64748b" strokeWidth="1.5" strokeLinecap="round" />
+        <circle cx="120" cy="20" r="10" fill="#cbd5e1" />
+        <circle cx="120" cy="80" r="7" fill="none" stroke="#cbd5e1" strokeWidth="2" />
+        <circle cx="60" cy="140" r="6" fill="none" stroke="#94a3b8" strokeWidth="1.5" />
+        <circle cx="180" cy="140" r="6" fill="none" stroke="#94a3b8" strokeWidth="1.5" />
+        <circle cx="35" cy="185" r="5" fill="none" stroke="#64748b" strokeWidth="1.5" />
+        <circle cx="85" cy="185" r="5" fill="none" stroke="#64748b" strokeWidth="1.5" />
+      </svg>
+    ),
+  },
+  {
+    icon: Share2,
+    tag: 'Privacy-First',
+    title: 'Share only what\nmatters.',
+    body: 'Instead of dumping your entire chat, share a precise slice: a branch, a set of messages, or an AI summary—with full control over what is visible.',
+    visual: (
+      <div className="flex flex-col gap-3 w-full max-w-[240px]">
+        <div className="rounded-xl border border-white/20 bg-white/5 px-4 py-3 flex items-center gap-3">
+          <div className="w-2 h-2 rounded-full bg-green-400 shadow-[0_0_8px_rgba(74,222,128,0.7)]" />
+          <span className="text-sm text-white/70">Selected messages</span>
+        </div>
+        <div className="rounded-xl border border-[#cbd5e1]/30 bg-[#cbd5e1]/10 px-4 py-3 text-sm text-[#cbd5e1]">
+          + AI Summary
+        </div>
+        <div className="rounded-full bg-white/10 border border-white/20 px-4 py-2 text-xs text-center text-white/50">
+          link copied ✓
+        </div>
+      </div>
+    ),
+  },
+  {
+    icon: ArrowLeftRight,
+    tag: 'Multi-Model',
+    title: 'Swap models\nmid-flow.',
+    body: 'Different models excel at different tasks. Switch GPT-4, Claude, or Gemini on any branch—compare responses on the same context with zero re-explaining.',
+    visual: (
+      <div className="flex items-end gap-3 w-full max-w-[240px]">
+        {[
+          { name: 'GPT-4', h: 'h-20', color: 'from-green-500/25 to-emerald-500/10' },
+          { name: 'Claude', h: 'h-28', color: 'from-orange-500/30 to-amber-500/10', active: true },
+          { name: 'Gemini', h: 'h-16', color: 'from-blue-500/25 to-cyan-500/10' },
+        ].map((m) => (
+          <div
+            key={m.name}
+            className={cn(
+              'flex-1 rounded-xl border border-white/10 bg-gradient-to-b flex flex-col items-center justify-end pb-3 text-xs font-medium transition-all',
+              m.h,
+              m.color,
+              m.active ? 'border-[#cbd5e1]/40 shadow-[0_0_20px_rgba(203,213,225,0.2)]' : ''
+            )}
+          >
+            <span className={m.active ? 'text-[#cbd5e1]' : 'text-white/50'}>{m.name}</span>
+          </div>
+        ))}
+      </div>
+    ),
+  },
+  {
+    icon: Sparkles,
+    tag: 'Accessible',
+    title: 'Premium UX,\nzero barrier.',
+    body: 'Fork AI runs on an ad-supported model so powerful AI stays accessible to everyone—no credit card, no paywall. Start free and upgrade when you\'re ready.',
+    visual: (
+      <div className="text-center w-full max-w-[200px]">
+        <div className="text-7xl font-black bg-gradient-to-b from-[#cbd5e1] to-[#94a3b8] bg-clip-text text-transparent leading-none">
+          $0
+        </div>
+        <div className="text-white/40 mt-2 text-sm">to get started</div>
+        <div className="mt-5 flex flex-col gap-2 text-left text-sm">
+          {['Thoughtful, minimal ads', 'Full branching & sharing', 'All major AI models'].map((i) => (
+            <div key={i} className="flex items-center gap-2 text-white/55">
+              <div className="w-1.5 h-1.5 rounded-full bg-[#cbd5e1] flex-shrink-0" />
+              {i}
+            </div>
+          ))}
+        </div>
+      </div>
+    ),
+  },
+]
 
 export function Features() {
-	const ref = useRef(null)
-	const isInView = useInView(ref, { once: true })
-	const [isHovering, setIsHovering] = useState(false)
-	const [isCliHovering, setIsCliHovering] = useState(false)
-	const [isFeature3Hovering, setIsFeature3Hovering] = useState(false)
-	const [isFeature4Hovering, setIsFeature4Hovering] = useState(false)
-	const [inputValue, setInputValue] = useState('')
+  const containerRef = useRef<HTMLDivElement>(null)
+  const narrativeRef = useRef<HTMLDivElement>(null)
 
-	const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-		if (e.key === 'Enter' && !e.shiftKey) {
-			e.preventDefault()
-		}
-	}
+  useGSAP(() => {
+    const mm = gsap.matchMedia()
 
-	return (
-		<section
-			id="features"
-			className="text-foreground relative overflow-hidden py-12 sm:py-24 md:py-32"
-		>
-			<div className="bg-primary absolute -top-10 left-1/2 h-16 w-44 -translate-x-1/2 rounded-full opacity-40 blur-3xl select-none"></div>
-			<div className="via-primary/50 absolute top-0 left-1/2 h-px w-3/5 -translate-x-1/2 bg-gradient-to-r from-transparent to-transparent transition-all ease-in-out"></div>
-			<motion.div
-				ref={ref}
-				initial={{ opacity: 0, y: 50 }}
-				animate={isInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 50 }}
-				transition={{ duration: 0.5, delay: 0 }}
-				className="container mx-auto flex flex-col items-center gap-6 sm:gap-12"
-			>
-				<div className="text-center max-w-3xl mx-auto mb-8">
-					<h2
-						className={cn(
-							'mb-4 bg-gradient-to-b from-white to-white/60 bg-clip-text text-center text-4xl font-semibold tracking-tighter text-transparent md:text-[54px] md:leading-[60px]',
-							geist.className
-						)}
-					>
-						What is Fork AI? A Multi-AI Chat Platform & AI Workspace
-					</h2>
-					<p className="text-white/60 text-lg leading-relaxed">
-						Unlike traditional AI chat tools like ChatGPT or Claude, Fork AI
-						allows you to work with multiple AI models in one place—without
-						restarting conversations or losing valuable context.
-					</p>
-				</div>
-				<FollowerPointerCard
-					title={
-						<div className="flex items-center gap-2">
-							<span>✨</span>
-							<span>Fork AI Features</span>
-						</div>
-					}
-				>
-					<div className="cursor-none">
-						<div className="grid grid-cols-12 gap-4 justify-center">
-							<motion.div
-								className="group border-secondary/40 text-card-foreground relative col-span-12 flex flex-col overflow-hidden rounded-xl border-2 p-6 shadow-xl transition-all ease-in-out md:col-span-6 xl:col-span-6 xl:col-start-2"
-								onMouseEnter={() => setIsCliHovering(true)}
-								onMouseLeave={() => setIsCliHovering(false)}
-								ref={ref}
-								initial={{ opacity: 0, y: 50 }}
-								animate={
-									isInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 50 }
-								}
-								transition={{ duration: 0.5, delay: 0.5 }}
-								whileHover={{
-									scale: 1.02,
-									borderColor: 'rgba(148, 163, 184, 0.6)',
-									boxShadow: '0 0 30px rgba(148, 163, 184, 0.2)',
-								}}
-								style={{ transition: 'all 0s ease-in-out' }}
-							>
-								<div className="flex flex-col gap-4">
-									<div className="flex items-center gap-3">
-										<GitBranch className="w-8 h-8 text-[#cbd5e1]" />
-										<h3 className="text-2xl leading-none font-semibold tracking-tight">
-											Fork Branching UI
-										</h3>
-									</div>
-									<div className="text-md text-muted-foreground flex flex-col gap-2 text-sm">
-										<p className="max-w-[460px]">
-											Fork your chat, not your brain. Drag and drop to fork off
-											alternatives, compare responses side-by-side, and keep
-											your main line of thought clean.
-										</p>
-									</div>
-								</div>
-								<div className="pointer-events-none flex grow items-center justify-center select-none relative min-h-[300px]">
-									{/* Branching Tree Visualization */}
-									<div className="relative w-full h-[300px] flex items-center justify-center">
-										<svg
-											width="300"
-											height="280"
-											viewBox="0 0 300 280"
-											className="opacity-80"
-										>
-											{/* Main trunk */}
-											<motion.path
-												d="M 150 20 L 150 100"
-												stroke="#cbd5e1"
-												strokeWidth="3"
-												fill="none"
-												initial={{ pathLength: 0 }}
-												animate={
-													isCliHovering
-														? { pathLength: 1 }
-														: { pathLength: 0.5 }
-												}
-												transition={{ duration: 1 }}
-											/>
-											{/* Branch left */}
-											<motion.path
-												d="M 150 100 L 80 160"
-												stroke="#94a3b8"
-												strokeWidth="2"
-												fill="none"
-												initial={{ pathLength: 0 }}
-												animate={
-													isCliHovering ? { pathLength: 1 } : { pathLength: 0 }
-												}
-												transition={{ duration: 0.8, delay: 0.3 }}
-											/>
-											{/* Branch right */}
-											<motion.path
-												d="M 150 100 L 220 160"
-												stroke="#94a3b8"
-												strokeWidth="2"
-												fill="none"
-												initial={{ pathLength: 0 }}
-												animate={
-													isCliHovering ? { pathLength: 1 } : { pathLength: 0 }
-												}
-												transition={{ duration: 0.8, delay: 0.3 }}
-											/>
-											{/* Sub branches */}
-											<motion.path
-												d="M 80 160 L 50 220"
-												stroke="#64748b"
-												strokeWidth="1.5"
-												fill="none"
-												initial={{ pathLength: 0 }}
-												animate={
-													isCliHovering ? { pathLength: 1 } : { pathLength: 0 }
-												}
-												transition={{ duration: 0.6, delay: 0.6 }}
-											/>
-											<motion.path
-												d="M 80 160 L 110 220"
-												stroke="#64748b"
-												strokeWidth="1.5"
-												fill="none"
-												initial={{ pathLength: 0 }}
-												animate={
-													isCliHovering ? { pathLength: 1 } : { pathLength: 0 }
-												}
-												transition={{ duration: 0.6, delay: 0.7 }}
-											/>
-											<motion.path
-												d="M 220 160 L 250 220"
-												stroke="#64748b"
-												strokeWidth="1.5"
-												fill="none"
-												initial={{ pathLength: 0 }}
-												animate={
-													isCliHovering ? { pathLength: 1 } : { pathLength: 0 }
-												}
-												transition={{ duration: 0.6, delay: 0.8 }}
-											/>
-										</svg>
-										{/* Nodes */}
-										<motion.div
-											className="absolute top-4 left-1/2 -translate-x-1/2 w-8 h-8 rounded-full bg-gradient-to-br from-[#cbd5e1] to-[#94a3b8] shadow-lg"
-											animate={
-												isCliHovering ? { scale: [1, 1.2, 1] } : { scale: 1 }
-											}
-											transition={{ duration: 0.5 }}
-										/>
-										<motion.div
-											className="absolute top-[90px] left-1/2 -translate-x-1/2 w-6 h-6 rounded-full bg-white/20 border-2 border-[#cbd5e1]"
-											animate={
-												isCliHovering ? { scale: [1, 1.3, 1] } : { scale: 1 }
-											}
-											transition={{ duration: 0.5, delay: 0.2 }}
-										/>
-									</div>
-								</div>
-								<div className="mt-4 flex flex-wrap gap-2">
-									<span className="px-3 py-1 rounded-full glass text-xs text-white/80">
-										Drag-and-drop branching
-									</span>
-									<span className="px-3 py-1 rounded-full glass text-xs text-white/80">
-										Visual tree view
-									</span>
-									<span className="px-3 py-1 rounded-full glass text-xs text-white/80">
-										Focus mode
-									</span>
-								</div>
-							</motion.div>
+    mm.add('(min-width: 768px)', () => {
 
-							<motion.div
-								className="group border-secondary/40 text-card-foreground relative col-span-12 flex flex-col overflow-hidden rounded-xl border-2 p-6 shadow-xl transition-all ease-in-out md:col-span-6 xl:col-span-6 xl:col-start-8"
-								onMouseEnter={() => setIsHovering(true)}
-								onMouseLeave={() => setIsHovering(false)}
-								ref={ref}
-								initial={{ opacity: 0, y: 50 }}
-								animate={
-									isInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 50 }
-								}
-								transition={{ duration: 0.5, delay: 0.5 }}
-								whileHover={{
-									scale: 1.02,
-									borderColor: 'rgba(148, 163, 184, 0.6)',
-									boxShadow: '0 0 30px rgba(148, 163, 184, 0.2)',
-									transition: { duration: 0.3, ease: 'easeOut' },
-								}}
-							>
-								<div className="flex flex-col gap-4">
-									<div className="flex items-center gap-3">
-										<Share2 className="w-8 h-8 text-[#cbd5e1]" />
-										<h3 className="text-2xl leading-none font-semibold tracking-tight">
-											Privacy-First Sharing
-										</h3>
-									</div>
-									<div className="text-md text-muted-foreground flex flex-col gap-2 text-sm">
-										<p className="max-w-[460px]">
-											Share only what matters. Instead of dumping your entire
-											chat, share a precise slice: a branch, a set of messages,
-											or a summary.
-										</p>
-									</div>
-								</div>
-								<div className="flex min-h-[300px] grow items-center justify-center select-none">
-									<div className="relative">
-										<motion.div
-											className="glass rounded-xl p-4 border border-white/20"
-											animate={isHovering ? { scale: 1.05 } : { scale: 1 }}
-											transition={{ duration: 0.3 }}
-										>
-											<div className="flex items-center gap-2 mb-3">
-												<div className="w-3 h-3 rounded-full bg-green-500"></div>
-												<span className="text-sm text-white/80">
-													Shared Branch
-												</span>
-											</div>
-											<div className="space-y-2">
-												<motion.div
-													className="bg-white/10 rounded-lg px-3 py-2 text-xs text-white/60"
-													animate={isHovering ? { x: [0, 5, 0] } : { x: 0 }}
-													transition={{ duration: 0.5, delay: 0.1 }}
-												>
-													Selected message 1
-												</motion.div>
-												<motion.div
-													className="bg-white/10 rounded-lg px-3 py-2 text-xs text-white/60"
-													animate={isHovering ? { x: [0, 5, 0] } : { x: 0 }}
-													transition={{ duration: 0.5, delay: 0.2 }}
-												>
-													Selected message 2
-												</motion.div>
-												<motion.div
-													className="bg-[#cbd5e1]/20 rounded-lg px-3 py-2 text-xs text-[#cbd5e1] border border-[#cbd5e1]/30"
-													animate={isHovering ? { x: [0, 5, 0] } : { x: 0 }}
-													transition={{ duration: 0.5, delay: 0.3 }}
-												>
-													+ AI Summary
-												</motion.div>
-											</div>
-										</motion.div>
-										<motion.div
-											className="absolute -bottom-4 -right-4 bg-gradient-to-r from-[#cbd5e1] to-[#94a3b8] rounded-full px-3 py-1 text-xs font-medium text-black"
-											animate={
-												isHovering ? { scale: [1, 1.1, 1] } : { scale: 1 }
-											}
-											transition={{
-												duration: 0.5,
-												repeat: isHovering ? Number.POSITIVE_INFINITY : 0,
-											}}
-										>
-											link copied!
-										</motion.div>
-									</div>
-								</div>
-								<div className="mt-4 flex flex-wrap gap-2">
-									<span className="px-3 py-1 rounded-full glass text-xs text-white/80">
-										Unique share links
-									</span>
-									<span className="px-3 py-1 rounded-full glass text-xs text-white/80">
-										Redact sensitive info
-									</span>
-									<span className="px-3 py-1 rounded-full glass text-xs text-white/80">
-										Shareable summaries
-									</span>
-								</div>
-							</motion.div>
+      // ── 1. Section-2 entrance: slide up FROM BELOW (offground pattern) ──
+      // The header tag row reveals horizontally (slides from left, like offground service tags)
+      gsap.from('.features-tag-row .ftag', {
+        x: -60,
+        opacity: 0,
+        duration: 0.7,
+        ease: 'power3.out',
+        stagger: 0.12,
+        scrollTrigger: {
+          trigger: '.features-tag-row',
+          start: 'top 88%',
+        },
+      })
 
-							<motion.div
-								className="group border-secondary/40 text-card-foreground relative col-span-12 flex flex-col overflow-hidden rounded-xl border-2 p-6 shadow-xl transition-all ease-in-out md:col-span-6 xl:col-span-6 xl:col-start-2"
-								onMouseEnter={() => setIsFeature3Hovering(true)}
-								onMouseLeave={() => setIsFeature3Hovering(false)}
-								initial={{ opacity: 0, y: 50 }}
-								animate={
-									isInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 50 }
-								}
-								transition={{ duration: 0.3 }}
-								whileHover={{
-									scale: 1.02,
-									borderColor: 'rgba(148, 163, 184, 0.5)',
-									boxShadow: '0 0 30px rgba(148, 163, 184, 0.2)',
-									transition: { duration: 0.3, ease: 'easeOut' },
-								}}
-							>
-								<div className="flex flex-col gap-4">
-									<div className="flex items-center gap-3">
-										<ArrowLeftRight className="w-8 h-8 text-[#cbd5e1]" />
-										<h3 className="text-2xl leading-none font-semibold tracking-tight">
-											Swap Models Mid-Flow
-										</h3>
-									</div>
-									<div className="text-md text-muted-foreground flex flex-col gap-2 text-sm">
-										<p className="max-w-[460px]">
-											Different models are good at different things. Switch
-											models on any branch or compare responses from multiple
-											models on the same context.
-										</p>
-									</div>
-								</div>
-								<div className="flex grow items-center justify-center select-none relative min-h-[300px] p-4">
-									<div className="flex items-center gap-4">
-										{['GPT-4', 'Claude', 'Gemini'].map((model, index) => (
-											<motion.div
-												key={model}
-												className="glass rounded-xl px-4 py-3 border border-white/20 text-center"
-												animate={
-													isFeature3Hovering
-														? {
-																y: [0, -10, 0],
-																borderColor:
-																	index === 1
-																		? 'rgba(203, 213, 225, 0.6)'
-																		: 'rgba(255, 255, 255, 0.2)',
-															}
-														: { y: 0 }
-												}
-												transition={{ duration: 0.5, delay: index * 0.1 }}
-											>
-												<div className="text-sm font-medium text-white">
-													{model}
-												</div>
-												<div className="text-xs text-white/50 mt-1">
-													{index === 0
-														? 'Reasoning'
-														: index === 1
-															? 'Creative'
-															: 'Fast'}
-												</div>
-											</motion.div>
-										))}
-									</div>
-									<motion.div
-										className="absolute bottom-8 text-xs text-[#cbd5e1]"
-										animate={
-											isFeature3Hovering ? { opacity: [0, 1] } : { opacity: 0 }
-										}
-										transition={{ duration: 0.3, delay: 0.5 }}
-									>
-										Context preserved across all models
-									</motion.div>
-								</div>
-								<div className="mt-4 flex flex-wrap gap-2">
-									<span className="px-3 py-1 rounded-full glass text-xs text-white/80">
-										Instant switching
-									</span>
-									<span className="px-3 py-1 rounded-full glass text-xs text-white/80">
-										Compare responses
-									</span>
-									<span className="px-3 py-1 rounded-full glass text-xs text-white/80">
-										Keep history
-									</span>
-								</div>
-							</motion.div>
+      // Main headline: clip-path reveal from bottom (offground "We specialize in" style)
+      gsap.from('.features-main-headline .clip-line', {
+        y: '105%',
+        duration: 1.0,
+        ease: 'power3.out',
+        stagger: 0.12,
+        scrollTrigger: {
+          trigger: '.features-main-headline',
+          start: 'top 85%',
+        },
+      })
 
-							<motion.div
-								className="group border-secondary/40 text-card-foreground relative col-span-12 flex flex-col overflow-hidden rounded-xl border-2 p-6 shadow-xl transition-all ease-in-out md:col-span-6 xl:col-span-6 xl:col-start-8"
-								onMouseEnter={() => setIsFeature4Hovering(true)}
-								onMouseLeave={() => setIsFeature4Hovering(false)}
-								initial={{ opacity: 0, y: 50 }}
-								animate={
-									isInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 50 }
-								}
-								transition={{ duration: 0.3 }}
-								whileHover={{
-									scale: 1.02,
-									boxShadow: '0 20px 40px rgba(148, 163, 184, 0.3)',
-									borderColor: 'rgba(148, 163, 184, 0.6)',
-									transition: { duration: 0.3, ease: 'easeOut' },
-								}}
-							>
-								<div className="flex flex-col gap-4">
-									<div className="flex items-center gap-3">
-										<Sparkles className="w-8 h-8 text-[#cbd5e1]" />
-										<h3 className="text-2xl leading-none font-semibold tracking-tight">
-											Premium UX, Accessible Pricing
-										</h3>
-									</div>
-									<div className="text-md text-muted-foreground flex flex-col gap-2 text-sm">
-										<p className="max-w-[460px]">
-											Fork AI is built to be accessible. An ad-backed model
-											helps keep usage affordable while we invest heavily in UX
-											and performance.
-										</p>
-									</div>
-								</div>
-								<div className="flex grow items-center justify-center select-none relative min-h-[300px] p-4">
-									<div className="text-center">
-										<motion.div
-											className="text-6xl font-bold bg-gradient-to-r from-[#cbd5e1] to-[#94a3b8] bg-clip-text text-transparent"
-											animate={
-												isFeature4Hovering
-													? { scale: [1, 1.1, 1] }
-													: { scale: 1 }
-											}
-											transition={{ duration: 0.5 }}
-										>
-											$0
-										</motion.div>
-										<div className="text-white/60 mt-2">to get started</div>
-										<div className="mt-6 flex flex-col gap-2 text-left">
-											{[
-												'Thoughtful, minimal ads',
-												'Speed & clarity focused',
-												'Built for power users',
-											].map((item, i) => (
-												<motion.div
-													key={item}
-													className="flex items-center gap-2 text-sm text-white/80"
-													animate={
-														isFeature4Hovering ? { x: [0, 5, 0] } : { x: 0 }
-													}
-													transition={{ duration: 0.3, delay: i * 0.1 }}
-												>
-													<div className="w-1.5 h-1.5 rounded-full bg-[#cbd5e1]"></div>
-													{item}
-												</motion.div>
-											))}
-										</div>
-									</div>
-								</div>
-								<div className="mt-4 flex flex-wrap gap-2">
-									<span className="px-3 py-1 rounded-full glass text-xs text-white/80">
-										Researchers
-									</span>
-									<span className="px-3 py-1 rounded-full glass text-xs text-white/80">
-										Builders
-									</span>
-									<span className="px-3 py-1 rounded-full glass text-xs text-white/80">
-										Power users
-									</span>
-								</div>
-							</motion.div>
-						</div>
-					</div>
-				</FollowerPointerCard>
-			</motion.div>
-		</section>
-	)
+      gsap.from('.features-subtext', {
+        y: 30,
+        opacity: 0,
+        duration: 0.8,
+        ease: 'power3.out',
+        scrollTrigger: {
+          trigger: '.features-subtext',
+          start: 'top 88%',
+        },
+      })
+
+      // ── 2. Taiko-style: PIN the narrative section ─────────────────────────
+      const steps = gsap.utils.toArray<HTMLElement>('.step-content')
+      const visuals = gsap.utils.toArray<HTMLElement>('.step-visual')
+
+      if (steps.length > 0 && narrativeRef.current) {
+        const totalScrollLength = (steps.length - 1) * 600 // 600px scroll per step
+        let lastStep = 0
+
+        // Set ALL steps' initial CSS so there's zero bleed-through
+        steps.forEach((s, i) => gsap.set(s, { opacity: i === 0 ? 1 : 0, y: i === 0 ? 0 : 30, visibility: i === 0 ? 'visible' : 'hidden' }))
+        visuals.forEach((v, i) => gsap.set(v, { opacity: i === 0 ? 1 : 0, x: i === 0 ? 0 : 40, scale: i === 0 ? 1 : 0.92, visibility: i === 0 ? 'visible' : 'hidden' }))
+
+        ScrollTrigger.create({
+          trigger: narrativeRef.current,
+          start: 'top top',
+          end: `+=${totalScrollLength}`,
+          pin: true,
+          pinSpacing: true,
+          anticipatePin: 1,
+          onUpdate: (self) => {
+            const rawStep = self.progress * (steps.length - 1)
+            const currentStep = Math.max(0, Math.min(steps.length - 1, Math.round(rawStep)))
+            if (currentStep === lastStep) return
+            const prev = lastStep
+            lastStep = currentStep
+
+            // Exit old step
+            gsap.to(steps[prev], { opacity: 0, y: prev < currentStep ? -30 : 30, duration: 0.35, ease: 'power2.in', onComplete: () => gsap.set(steps[prev], { visibility: 'hidden' }) })
+            gsap.to(visuals[prev], { opacity: 0, x: prev < currentStep ? -40 : 40, scale: 0.92, duration: 0.35, ease: 'power2.in', onComplete: () => gsap.set(visuals[prev], { visibility: 'hidden' }) })
+
+            // Enter new step
+            gsap.set(steps[currentStep], { visibility: 'visible', y: prev < currentStep ? 30 : -30 })
+            gsap.set(visuals[currentStep], { visibility: 'visible', x: prev < currentStep ? 40 : -40 })
+            gsap.to(steps[currentStep], { opacity: 1, y: 0, duration: 0.45, ease: 'power2.out', delay: 0.1 })
+            gsap.to(visuals[currentStep], { opacity: 1, x: 0, scale: 1, duration: 0.5, ease: 'power2.out', delay: 0.1 })
+          },
+        })
+      }
+
+      // ── 3. Word-level opacity scroll reveal (Taiko "About" style) ──
+      // Applied to features body text
+      gsap.utils.toArray<HTMLElement>('.scroll-word').forEach((word) => {
+        gsap.fromTo(
+          word,
+          { opacity: 0.15 },
+          {
+            opacity: 1,
+            ease: 'none',
+            scrollTrigger: {
+              trigger: word,
+              start: 'top 75%',
+              end: 'top 45%',
+              scrub: true,
+            },
+          }
+        )
+      })
+
+      return () => mm.revert()
+    })
+
+    mm.add('(max-width: 767px)', () => {
+      gsap.utils.toArray<HTMLElement>('.step-content').forEach((el) => {
+        gsap.from(el, {
+          y: 40,
+          opacity: 0,
+          duration: 0.7,
+          ease: 'power3.out',
+          scrollTrigger: { trigger: el, start: 'top 88%' },
+        })
+      })
+    })
+  }, { scope: containerRef })
+
+  return (
+    <section
+      id="features"
+      ref={containerRef}
+      className="relative"
+    >
+      {/* ── Part A: Offline-style section opener ────────────────────────────── */}
+      <div className="py-20 px-4">
+        <div className="max-w-6xl mx-auto">
+
+          {/* Horizontal service tags — offground "Web Dev · Design · Automation · Consulting" */}
+          <div className="features-tag-row flex flex-wrap items-center gap-x-8 gap-y-3 mb-10">
+            {SERVICE_TAGS.map((tag) => (
+              <div key={tag} className="ftag flex items-center gap-2.5">
+                <div className="w-2 h-2 rounded-full bg-[#cbd5e1]/60" />
+                <span className="text-sm text-white/55 font-medium tracking-wide">{tag}</span>
+              </div>
+            ))}
+          </div>
+
+          {/* Clipping-mask headline reveal — offground "We specialize in customer happiness" */}
+          <div className="features-main-headline overflow-hidden mb-6">
+            {['What is Fork AI?'].map((line, i) => (
+              <div key={i} className="overflow-hidden">
+                <div
+                  className={cn(
+                    'clip-line text-4xl md:text-[56px] md:leading-[1.1] font-bold tracking-tight text-white',
+                    geist.className
+                  )}
+                >
+                  {line}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <p className="features-subtext text-white/55 text-lg leading-relaxed max-w-xl">
+            A Multi-AI Chat Platform & AI Workspace — work with multiple models
+            in one place without restarting conversations or losing context.
+          </p>
+        </div>
+      </div>
+
+      {/* ── Part B: Taiko-style pinned narrative (text swaps, visual transitions) ─ */}
+      <div
+        ref={narrativeRef}
+        className="relative h-screen flex items-center overflow-hidden"
+      >
+        {/* Left: Text steps (overlap each other, shown one at a time) */}
+        <div className="absolute inset-0 flex items-center px-4">
+          <div className="max-w-6xl w-full mx-auto grid grid-cols-1 md:grid-cols-2 gap-12 items-center">
+
+            {/* Text column */}
+            <div className="relative h-72">
+              {STEPS.map((step, i) => (
+                <div
+                  key={step.tag}
+                  className="step-content absolute inset-0 flex flex-col justify-center"
+                >
+                  {/* Step counter */}
+                  <div className="flex items-center gap-3 mb-5">
+                    <span className="text-xs font-mono text-white/30 tabular-nums">
+                      0{i + 1} / 0{STEPS.length}
+                    </span>
+                    <div className="flex-1 h-px bg-white/10">
+                      <div
+                        className="h-full bg-[#cbd5e1]/60 transition-all duration-500"
+                        style={{ width: `${((i + 1) / STEPS.length) * 100}%` }}
+                      />
+                    </div>
+                    <span className="px-2.5 py-1 rounded-full bg-white/5 border border-white/10 text-xs text-[#cbd5e1]">
+                      {step.tag}
+                    </span>
+                  </div>
+
+                  <h3
+                    className={cn(
+                      'text-3xl md:text-4xl font-bold tracking-tight text-white mb-4 whitespace-pre-line',
+                      geist.className
+                    )}
+                  >
+                    {step.title}
+                  </h3>
+
+                  <p className="text-white/55 text-base leading-relaxed max-w-md">
+                    {step.body}
+                  </p>
+                </div>
+              ))}
+            </div>
+
+            {/* Visual column */}
+            <div className="relative h-72 flex items-center justify-center">
+              {STEPS.map((step) => (
+                <div
+                  key={step.tag}
+                  className="step-visual absolute inset-0 flex items-center justify-center"
+                >
+                  {step.visual}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Progress dots (taiko-style scroll position indicator) */}
+        <div className="absolute right-6 top-1/2 -translate-y-1/2 flex flex-col gap-3 z-20">
+          {STEPS.map((step, i) => (
+            <div
+              key={step.tag}
+              className="w-1.5 h-1.5 rounded-full bg-white/20 transition-all duration-300"
+              title={step.tag}
+            />
+          ))}
+        </div>
+      </div>
+    </section>
+  )
 }
 
 export default Features

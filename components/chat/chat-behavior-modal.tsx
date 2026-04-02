@@ -74,7 +74,7 @@ export function ChatBehaviorModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="bg-[#0a0d11]/80 backdrop-blur-xl border border-[#57FCFF]/20 sm:max-w-2xl max-h-[85vh] overflow-y-auto">
+      <DialogContent className="bg-popover border border-primary/20 sm:max-w-2xl max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <div className="flex items-center gap-2">
             <Button

@@ -70,7 +70,7 @@ export function ModelsModal({
 	return (
 		<>
 			<Dialog open={open} onOpenChange={onOpenChange}>
-				<DialogContent className="max-w-[95vw] sm:max-w-[85vw] md:max-w-[80vw] lg:max-w-[1200px] w-full h-[85vh] p-0 bg-[#0a0d11]/95 backdrop-blur-2xl border-[#57FCFF]/30 overflow-hidden">
+				<DialogContent className="max-w-[95vw] sm:max-w-[85vw] md:max-w-[80vw] lg:max-w-[1200px] w-full h-[85vh] p-0 bg-popover border-primary/30 overflow-hidden">
 					<DialogHeader className="px-6 pt-6 pb-4 border-b border-[#57FCFF]/20">
 						<div className="flex items-center justify-between">
 							<DialogTitle className="text-xl font-semibold">
@@ -126,7 +126,7 @@ export function ModelsModal({
 											</DropdownMenuTrigger>
 											<DropdownMenuContent
 												align="end"
-												className="w-48 bg-[#0a0d11]/95 backdrop-blur-2xl border-[#57FCFF]/30"
+												className="w-48 bg-popover border-primary/30"
 												onClick={(e) => e.stopPropagation()}
 											>
 												<DropdownMenuItem
@@ -218,7 +218,7 @@ export function ModelsModal({
 					open={!!selectedModelDetails}
 					onOpenChange={() => setSelectedModelDetails(null)}
 				>
-					<DialogContent className="max-w-2xl bg-[#0a0d11]/95 backdrop-blur-2xl border-[#57FCFF]/30">
+					<DialogContent className="max-w-2xl bg-popover border-primary/30">
 						<DialogHeader>
 							<DialogTitle className="text-2xl font-semibold flex items-center gap-3">
 								<div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#57FCFF]/20 to-[#57FCFF]/5 border border-[#57FCFF]/30 flex items-center justify-center">
