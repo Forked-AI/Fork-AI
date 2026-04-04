@@ -7,6 +7,7 @@ import { z } from "zod";
 const updateCollectionSchema = z.object({
 	name: z
 		.string()
+		.trim()
 		.min(1, "Name is required")
 		.max(50, "Name too long")
 		.optional(),
@@ -47,6 +48,11 @@ export async function PUT(
 		// Check ownership
 		const existing = await prisma.collection.findFirst({
 			where: { id: collectionId, userId },
+			include: {
+				_count: {
+					select: { conversations: true },
+				},
+			},
 		});
 
 		if (!existing) {
@@ -56,9 +62,29 @@ export async function PUT(
 			);
 		}
 
+		const updateData: { name?: string; color?: string } = {};
+
+		if (
+			result.data.name !== undefined &&
+			result.data.name !== existing.name.trim()
+		) {
+			updateData.name = result.data.name;
+		}
+
+		if (
+			result.data.color !== undefined &&
+			result.data.color !== existing.color
+		) {
+			updateData.color = result.data.color;
+		}
+
+		if (Object.keys(updateData).length === 0) {
+			return NextResponse.json({ collection: existing });
+		}
+
 		const collection = await prisma.collection.update({
 			where: { id: collectionId },
-			data: result.data,
+			data: updateData,
 			include: {
 				_count: {
 					select: { conversations: true },

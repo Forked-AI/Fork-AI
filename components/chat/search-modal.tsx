@@ -9,6 +9,7 @@ import {
     CommandList,
 } from '@/components/ui/command'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
+import { openConversation } from '@/lib/chat-navigation'
 import { History, Loader2, MessageSquare } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
@@ -105,14 +106,7 @@ export function SearchModal({ open, onOpenChange }: SearchModalProps) {
 	}, [])
 
 	const handleSelectChat = (conversationId: string) => {
-		// Navigate to the conversation
-		window.history.replaceState({}, '', `/chat?c=${conversationId}`)
-		// Trigger custom event to reload chat
-		window.dispatchEvent(
-			new CustomEvent('chatChanged', {
-				detail: { conversationId },
-			})
-		)
+		openConversation(conversationId)
 		onOpenChange(false)
 	}
 

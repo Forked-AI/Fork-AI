@@ -9,8 +9,9 @@ const moveConversationSchema = z.object({
 });
 
 const updateConversationSchema = z.object({
-	title: z.string().min(1).max(200).optional(),
+	title: z.string().trim().min(1).max(200).optional(),
 	collectionId: z.string().nullable().optional(),
+	isPinned: z.boolean().optional(),
 });
 
 // GET - Fetch a single conversation with all messages
@@ -108,7 +109,7 @@ export async function PATCH(
 			);
 		}
 
-		const { title, collectionId } = result.data;
+		const { title, collectionId, isPinned } = result.data;
 
 		// Check conversation ownership
 		const existing = await prisma.conversation.findFirst({
@@ -122,11 +123,43 @@ export async function PATCH(
 			);
 		}
 
+		const existingConversation = existing as typeof existing & {
+			isPinned?: boolean;
+		};
+
+		// Build update data - only include fields whose effective value changes
+		const updateData: {
+			title?: string;
+			collectionId?: string | null;
+			isPinned?: boolean;
+			pinnedAt?: Date | null;
+		} = {};
+
+		if (title !== undefined && title !== existing.title.trim()) {
+			updateData.title = title;
+		}
+
+		if (
+			collectionId !== undefined &&
+			collectionId !== existing.collectionId
+		) {
+			updateData.collectionId = collectionId;
+		}
+
+		if (isPinned !== undefined && isPinned !== existingConversation.isPinned) {
+			updateData.isPinned = isPinned;
+			updateData.pinnedAt = isPinned ? new Date() : null;
+		}
+
+		if (Object.keys(updateData).length === 0) {
+			return NextResponse.json({ conversation: existing });
+		}
+
 		// If moving to a collection, verify collection ownership
-		if (collectionId) {
+		if (updateData.collectionId) {
 			const collection = await prisma.collection.findFirst({
 				where: {
-					id: collectionId,
+					id: updateData.collectionId,
 					userId,
 					isDefault: false,
 				},
@@ -139,11 +172,6 @@ export async function PATCH(
 				);
 			}
 		}
-
-		// Build update data - only include provided fields
-		const updateData: { title?: string; collectionId?: string | null } = {};
-		if (title !== undefined) updateData.title = title;
-		if (collectionId !== undefined) updateData.collectionId = collectionId;
 
 		// Update conversation
 		const conversation = await prisma.conversation.update({

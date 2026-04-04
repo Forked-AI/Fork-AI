@@ -14,6 +14,10 @@ const listQuerySchema = z.object({
 	limit: z.coerce.number().int().positive().max(100).default(20),
 	collectionId: z.string().optional(),
 	search: z.string().optional(),
+	pinned: z
+		.enum(["true", "false"])
+		.transform((value) => value === "true")
+		.optional(),
 });
 
 // GET - List user's conversations with pagination
@@ -38,6 +42,7 @@ export async function GET(request: Request) {
 			limit: url.searchParams.get("limit") || 20,
 			collectionId: url.searchParams.get("collectionId") || undefined,
 			search: url.searchParams.get("search") || undefined,
+			pinned: url.searchParams.get("pinned") || undefined,
 		});
 
 		if (!queryResult.success) {
@@ -47,7 +52,7 @@ export async function GET(request: Request) {
 			);
 		}
 
-		const { page, limit, collectionId, search } = queryResult.data;
+		const { page, limit, collectionId, search, pinned } = queryResult.data;
 		const skip = (page - 1) * limit;
 
 		// Build where clause with search support
@@ -56,6 +61,10 @@ export async function GET(request: Request) {
 
 		if (collectionId !== undefined) {
 			where.collectionId = collectionId === "null" ? null : collectionId;
+		}
+
+		if (pinned !== undefined) {
+			where.isPinned = pinned;
 		}
 
 		// Add search conditions (search in title and message content)
@@ -76,11 +85,16 @@ export async function GET(request: Request) {
 			];
 		}
 
+		const orderBy =
+			pinned === true
+				? [{ pinnedAt: "desc" as const }, { updatedAt: "desc" as const }]
+				: [{ updatedAt: "desc" as const }];
+
 		// Fetch conversations with last message preview
 		const [conversations, total] = await Promise.all([
 			prisma.conversation.findMany({
 				where,
-				orderBy: { updatedAt: "desc" },
+				orderBy,
 				skip,
 				take: limit,
 				include: {
@@ -110,15 +124,24 @@ export async function GET(request: Request) {
 		]);
 
 		// Transform response
-		const formattedConversations = conversations.map((conv) => ({
-			id: conv.id,
-			title: conv.title,
-			lastMessage: conv.messages[0] || null,
-			messageCount: conv._count.messages,
-			collection: conv.collection,
-			createdAt: conv.createdAt,
-			updatedAt: conv.updatedAt,
-		}));
+		const formattedConversations = conversations.map((conv) => {
+			const pinnedConversation = conv as typeof conv & {
+				isPinned?: boolean;
+				pinnedAt?: Date | null;
+			};
+
+			return {
+				id: conv.id,
+				title: conv.title,
+				isPinned: pinnedConversation.isPinned ?? false,
+				pinnedAt: pinnedConversation.pinnedAt?.toISOString() ?? null,
+				lastMessage: conv.messages[0] || null,
+				messageCount: conv._count.messages,
+				collection: conv.collection,
+				createdAt: conv.createdAt,
+				updatedAt: conv.updatedAt,
+			};
+		});
 
 		return NextResponse.json({
 			conversations: formattedConversations,

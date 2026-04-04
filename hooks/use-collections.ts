@@ -27,7 +27,9 @@ function invalidateCollectionRelatedQueries(queryClient: ReturnType<typeof useQu
 	queryClient.invalidateQueries({ queryKey: ["conversations"] });
 }
 
-export function useCollections() {
+export function useCollections(options: { enabled?: boolean } = {}) {
+	const { enabled = true } = options;
+
 	return useQuery({
 		queryKey: ["collections"],
 		queryFn: async () => {
@@ -43,6 +45,7 @@ export function useCollections() {
 			const data = await res.json();
 			return data.collections as Collection[];
 		},
+		enabled,
 	});
 }
 

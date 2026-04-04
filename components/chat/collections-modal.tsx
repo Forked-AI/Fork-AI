@@ -12,6 +12,16 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
 import {
+	ContextMenu,
+	ContextMenuContent,
+	ContextMenuItem,
+	ContextMenuSeparator,
+	ContextMenuSub,
+	ContextMenuSubContent,
+	ContextMenuSubTrigger,
+	ContextMenuTrigger,
+} from '@/components/ui/context-menu'
+import {
 	Dialog,
 	DialogContent,
 	DialogDescription,
@@ -29,6 +39,8 @@ import {
 	DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
+import { useToast } from '@/hooks/use-toast'
+import { openConversation } from '@/lib/chat-navigation'
 import {
 	useCollections,
 	useCreateCollection,
@@ -55,8 +67,15 @@ import {
 	SortAsc,
 	Trash2,
 	X,
+	type LucideIcon,
 } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import {
+	useEffect,
+	useMemo,
+	useState,
+	type CSSProperties,
+	type ReactNode,
+} from 'react'
 
 const PRESET_COLORS = [
 	'#57FCFF',
@@ -72,6 +91,182 @@ const FOLDER_PAGE_SIZE = 100
 
 type DateFilter = 'all' | 'today' | 'week' | 'month' | 'older'
 type SortOrder = 'recent' | 'oldest' | 'alphabetical'
+type MenuRenderer = 'dropdown' | 'context'
+
+interface MenuActionBase {
+	key: string
+	icon?: LucideIcon
+	iconClassName?: string
+	iconStyle?: CSSProperties
+	className?: string
+}
+
+interface MenuItemAction extends MenuActionBase {
+	type: 'item'
+	label: string
+	onSelect: () => void | Promise<void>
+	disabled?: boolean
+	variant?: 'default' | 'destructive'
+}
+
+interface MenuSeparatorAction {
+	type: 'separator'
+	key: string
+	className?: string
+}
+
+interface MenuSubmenuAction extends MenuActionBase {
+	type: 'submenu'
+	label: string
+	items: MenuAction[]
+	contentClassName?: string
+}
+
+type MenuAction = MenuItemAction | MenuSeparatorAction | MenuSubmenuAction
+
+const MENU_CONTENT_CLASSNAME = 'bg-popover border-border/50 w-48'
+const MENU_SUBCONTENT_CLASSNAME = 'bg-popover border-border/50'
+const MENU_ITEM_CLASSNAME = 'text-white hover:bg-white/10'
+const MENU_DESTRUCTIVE_ITEM_CLASSNAME =
+	'text-red-400 hover:bg-red-500/10 hover:text-red-400'
+
+function renderMenuActionIcon(
+	action: MenuItemAction | MenuSubmenuAction,
+	baseClassName: string
+) {
+	if (!action.icon) return null
+
+	const Icon = action.icon
+
+	return (
+		<Icon
+			className={[baseClassName, action.iconClassName]
+				.filter(Boolean)
+				.join(' ')}
+			style={action.iconStyle}
+		/>
+	)
+}
+
+function renderMenuActions(
+	renderer: MenuRenderer,
+	actions: MenuAction[]
+): ReactNode {
+	return actions.map((action) => {
+		if (action.type === 'separator') {
+			if (renderer === 'dropdown') {
+				return (
+					<DropdownMenuSeparator
+						key={action.key}
+						className={action.className ?? 'bg-white/10'}
+					/>
+				)
+			}
+
+			return (
+				<ContextMenuSeparator
+					key={action.key}
+					className={action.className ?? 'bg-white/10'}
+				/>
+			)
+		}
+
+		if (action.type === 'submenu') {
+			const triggerContent = (
+				<>
+					{renderMenuActionIcon(action, 'w-4 h-4 mr-2')}
+					{action.label}
+				</>
+			)
+
+			if (renderer === 'dropdown') {
+				return (
+					<DropdownMenuSub key={action.key}>
+						<DropdownMenuSubTrigger
+							className={action.className ?? MENU_ITEM_CLASSNAME}
+						>
+							{triggerContent}
+						</DropdownMenuSubTrigger>
+						<DropdownMenuSubContent
+							className={action.contentClassName ?? MENU_SUBCONTENT_CLASSNAME}
+						>
+							{renderMenuActions(renderer, action.items)}
+						</DropdownMenuSubContent>
+					</DropdownMenuSub>
+				)
+			}
+
+			return (
+				<ContextMenuSub key={action.key}>
+					<ContextMenuSubTrigger
+						className={action.className ?? MENU_ITEM_CLASSNAME}
+					>
+						{triggerContent}
+					</ContextMenuSubTrigger>
+					<ContextMenuSubContent
+						className={action.contentClassName ?? MENU_SUBCONTENT_CLASSNAME}
+					>
+						{renderMenuActions(renderer, action.items)}
+					</ContextMenuSubContent>
+				</ContextMenuSub>
+			)
+		}
+
+		const itemContent = (
+			<>
+				{renderMenuActionIcon(action, 'w-4 h-4 mr-2')}
+				{action.label}
+			</>
+		)
+		const className =
+			action.className ??
+			(action.variant === 'destructive'
+				? MENU_DESTRUCTIVE_ITEM_CLASSNAME
+				: MENU_ITEM_CLASSNAME)
+
+		if (renderer === 'dropdown') {
+			return (
+				<DropdownMenuItem
+					key={action.key}
+					onSelect={() => {
+						void action.onSelect()
+					}}
+					disabled={action.disabled}
+					variant={action.variant ?? 'default'}
+					className={className}
+				>
+					{itemContent}
+				</DropdownMenuItem>
+			)
+		}
+
+		return (
+			<ContextMenuItem
+				key={action.key}
+				onSelect={() => {
+					void action.onSelect()
+				}}
+				disabled={action.disabled}
+				variant={action.variant ?? 'default'}
+				className={className}
+			>
+				{itemContent}
+			</ContextMenuItem>
+		)
+	})
+}
+
+function isMenuItemAction(action: MenuAction): action is MenuItemAction {
+	return action.type === 'item'
+}
+
+function getErrorMessage(error: unknown, fallback: string) {
+	if (error instanceof Error && error.message.trim()) {
+		return error.message
+	}
+
+	return fallback
+}
 
 interface CollectionsModalProps {
 	open: boolean
@@ -82,6 +277,7 @@ export function CollectionsModal({
 	open,
 	onOpenChange,
 }: CollectionsModalProps) {
+	const { toast } = useToast()
 	const { data: collections, isLoading, error } = useCollections()
 	const createCollection = useCreateCollection()
 	const updateCollection = useUpdateCollection()
@@ -154,6 +350,14 @@ export function CollectionsModal({
 	})
 	const totalFolderChats = folderPagination?.total ?? 0
 	const uncategorizedCount = uncategorizedPagination?.total ?? 0
+	const getFolderDestinationName = (folderId: string | null) => {
+		if (folderId === null) return 'Uncategorized'
+
+		return (
+			collections?.find((folder) => folder.id === folderId)?.name ??
+			'selected folder'
+		)
+	}
 
 	// Filter folders by search
 	const filteredFolders = useMemo(() => {
@@ -280,15 +484,25 @@ export function CollectionsModal({
 	// Handlers
 	const handleCreate = async () => {
 		if (!newCollectionName.trim()) return
+		const folderName = newCollectionName.trim()
 		try {
 			await createCollection.mutateAsync({
-				name: newCollectionName.trim(),
+				name: folderName,
 				color: selectedColor,
 			})
 			setNewCollectionName('')
 			setSelectedColor(PRESET_COLORS[0])
+			toast({
+				title: 'Folder created',
+				description: `"${folderName}" is ready.`,
+			})
 		} catch (error) {
 			console.error('Failed to create collection:', error)
+			toast({
+				title: 'Failed to create folder',
+				description: getErrorMessage(error, 'Please try again.'),
+				variant: 'destructive',
+			})
 		}
 	}
 
@@ -299,15 +513,31 @@ export function CollectionsModal({
 
 	const handleSaveEdit = async (id: string) => {
 		if (!editingName.trim()) return
+		const folderName = editingName.trim()
+		const currentFolderName = collections?.find(
+			(collection) => collection.id === id
+		)?.name
+
+		if (currentFolderName?.trim() === folderName) return
+
 		try {
 			await updateCollection.mutateAsync({
 				id,
-				data: { name: editingName.trim() },
+				data: { name: folderName },
 			})
 			setEditingId(null)
 			setEditingName('')
+			toast({
+				title: 'Folder renamed',
+				description: `Renamed to "${folderName}".`,
+			})
 		} catch (error) {
 			console.error('Failed to update collection:', error)
+			toast({
+				title: 'Failed to rename folder',
+				description: getErrorMessage(error, 'Please try again.'),
+				variant: 'destructive',
+			})
 		}
 	}
 
@@ -323,14 +553,24 @@ export function CollectionsModal({
 
 	const confirmDeleteFolder = async () => {
 		if (!deleteConfirm) return
+		const folderName = deleteConfirm.name
 		try {
 			await deleteCollection.mutateAsync(deleteConfirm.id)
 			setDeleteConfirm(null)
 			if (inspectingFolder?.id === deleteConfirm.id) {
 				setInspectingFolder(null)
 			}
+			toast({
+				title: 'Folder deleted',
+				description: `"${folderName}" was deleted and its chats were moved to Uncategorized.`,
+			})
 		} catch (error) {
 			console.error('Failed to delete collection:', error)
+			toast({
+				title: 'Failed to delete folder',
+				description: getErrorMessage(error, 'Please try again.'),
+				variant: 'destructive',
+			})
 		}
 	}
 
@@ -373,8 +613,18 @@ export function CollectionsModal({
 	}
 
 	const handleMoveChats = async (targetFolderId: string | null) => {
+		const chatIdsToMove = Array.from(selectedChats).filter((chatId) => {
+			const currentFolderId =
+				filteredChats.find((chat) => chat.id === chatId)?.collection?.id ?? null
+
+			return currentFolderId !== targetFolderId
+		})
+		if (chatIdsToMove.length === 0) return
+
+		const movedCount = chatIdsToMove.length
+		const destinationName = getFolderDestinationName(targetFolderId)
 		try {
-			const promises = Array.from(selectedChats).map((chatId) =>
+			const promises = chatIdsToMove.map((chatId) =>
 				updateConversation({ id: chatId, collectionId: targetFolderId })
 			)
 			await Promise.all(promises)
@@ -382,8 +632,20 @@ export function CollectionsModal({
 			setIsSelectMode(false)
 			setShowMoveDialog(false)
 			invalidateConversations()
+			toast({
+				title: movedCount === 1 ? 'Chat moved' : 'Chats moved',
+				description:
+					movedCount === 1
+						? `Moved to ${destinationName}.`
+						: `${movedCount} chats moved to ${destinationName}.`,
+			})
 		} catch (error) {
 			console.error('Failed to move chats:', error)
+			toast({
+				title: 'Failed to move chats',
+				description: getErrorMessage(error, 'Please try again.'),
+				variant: 'destructive',
+			})
 		}
 	}
 
@@ -391,12 +653,32 @@ export function CollectionsModal({
 		chatId: string,
 		targetFolderId: string | null
 	) => {
+		const currentFolderId =
+			filteredChats.find((chat) => chat.id === chatId)?.collection?.id ?? null
+
+		if (currentFolderId === targetFolderId) return
+
+		const destinationName = getFolderDestinationName(targetFolderId)
 		try {
 			await updateConversation({ id: chatId, collectionId: targetFolderId })
 			invalidateConversations()
+			toast({
+				title: 'Chat moved',
+				description: `Moved to ${destinationName}.`,
+			})
 		} catch (error) {
 			console.error('Failed to move chat:', error)
+			toast({
+				title: 'Failed to move chat',
+				description: getErrorMessage(error, 'Please try again.'),
+				variant: 'destructive',
+			})
 		}
+	}
+
+	const handleOpenChat = (chatId: string) => {
+		openConversation(chatId)
+		onOpenChange(false)
 	}
 
 	const handleDeleteChats = (chatIds: string[]) => {
@@ -405,14 +687,27 @@ export function CollectionsModal({
 
 	const confirmDeleteChats = async () => {
 		if (!deleteChatConfirm) return
+		const deletedCount = deleteChatConfirm.count
 		try {
 			const promises = deleteChatConfirm.ids.map((id) => deleteConversation(id))
 			await Promise.all(promises)
 			setSelectedChats(new Set())
 			setDeleteChatConfirm(null)
 			invalidateConversations()
+			toast({
+				title: deletedCount === 1 ? 'Chat deleted' : 'Chats deleted',
+				description:
+					deletedCount === 1
+						? 'The chat was deleted.'
+						: `${deletedCount} chats were deleted.`,
+			})
 		} catch (error) {
 			console.error('Failed to delete chats:', error)
+			toast({
+				title: 'Failed to delete chats',
+				description: getErrorMessage(error, 'Please try again.'),
+				variant: 'destructive',
+			})
 		}
 	}
 
@@ -429,6 +724,146 @@ export function CollectionsModal({
 		if (hours < 24) return `${hours}h ago`
 		if (days < 7) return `${days}d ago`
 		return date.toLocaleDateString()
+	}
+
+	const uncategorizedFolder = {
+		id: null as string | null,
+		name: 'Uncategorized',
+		color: '#6B7280',
+	}
+
+	const getFolderActions = (folder: {
+		id: string | null
+		name: string
+		color: string
+		isDefault?: boolean
+	}): MenuAction[] => {
+		const actions: MenuAction[] = [
+			{
+				type: 'item',
+				key: 'open',
+				label: 'Open folder',
+				icon: FolderOpen,
+				onSelect: () =>
+					handleFolderClick({
+						id: folder.id,
+						name: folder.name,
+						color: folder.color,
+					}),
+			},
+		]
+
+		if (folder.id === null) {
+			return actions
+		}
+
+		actions.push({
+			type: 'item',
+			key: 'rename',
+			label: 'Rename',
+			icon: Edit2,
+			onSelect: () => handleStartEdit(folder.id as string, folder.name),
+		})
+
+		if (!folder.isDefault) {
+			actions.push({
+				type: 'item',
+				key: 'delete',
+				label: 'Delete',
+				icon: Trash2,
+				onSelect: () =>
+					handleDeleteFolder(folder.id as string, false, folder.name),
+				variant: 'destructive',
+			})
+		}
+
+		return actions
+	}
+
+	const getChatActions = (chat: {
+		id: string
+		title: string
+	}): MenuAction[] => [
+		{
+			type: 'item',
+			key: 'open',
+			label: 'Open chat',
+			icon: MessageSquare,
+			onSelect: () => handleOpenChat(chat.id),
+		},
+		{ type: 'separator', key: 'separator-open' },
+		{
+			type: 'submenu',
+			key: 'move',
+			label: 'Move to...',
+			icon: Folder,
+			items: [
+				{
+					type: 'item',
+					key: 'move-uncategorized',
+					label: 'Uncategorized',
+					icon: FolderOpen,
+					iconClassName: 'text-gray-500',
+					onSelect: () => handleMoveSingleChat(chat.id, null),
+					disabled: inspectingFolder?.id === null,
+				},
+				...(collections?.map((folder) => ({
+					type: 'item' as const,
+					key: `move-${folder.id}`,
+					label: folder.name,
+					icon: Folder,
+					iconStyle: { color: folder.color },
+					onSelect: () => handleMoveSingleChat(chat.id, folder.id),
+					disabled: folder.id === inspectingFolder?.id,
+				})) ?? []),
+			],
+		},
+		{ type: 'separator', key: 'separator-delete' },
+		{
+			type: 'item',
+			key: 'delete',
+			label: 'Delete',
+			icon: Trash2,
+			onSelect: () => handleDeleteChats([chat.id]),
+			variant: 'destructive',
+		},
+	]
+
+	const renderFolderActionButtons = (actions: MenuAction[]) => {
+		const buttonActions = actions.filter(
+			(action): action is MenuItemAction =>
+				action.type === 'item' && action.key !== 'open'
+		)
+
+		return buttonActions.map((action) => {
+			const Icon = action.icon
+
+			return (
+				<Button
+					key={action.key}
+					size="sm"
+					variant="ghost"
+					onClick={() => {
+						void action.onSelect()
+					}}
+					className={
+						action.variant === 'destructive'
+							? 'h-7 w-7 p-0 hover:bg-red-500/20 rounded-full'
+							: 'h-7 w-7 p-0 hover:bg-white/10 rounded-full'
+					}
+					aria-label={action.label}
+				>
+					{Icon && (
+						<Icon
+							className={['w-3.5 h-3.5 text-gray-400', action.iconClassName]
+								.filter(Boolean)
+								.join(' ')}
+							style={action.iconStyle}
+						/>
+					)}
+				</Button>
+			)
+		})
 	}
 
 	// Render folder grid view
@@ -494,139 +929,147 @@ export function CollectionsModal({
 				) : (
 					<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
 						{/* Uncategorized pseudo-folder */}
-						<div
-							onClick={() =>
-								handleFolderClick({
-									id: null,
-									name: 'Uncategorized',
-									color: '#6B7280',
-								})
-							}
-							className="group relative bg-card/40 hover:bg-card/60 border border-dashed border-border/50 rounded-[20px] p-6 transition-all cursor-pointer"
-						>
-							<div className="flex flex-col items-center text-center space-y-3">
-								<FolderOpen className="w-[74px] h-[74px] text-gray-500" />
-								<div>
-										<h3 className="text-gray-400 font-bold text-[16px] mb-1">
-											Uncategorized
-										</h3>
-										<p className="text-[#9C9C9C] text-[12px]">
-											{uncategorizedCount} chat
-											{uncategorizedCount !== 1 ? 's' : ''}
-										</p>
+						<ContextMenu>
+							<ContextMenuTrigger asChild>
+								<div
+									onClick={() => handleFolderClick(uncategorizedFolder)}
+									className="group relative bg-card/40 hover:bg-card/60 border border-dashed border-border/50 rounded-[20px] p-6 transition-all cursor-pointer"
+								>
+									<div className="flex flex-col items-center text-center space-y-3">
+										<FolderOpen className="w-[74px] h-[74px] text-gray-500" />
+										<div>
+											<h3 className="text-gray-400 font-bold text-[16px] mb-1">
+												Uncategorized
+											</h3>
+											<p className="text-[#9C9C9C] text-[12px]">
+												{uncategorizedCount} chat
+												{uncategorizedCount !== 1 ? 's' : ''}
+											</p>
+										</div>
 									</div>
 								</div>
-						</div>
+							</ContextMenuTrigger>
+							<ContextMenuContent className={MENU_CONTENT_CLASSNAME}>
+								{renderMenuActions(
+									'context',
+									getFolderActions(uncategorizedFolder)
+								)}
+							</ContextMenuContent>
+						</ContextMenu>
 
 						{/* Regular folders */}
-						{filteredFolders?.map((collection) => (
-							<div
-								key={collection.id}
-								className="group relative bg-card/40 hover:bg-card/50 border border-border/40 rounded-[20px] p-6 transition-all cursor-pointer"
-								onClick={() => {
-									if (editingId !== collection.id) {
-										handleFolderClick({
-											id: collection.id,
-											name: collection.name,
-											color: collection.color,
-										})
-									}
-								}}
-							>
-								{editingId === collection.id ? (
+						{filteredFolders?.map((collection) => {
+							const folderActions = getFolderActions({
+								id: collection.id,
+								name: collection.name,
+								color: collection.color,
+								isDefault: collection.isDefault,
+							})
+
+							if (editingId === collection.id) {
+								const isRenameUnchanged =
+									editingName.trim() === collection.name.trim()
+
+								return (
 									<div
-										className="flex flex-col items-center space-y-4"
-										onClick={(e) => e.stopPropagation()}
+										key={collection.id}
+										className="group relative bg-card/40 hover:bg-card/50 border border-border/40 rounded-[20px] p-6 transition-all cursor-pointer"
 									>
-										<Folder
-											className="w-[74px] h-[74px] mb-2"
-											style={{ color: collection.color }}
-										/>
-										<Input
-											value={editingName}
-											onChange={(e) => setEditingName(e.target.value)}
-											onKeyDown={(e) => {
-												if (e.key === 'Enter') handleSaveEdit(collection.id)
-												if (e.key === 'Escape') handleCancelEdit()
-											}}
-											className="w-full h-10 bg-white/10 border-white/20 text-white text-center"
-											autoFocus
-										/>
-										<div className="flex gap-2">
-											<Button
-												size="sm"
-												onClick={() => handleSaveEdit(collection.id)}
-												className="bg-green-600 hover:bg-green-700"
-											>
-												<Check className="w-4 h-4" />
-											</Button>
-											<Button
-												size="sm"
-												onClick={handleCancelEdit}
-												className="bg-red-600 hover:bg-red-700"
-											>
-												<X className="w-4 h-4" />
-											</Button>
-										</div>
-									</div>
-								) : (
-									<>
 										<div
-											className="absolute top-3 right-3 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity"
+											className="flex flex-col items-center space-y-4"
 											onClick={(e) => e.stopPropagation()}
 										>
-											<Button
-												size="sm"
-												variant="ghost"
-												onClick={() =>
-													handleStartEdit(collection.id, collection.name)
-												}
-												className="h-7 w-7 p-0 hover:bg-white/10 rounded-full"
-											>
-												<Edit2 className="w-3.5 h-3.5 text-gray-400" />
-											</Button>
-											{!collection.isDefault && (
-												<Button
-													size="sm"
-													variant="ghost"
-													onClick={() =>
-														handleDeleteFolder(
-															collection.id,
-															collection.isDefault,
-															collection.name
-														)
-													}
-													className="h-7 w-7 p-0 hover:bg-red-500/20 rounded-full"
-												>
-													<Trash2 className="w-3.5 h-3.5 text-gray-400" />
-												</Button>
-											)}
-										</div>
-
-										<div className="flex flex-col items-center text-center space-y-3">
 											<Folder
-												className="w-[74px] h-[74px]"
+												className="w-[74px] h-[74px] mb-2"
 												style={{ color: collection.color }}
 											/>
-											<div>
-												<h3 className="text-white font-bold text-[16px] mb-1">
-													{collection.name}
-													{collection.isDefault && (
-														<span className="text-xs text-gray-500 ml-2">
-															(default)
-														</span>
-													)}
-												</h3>
-												<p className="text-[#9C9C9C] text-[12px]">
-													{collection._count.conversations} chat
-													{collection._count.conversations !== 1 ? 's' : ''}
-												</p>
+											<Input
+												value={editingName}
+												onChange={(e) => setEditingName(e.target.value)}
+												onKeyDown={(e) => {
+													if (e.key === 'Enter') handleSaveEdit(collection.id)
+													if (e.key === 'Escape') handleCancelEdit()
+												}}
+												className="w-full h-10 bg-white/10 border-white/20 text-white text-center"
+												autoFocus
+											/>
+											<div className="flex gap-2">
+												<Button
+													onClick={handleCancelEdit}
+													size="sm"
+													variant="ghost"
+													className="h-10 w-10 rounded-[14px] border border-white/10 bg-white/[0.04] text-gray-300 hover:bg-white/[0.08] hover:text-white"
+													aria-label="Cancel folder rename"
+												>
+													<X className="w-4 h-4" />
+												</Button>
+												<Button
+													onClick={() => handleSaveEdit(collection.id)}
+													size="sm"
+													className="h-10 w-10 rounded-[14px] border border-[#57FCFF]/30 bg-[#57FCFF]/12 text-[#57FCFF] shadow-none hover:bg-[#57FCFF]/20"
+													aria-label="Save folder rename"
+													disabled={
+														!editingName.trim() ||
+														isRenameUnchanged ||
+														updateCollection.isPending
+													}
+												>
+													<Check className="w-4 h-4" />
+												</Button>
 											</div>
 										</div>
-									</>
-								)}
-							</div>
-						))}
+									</div>
+								)
+							}
+
+							return (
+								<ContextMenu key={collection.id}>
+									<ContextMenuTrigger asChild>
+										<div
+											className="group relative bg-card/40 hover:bg-card/50 border border-border/40 rounded-[20px] p-6 transition-all cursor-pointer"
+											onClick={() =>
+												handleFolderClick({
+													id: collection.id,
+													name: collection.name,
+													color: collection.color,
+												})
+											}
+										>
+											<div
+												className="absolute top-3 right-3 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity"
+												onClick={(e) => e.stopPropagation()}
+											>
+												{renderFolderActionButtons(folderActions)}
+											</div>
+
+											<div className="flex flex-col items-center text-center space-y-3">
+												<Folder
+													className="w-[74px] h-[74px]"
+													style={{ color: collection.color }}
+												/>
+												<div>
+													<h3 className="text-white font-bold text-[16px] mb-1">
+														{collection.name}
+														{collection.isDefault && (
+															<span className="text-xs text-gray-500 ml-2">
+																(default)
+															</span>
+														)}
+													</h3>
+													<p className="text-[#9C9C9C] text-[12px]">
+														{collection._count.conversations} chat
+														{collection._count.conversations !== 1 ? 's' : ''}
+													</p>
+												</div>
+											</div>
+										</div>
+									</ContextMenuTrigger>
+									<ContextMenuContent className={MENU_CONTENT_CLASSNAME}>
+										{renderMenuActions('context', folderActions)}
+									</ContextMenuContent>
+								</ContextMenu>
+							)
+						})}
 
 						{filteredFolders?.length === 0 && folderSearch && (
 							<div className="col-span-full flex flex-col items-center justify-center py-8 text-center">
@@ -720,7 +1163,7 @@ export function CollectionsModal({
 							(filter) => (
 								<DropdownMenuItem
 									key={filter}
-									onClick={() => setDateFilter(filter)}
+									onSelect={() => setDateFilter(filter)}
 									className={
 										dateFilter === filter ? 'bg-white/10' : 'hover:bg-white/5'
 									}
@@ -761,7 +1204,7 @@ export function CollectionsModal({
 							(order) => (
 								<DropdownMenuItem
 									key={order}
-									onClick={() => setSortOrder(order)}
+									onSelect={() => setSortOrder(order)}
 									className={
 										sortOrder === order ? 'bg-white/10' : 'hover:bg-white/5'
 									}
@@ -818,111 +1261,76 @@ export function CollectionsModal({
 						</p>
 					</div>
 				) : (
-					filteredChats.map((chat) => (
-						<div
-							key={chat.id}
-							className={`group flex items-center gap-3 p-4 rounded-[12px] transition-all ${
-								selectedChats.has(chat.id)
-									? 'bg-primary/10 border border-primary/30'
-									: 'bg-white/[0.03] hover:bg-white/[0.06] border border-transparent'
-							}`}
-						>
-							{isSelectMode && (
-								<input
-									type="checkbox"
-									checked={selectedChats.has(chat.id)}
-									onChange={() => toggleChatSelection(chat.id)}
-									className="w-4 h-4 rounded border-white/30 bg-transparent flex-shrink-0"
-								/>
-							)}
+					filteredChats.map((chat) => {
+						const chatActions = getChatActions(chat)
+						const chatRow = (
+							<div
+								className={`group flex items-center gap-3 p-4 rounded-[12px] transition-all ${
+									selectedChats.has(chat.id)
+										? 'bg-primary/10 border border-primary/30'
+										: 'bg-white/[0.03] hover:bg-white/[0.06] border border-transparent'
+								}`}
+							>
+								{isSelectMode && (
+									<input
+										type="checkbox"
+										checked={selectedChats.has(chat.id)}
+										onChange={() => toggleChatSelection(chat.id)}
+										className="w-4 h-4 rounded border-white/30 bg-transparent flex-shrink-0"
+									/>
+								)}
 
-							<MessageSquare className="w-5 h-5 text-gray-500 flex-shrink-0" />
+								<MessageSquare className="w-5 h-5 text-gray-500 flex-shrink-0" />
 
-							<div className="flex-1 min-w-0">
-								<h4 className="text-white text-sm font-medium truncate">
-									{chat.title}
-								</h4>
-								<div className="flex items-center gap-2 text-xs text-gray-500">
-									<span>{chat.messageCount} messages</span>
-									<span>•</span>
-									<span>{formatRelativeTime(chat.updatedAt)}</span>
+								<div className="flex-1 min-w-0">
+									<h4 className="text-white text-sm font-medium truncate">
+										{chat.title}
+									</h4>
+									<div className="flex items-center gap-2 text-xs text-gray-500">
+										<span>{chat.messageCount} messages</span>
+										<span>•</span>
+										<span>{formatRelativeTime(chat.updatedAt)}</span>
+									</div>
 								</div>
+
+								{!isSelectMode && (
+									<div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+										<DropdownMenu>
+											<DropdownMenuTrigger asChild>
+												<Button
+													variant="ghost"
+													size="sm"
+													className="h-8 w-8 p-0 hover:bg-white/10"
+													aria-label={`More actions for ${chat.title}`}
+												>
+													<MoreVertical className="w-4 h-4 text-gray-400" />
+												</Button>
+											</DropdownMenuTrigger>
+											<DropdownMenuContent
+												align="end"
+												className={MENU_CONTENT_CLASSNAME}
+											>
+												{renderMenuActions('dropdown', chatActions)}
+											</DropdownMenuContent>
+										</DropdownMenu>
+									</div>
+								)}
 							</div>
+						)
 
-							{!isSelectMode && (
-								<div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-									<DropdownMenu>
-										<DropdownMenuTrigger asChild>
-											<Button
-												variant="ghost"
-												size="sm"
-												className="h-8 w-8 p-0 hover:bg-white/10"
-											>
-												<MoreVertical className="w-4 h-4 text-gray-400" />
-											</Button>
-										</DropdownMenuTrigger>
-										<DropdownMenuContent
-											align="end"
-											className="bg-popover border-border/50 w-48"
-										>
-											<DropdownMenuItem
-												className="text-white hover:bg-white/10"
-												onClick={() =>
-													(window.location.href = `/chat?id=${chat.id}`)
-												}
-											>
-												<MessageSquare className="w-4 h-4 mr-2" />
-												Open chat
-											</DropdownMenuItem>
-											<DropdownMenuSeparator className="bg-white/10" />
+						if (isSelectMode) {
+							return <div key={chat.id}>{chatRow}</div>
+						}
 
-											<DropdownMenuSub>
-												<DropdownMenuSubTrigger className="text-white hover:bg-white/10">
-													<Folder className="w-4 h-4 mr-2" />
-													Move to...
-												</DropdownMenuSubTrigger>
-												<DropdownMenuSubContent className="bg-popover border-border/50">
-													<DropdownMenuItem
-														onClick={() => handleMoveSingleChat(chat.id, null)}
-														disabled={inspectingFolder?.id === null}
-														className="text-white hover:bg-white/10"
-													>
-														<FolderOpen className="w-4 h-4 mr-2 text-gray-500" />
-														Uncategorized
-													</DropdownMenuItem>
-													{collections?.map((folder) => (
-														<DropdownMenuItem
-															key={folder.id}
-															onClick={() =>
-																handleMoveSingleChat(chat.id, folder.id)
-															}
-															disabled={folder.id === inspectingFolder?.id}
-															className="text-white hover:bg-white/10"
-														>
-															<Folder
-																className="w-4 h-4 mr-2"
-																style={{ color: folder.color }}
-															/>
-															{folder.name}
-														</DropdownMenuItem>
-													))}
-												</DropdownMenuSubContent>
-											</DropdownMenuSub>
-
-											<DropdownMenuSeparator className="bg-white/10" />
-											<DropdownMenuItem
-												className="text-red-400 hover:bg-red-500/10 hover:text-red-400"
-												onClick={() => handleDeleteChats([chat.id])}
-											>
-												<Trash2 className="w-4 h-4 mr-2" />
-												Delete
-											</DropdownMenuItem>
-										</DropdownMenuContent>
-									</DropdownMenu>
-								</div>
-							)}
-						</div>
-					))
+						return (
+							<ContextMenu key={chat.id}>
+								<ContextMenuTrigger asChild>{chatRow}</ContextMenuTrigger>
+								<ContextMenuContent className={MENU_CONTENT_CLASSNAME}>
+									{renderMenuActions('context', chatActions)}
+								</ContextMenuContent>
+							</ContextMenu>
+						)
+					})
 				)}
 			</div>
 
@@ -936,7 +1344,9 @@ export function CollectionsModal({
 						<Button
 							variant="outline"
 							size="sm"
-							onClick={() => setFolderPage((current) => Math.max(1, current - 1))}
+							onClick={() =>
+								setFolderPage((current) => Math.max(1, current - 1))
+							}
 							disabled={folderPage === 1}
 							className="border-white/20 text-white hover:bg-white/10"
 						>

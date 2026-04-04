@@ -1,8 +1,15 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+	type QueryKey,
+	useMutation,
+	useQuery,
+	useQueryClient,
+} from "@tanstack/react-query";
 
 export interface ConversationPreview {
 	id: string;
 	title: string;
+	isPinned: boolean;
+	pinnedAt: string | null;
 	lastMessage: {
 		id: string;
 		role: string;
@@ -37,7 +44,96 @@ export interface UseConversationsOptions {
 	limit?: number;
 	collectionId?: string | null;
 	search?: string;
+	pinned?: boolean;
 	enabled?: boolean;
+}
+
+interface ConversationQueryFilters {
+	page?: number;
+	limit?: number;
+	collectionId?: string | null;
+	search?: string;
+	pinned?: boolean;
+}
+
+interface CollectionCacheEntry {
+	id: string;
+	name: string;
+	color: string;
+	_count: {
+		conversations: number;
+	};
+}
+
+interface UpdateConversationVariables {
+	id: string;
+	title?: string;
+	collectionId?: string | null;
+	isPinned?: boolean;
+}
+
+interface UpdateConversationContext {
+	didOptimisticUpdate: boolean;
+	previousCollections?: CollectionCacheEntry[];
+	previousConversationQueries: Array<[QueryKey, ConversationsResponse | undefined]>;
+}
+
+function isConversationQueryKey(
+	queryKey: QueryKey
+): queryKey is ["conversations", ConversationQueryFilters] {
+	return (
+		queryKey[0] === "conversations" &&
+		typeof queryKey[1] === "object" &&
+		queryKey[1] !== null
+	);
+}
+
+function normalizeSearch(search?: string) {
+	return search?.trim() ?? "";
+}
+
+function recalculatePagination(
+	pagination: PaginationInfo,
+	total: number
+): PaginationInfo {
+	const totalPages = total > 0 ? Math.ceil(total / pagination.limit) : 0;
+
+	return {
+		...pagination,
+		total,
+		totalPages,
+		hasMore: pagination.page < totalPages,
+	};
+}
+
+function updateCollectionCounts(
+	collections: CollectionCacheEntry[],
+	sourceCollectionId: string | null,
+	targetCollectionId: string | null
+) {
+	return collections.map((collection) => {
+		let conversations = collection._count.conversations;
+
+		if (sourceCollectionId !== null && collection.id === sourceCollectionId) {
+			conversations = Math.max(0, conversations - 1);
+		}
+
+		if (targetCollectionId !== null && collection.id === targetCollectionId) {
+			conversations += 1;
+		}
+
+		if (conversations === collection._count.conversations) {
+			return collection;
+		}
+
+		return {
+			...collection,
+			_count: {
+				...collection._count,
+				conversations,
+			},
+		};
+	});
 }
 
 // Fetch conversations list
@@ -45,7 +141,8 @@ async function fetchConversations(
 	page: number = 1,
 	limit: number = 20,
 	collectionId?: string | null,
-	search?: string
+	search?: string,
+	pinned?: boolean
 ): Promise<ConversationsResponse> {
 	const params = new URLSearchParams({
 		page: page.toString(),
@@ -61,6 +158,10 @@ async function fetchConversations(
 
 	if (search?.trim()) {
 		params.append("search", search.trim());
+	}
+
+	if (pinned !== undefined) {
+		params.append("pinned", pinned ? "true" : "false");
 	}
 
 	const response = await fetch(`/api/conversations?${params}`, {
@@ -108,10 +209,10 @@ async function deleteConversation(id: string): Promise<void> {
 	}
 }
 
-// Update conversation (title or collection)
+// Update conversation (title, collection, or pin state)
 async function updateConversation(
 	id: string,
-	data: { title?: string; collectionId?: string | null }
+	data: { title?: string; collectionId?: string | null; isPinned?: boolean }
 ): Promise<{ conversation: ConversationPreview }> {
 	const response = await fetch(`/api/conversations/${id}`, {
 		method: "PATCH",
@@ -134,6 +235,7 @@ export function useConversations(options: UseConversationsOptions = {}) {
 		limit = 20,
 		collectionId,
 		search,
+		pinned,
 		enabled = true,
 	} = options;
 	const queryClient = useQueryClient();
@@ -145,8 +247,8 @@ export function useConversations(options: UseConversationsOptions = {}) {
 
 	// Query for fetching conversations
 	const conversationsQuery = useQuery({
-		queryKey: ["conversations", { page, limit, collectionId, search }],
-		queryFn: () => fetchConversations(page, limit, collectionId, search),
+		queryKey: ["conversations", { page, limit, collectionId, search, pinned }],
+		queryFn: () => fetchConversations(page, limit, collectionId, search, pinned),
 		enabled,
 		staleTime: 30000, // 30 seconds
 	});
@@ -172,13 +274,218 @@ export function useConversations(options: UseConversationsOptions = {}) {
 		mutationFn: ({
 			id,
 			...data
-		}: {
-			id: string;
-			title?: string;
-			collectionId?: string | null;
-		}) => updateConversation(id, data),
-		onSuccess: () => {
-			invalidateConversationRelatedQueries();
+		}: UpdateConversationVariables) => updateConversation(id, data),
+		onMutate: async (variables): Promise<UpdateConversationContext> => {
+			if (variables.collectionId === undefined) {
+				return {
+					didOptimisticUpdate: false,
+					previousConversationQueries: [],
+				};
+			}
+
+			await Promise.all([
+				queryClient.cancelQueries({ queryKey: ["conversations"] }),
+				queryClient.cancelQueries({ queryKey: ["collections"] }),
+			]);
+
+			const previousConversationQueries =
+				queryClient.getQueriesData<ConversationsResponse>({
+					queryKey: ["conversations"],
+				});
+			const previousCollections =
+				queryClient.getQueryData<CollectionCacheEntry[]>(["collections"]);
+
+			let movedConversation: ConversationPreview | undefined;
+
+			for (const [, data] of previousConversationQueries) {
+				const match = data?.conversations.find(
+					(conversation) => conversation.id === variables.id
+				);
+				if (match) {
+					movedConversation = match;
+					break;
+				}
+			}
+
+			if (!movedConversation) {
+				return {
+					didOptimisticUpdate: false,
+					previousCollections,
+					previousConversationQueries,
+				};
+			}
+
+			const sourceCollectionId = movedConversation.collection?.id ?? null;
+			const targetCollectionId = variables.collectionId;
+
+			if (sourceCollectionId === targetCollectionId) {
+				return {
+					didOptimisticUpdate: false,
+					previousCollections,
+					previousConversationQueries,
+				};
+			}
+
+			const targetCollection =
+				targetCollectionId === null
+					? null
+					: previousCollections?.find(
+							(collection) => collection.id === targetCollectionId
+						) ?? null;
+
+			if (targetCollectionId !== null && !targetCollection) {
+				return {
+					didOptimisticUpdate: false,
+					previousCollections,
+					previousConversationQueries,
+				};
+			}
+
+			const nextCollection =
+				targetCollectionId === null || targetCollection === null
+					? null
+					: {
+							id: targetCollection.id,
+							name: targetCollection.name,
+							color: targetCollection.color,
+						};
+			const optimisticConversation: ConversationPreview = {
+				...movedConversation,
+				collection: nextCollection,
+			};
+
+			for (const [queryKey, data] of previousConversationQueries) {
+				if (!data || !isConversationQueryKey(queryKey)) {
+					continue;
+				}
+
+				const filters = queryKey[1];
+				const searchTerm = normalizeSearch(filters.search);
+				const matchesPinnedFilter =
+					filters.pinned === undefined ||
+					filters.pinned === movedConversation.isPinned;
+
+				if (!matchesPinnedFilter) {
+					continue;
+				}
+
+				const hasConversation = data.conversations.some(
+					(conversation) => conversation.id === variables.id
+				);
+				const isSourceCollectionQuery =
+					filters.collectionId !== undefined &&
+					filters.collectionId === sourceCollectionId;
+				const isTargetCollectionQuery =
+					filters.collectionId !== undefined &&
+					filters.collectionId === targetCollectionId;
+				const isGlobalQuery = filters.collectionId === undefined;
+
+				let nextConversations = data.conversations;
+				let nextPagination = data.pagination;
+				let didChange = false;
+
+				if (isSourceCollectionQuery && (searchTerm === "" || hasConversation)) {
+					nextConversations = nextConversations.filter(
+						(conversation) => conversation.id !== variables.id
+					);
+					nextPagination = recalculatePagination(
+						nextPagination,
+						Math.max(0, nextPagination.total - 1)
+					);
+					didChange = true;
+				}
+
+				if (isTargetCollectionQuery && searchTerm === "") {
+					const alreadyPresent = nextConversations.some(
+						(conversation) => conversation.id === variables.id
+					);
+
+					nextPagination = recalculatePagination(
+						nextPagination,
+						nextPagination.total + (alreadyPresent ? 0 : 1)
+					);
+
+					if ((filters.page ?? 1) === 1) {
+						nextConversations = alreadyPresent
+							? nextConversations.map((conversation) =>
+									conversation.id === variables.id
+										? optimisticConversation
+										: conversation
+								)
+							: [optimisticConversation, ...nextConversations].slice(
+									0,
+									data.pagination.limit
+								);
+					}
+
+					didChange = true;
+				}
+
+				if (isGlobalQuery && hasConversation) {
+					nextConversations = nextConversations.map((conversation) =>
+						conversation.id === variables.id
+							? optimisticConversation
+							: conversation
+					);
+					didChange = true;
+				}
+
+				if (didChange) {
+					queryClient.setQueryData<ConversationsResponse>(queryKey, {
+						...data,
+						conversations: nextConversations,
+						pagination: nextPagination,
+					});
+				}
+			}
+
+			if (previousCollections) {
+				queryClient.setQueryData<CollectionCacheEntry[]>(
+					["collections"],
+					updateCollectionCounts(
+						previousCollections,
+						sourceCollectionId,
+						targetCollectionId
+					)
+				);
+			}
+
+			return {
+				didOptimisticUpdate: true,
+				previousCollections,
+				previousConversationQueries,
+			};
+		},
+		onError: (_error, _variables, context) => {
+			if (!context?.didOptimisticUpdate) {
+				return;
+			}
+
+			for (const [queryKey, data] of context.previousConversationQueries) {
+				if (data === undefined) {
+					queryClient.removeQueries({ queryKey, exact: true });
+					continue;
+				}
+
+				queryClient.setQueryData(queryKey, data);
+			}
+
+			if (context.previousCollections === undefined) {
+				queryClient.removeQueries({ queryKey: ["collections"], exact: true });
+				return;
+			}
+
+			queryClient.setQueryData(["collections"], context.previousCollections);
+		},
+		onSuccess: (_data, variables) => {
+			if (variables.collectionId === undefined) {
+				invalidateConversationRelatedQueries();
+			}
+		},
+		onSettled: (_data, _error, variables) => {
+			if (variables.collectionId !== undefined) {
+				invalidateConversationRelatedQueries();
+			}
 		},
 	});
 
