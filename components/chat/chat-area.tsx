@@ -404,13 +404,17 @@ export function ChatArea() {
 
 	const handleRename = useCallback(
 		async (newTitle: string) => {
-			if (conversationId && newTitle) {
+			if (
+				conversationId &&
+				newTitle &&
+				newTitle.trim() !== conversation?.title?.trim()
+			) {
 				await updateConversation({ id: conversationId, title: newTitle })
 				// Invalidate to refresh sidebar
 				invalidateConversations()
 			}
 		},
-		[conversationId, updateConversation, invalidateConversations]
+		[conversation?.title, conversationId, updateConversation, invalidateConversations]
 	)
 
 	return (

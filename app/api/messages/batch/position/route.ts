@@ -45,26 +45,46 @@ export async function PATCH(request: NextRequest) {
 
 		// Verify all messages belong to user's conversations
 		const messageIds = updates.map((u: any) => u.id);
+		const uniqueMessageIds = Array.from(new Set(messageIds));
 		const messages = await prisma.message.findMany({
 			where: {
-				id: { in: messageIds },
+				id: { in: uniqueMessageIds },
 				conversation: {
 					userId: session.user.id,
 				},
 			},
-			select: { id: true },
+			select: {
+				id: true,
+				positionX: true,
+				positionY: true,
+			},
 		});
 
-		if (messages.length !== messageIds.length) {
+		if (messages.length !== uniqueMessageIds.length) {
 			return NextResponse.json(
 				{ error: "Some messages not found or unauthorized" },
 				{ status: 404 }
 			);
 		}
 
+		const messageById = new Map(messages.map((message) => [message.id, message]));
+		const updatesToPersist = updates.filter((update: any) => {
+			const existing = messageById.get(update.id);
+
+			return (
+				!existing ||
+				existing.positionX !== update.positionX ||
+				existing.positionY !== update.positionY
+			);
+		});
+
+		if (updatesToPersist.length === 0) {
+			return NextResponse.json({ updated: [] });
+		}
+
 		// Batch update using transaction
 		const results = await prisma.$transaction(
-			updates.map((update: any) =>
+			updatesToPersist.map((update: any) =>
 				prisma.message.update({
 					where: { id: update.id },
 					data: {

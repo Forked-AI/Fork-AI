@@ -10,7 +10,7 @@ import { useState } from 'react'
 interface TopBarProps {
 	onNewChat?: () => void
 	title?: string | null
-	onRename?: (newTitle: string) => void
+	onRename?: (newTitle: string) => void | Promise<void>
 	onToggleGraph?: () => void
 	showGraphView?: boolean
 	messages?: Message[]
@@ -45,8 +45,10 @@ export function TopBar({
 	}
 
 	const handleSave = () => {
-		if (onRename && editTitle.trim()) {
-			onRename(editTitle.trim())
+		const trimmedTitle = editTitle.trim()
+
+		if (onRename && trimmedTitle && trimmedTitle !== title?.trim()) {
+			void onRename(trimmedTitle)
 		}
 		setIsEditing(false)
 	}

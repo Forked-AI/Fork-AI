@@ -43,6 +43,13 @@ export async function PATCH(
 			);
 		}
 
+		if (parentMessageId === message.parentMessageId) {
+			return NextResponse.json({
+				id: message.id,
+				parentMessageId: message.parentMessageId,
+			});
+		}
+
 		// If parentMessageId is provided, verify it exists and belongs to same conversation
 		if (parentMessageId) {
 			const parent = await prisma.message.findFirst({

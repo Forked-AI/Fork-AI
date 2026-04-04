@@ -51,6 +51,19 @@ export async function PATCH(
 			);
 		}
 
+		if (
+			parentMessageId === message.parentMessageId &&
+			positionX === message.positionX &&
+			positionY === message.positionY
+		) {
+			return NextResponse.json({
+				id: message.id,
+				parentMessageId: message.parentMessageId,
+				positionX: message.positionX,
+				positionY: message.positionY,
+			});
+		}
+
 		// If parentMessageId is provided, verify and check for cycles
 		if (parentMessageId) {
 			const parent = await prisma.message.findFirst({

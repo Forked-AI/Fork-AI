@@ -50,6 +50,14 @@ export async function PATCH(
 			);
 		}
 
+		if (message.positionX === positionX && message.positionY === positionY) {
+			return NextResponse.json({
+				id: message.id,
+				positionX: message.positionX,
+				positionY: message.positionY,
+			});
+		}
+
 		// Update position
 		const updated = await prisma.message.update({
 			where: { id: id },

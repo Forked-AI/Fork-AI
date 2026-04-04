@@ -101,6 +101,12 @@ export default function GraphMap({
 		}
 	}, [graph])
 
+	const getCurrentGraph = () =>
+		queryClient.getQueryData<ChatGraph>(['chatGraph', conversationId]) ?? graph
+
+	const getCurrentNode = (nodeId: string) =>
+		getCurrentGraph().nodes.find((node) => node.id === nodeId)
+
 	// Auto-center viewport on graph nodes when first loaded
 	useEffect(() => {
 		if (layoutedGraph.nodes.length > 0 && containerRef.current) {
@@ -728,18 +734,38 @@ export default function GraphMap({
 			// Handle multi-node drag
 			if (currentMultiDragPos.size > 0) {
 				// Single atomic batch request instead of N sequential awaits
-				const updates = [...currentMultiDragPos.entries()].map(([id, pos]) => ({
-					id,
-					positionX: pos.x,
-					positionY: pos.y,
-				}))
-				await api.batchUpdatePositions(updates)
+				const updates = [...currentMultiDragPos.entries()]
+					.filter(([id, pos]) => {
+						const currentNode = getCurrentNode(id)
+
+						return !currentNode || currentNode.x !== pos.x || currentNode.y !== pos.y
+					})
+					.map(([id, pos]) => ({
+						id,
+						positionX: pos.x,
+						positionY: pos.y,
+					}))
+
+				if (updates.length > 0) {
+					await api.batchUpdatePositions(updates)
+				}
 			} else if (currentDragPos) {
+				const currentNode = getCurrentNode(currentNodeId)
+
 				// Single node drag
 				if (
 					currentDropTargetId &&
 					!isDescendant(layoutedGraph.nodes, currentNodeId, currentDropTargetId)
 				) {
+					if (
+						currentNode &&
+						currentNode.replyTo === currentDropTargetId &&
+						currentNode.x === currentDragPos.x &&
+						currentNode.y === currentDragPos.y
+					) {
+						return
+					}
+
 					// Use atomic drop + move
 					await dropNode.mutateAsync({
 						id: currentNodeId,
@@ -748,6 +774,14 @@ export default function GraphMap({
 						y: currentDragPos.y,
 					})
 				} else {
+					if (
+						currentNode &&
+						currentNode.x === currentDragPos.x &&
+						currentNode.y === currentDragPos.y
+					) {
+						return
+					}
+
 					// Just move
 					await updatePosition.mutateAsync({
 						id: currentNodeId,
@@ -820,12 +854,20 @@ export default function GraphMap({
 		// Recalculate layout for ALL nodes based on tree structure
 		// This ignores current positions and resets to a clean hierarchy
 		const positions = calculateTreeLayout(graph.nodes)
+		const currentGraph = getCurrentGraph()
+		const updates = Array.from(positions.entries())
+			.filter(([id, pos]) => {
+				const currentNode = currentGraph.nodes.find((node) => node.id === id)
 
-		const updates = Array.from(positions.entries()).map(([id, pos]) => ({
-			id,
-			positionX: pos.x,
-			positionY: pos.y,
-		}))
+				return !currentNode || currentNode.x !== pos.x || currentNode.y !== pos.y
+			})
+			.map(([id, pos]) => ({
+				id,
+				positionX: pos.x,
+				positionY: pos.y,
+			}))
+
+		if (updates.length === 0) return
 
 		// Optimistic update
 		queryClient.setQueryData<ChatGraph>(
