@@ -3,6 +3,11 @@
 	"version": "0.1.0",
 	"private": true,
 	"scripts": {
+		"prisma:generate": "prisma generate",
+		"prebuild": "npm run prisma:generate",
+		"predev": "npm run prisma:generate",
+		"pretest": "npm run prisma:generate",
+		"postinstall": "npm run prisma:generate",
 		"build": "next build",
 		"dev": "next dev",
 		"lint": "eslint .",
