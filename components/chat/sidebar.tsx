@@ -126,6 +126,8 @@ interface ShareDialogState {
 	allMessages: Message[]
 }
 
+type ConversationMenuSurface = 'dropdown' | 'context'
+
 function renderMenuActionIcon(
 	action: MenuItemAction | MenuSubmenuAction,
 	baseClassName: string
@@ -278,6 +280,10 @@ export function Sidebar() {
 	const { data: collections } = useCollections({ enabled: !!user })
 	const [compactMode, setCompactMode] = useState(false)
 	const [isHovered, setIsHovered] = useState(false)
+	const [openConversationMenu, setOpenConversationMenu] = useState<{
+		id: string
+		surface: ConversationMenuSurface
+	} | null>(null)
 	const [generatingTitles, setGeneratingTitles] = useState<Set<string>>(
 		new Set()
 	)
@@ -672,6 +678,22 @@ export function Sidebar() {
 		]
 	)
 
+	const handleConversationMenuOpenChange = useCallback(
+		(
+			conversationId: string,
+			surface: ConversationMenuSurface,
+			open: boolean
+		) => {
+			setOpenConversationMenu((current) => {
+				if (open) return { id: conversationId, surface }
+				return current?.id === conversationId && current.surface === surface
+					? null
+					: current
+			})
+		},
+		[]
+	)
+
 	const renderConversationRow = (conversation: ConversationPreview) => {
 		const menuActions = getConversationActions(conversation)
 		const conversationRow = (
@@ -715,13 +737,25 @@ export function Sidebar() {
 						</span>
 					</div>
 				</div>
-				<div className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity">
-					<DropdownMenu>
+				<div className="flex-shrink-0 opacity-70 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+					<DropdownMenu
+						open={
+							openConversationMenu?.id === conversation.id &&
+							openConversationMenu.surface === 'dropdown'
+						}
+						onOpenChange={(open) =>
+							handleConversationMenuOpenChange(
+								conversation.id,
+								'dropdown',
+								open
+							)
+						}
+					>
 						<DropdownMenuTrigger asChild>
 							<button
 								onClick={(e) => e.stopPropagation()}
 								onPointerDown={(e) => e.stopPropagation()}
-								className="p-1 text-muted-foreground hover:text-foreground hover:bg-sidebar-accent/50 rounded-md transition-colors"
+								className="flex items-center justify-center p-1 text-muted-foreground hover:text-foreground focus-visible:text-foreground hover:bg-sidebar-accent/50 focus-visible:bg-sidebar-accent/50 rounded-md transition-colors"
 								aria-label={`More actions for ${conversation.title}`}
 								type="button"
 							>
@@ -729,7 +763,9 @@ export function Sidebar() {
 							</button>
 						</DropdownMenuTrigger>
 						<DropdownMenuContent
-							align="end"
+							side="right"
+							align="start"
+							sideOffset={10}
 							className={MENU_CONTENT_CLASSNAME}
 							onClick={(e) => e.stopPropagation()}
 						>
@@ -741,7 +777,12 @@ export function Sidebar() {
 		)
 
 		return (
-			<ContextMenu key={conversation.id}>
+			<ContextMenu
+				key={conversation.id}
+				onOpenChange={(open) =>
+					handleConversationMenuOpenChange(conversation.id, 'context', open)
+				}
+			>
 				<ContextMenuTrigger asChild>{conversationRow}</ContextMenuTrigger>
 				<ContextMenuContent className={MENU_CONTENT_CLASSNAME}>
 					{renderMenuActions('context', menuActions)}
@@ -782,6 +823,10 @@ export function Sidebar() {
 		(pinnedLoading || recentLoading) &&
 		!hasPinnedConversations &&
 		!hasRecentConversations
+	const hasOpenConversationMenu = openConversationMenu !== null
+	const isSidebarCollapsed =
+		compactMode && !isHovered && !hasOpenConversationMenu
+	const isSidebarExpanded = !isSidebarCollapsed
 
 	return (
 		<>
@@ -789,13 +834,13 @@ export function Sidebar() {
 				onMouseEnter={() => setIsHovered(true)}
 				onMouseLeave={() => setIsHovered(false)}
 				className={`h-full flex flex-col bg-sidebar transition-all duration-300 ${
-					compactMode && !isHovered ? 'w-[4rem]' : 'w-[280px]'
+					isSidebarCollapsed ? 'w-[4rem]' : 'w-[280px]'
 				}`}
 			>
 				<div
-					className={`${compactMode && !isHovered ? 'px-3 pt-12 pb-10' : 'px-6 pt-12 pb-10 flex items-start justify-between'} transition-all duration-300`}
+					className={`${isSidebarCollapsed ? 'px-3 pt-12 pb-10' : 'px-6 pt-12 pb-10 flex items-start justify-between'} transition-all duration-300`}
 				>
-					{compactMode && !isHovered ? (
+					{isSidebarCollapsed ? (
 						<div className="cursor-default" title="Fork.AI">
 							<h1 className="text-foreground font-serif text-xl tracking-tight leading-none">
 								F
@@ -829,38 +874,38 @@ export function Sidebar() {
 				</div>
 
 				<div
-					className={`${compactMode && !isHovered ? 'px-2' : 'px-4'} pb-4 transition-all duration-300`}
+					className={`${isSidebarCollapsed ? 'px-2' : 'px-4'} pb-4 transition-all duration-300`}
 				>
 					<button
 						onClick={() => setSearchOpen(true)}
-						className={`flex items-center ${compactMode && !isHovered ? 'justify-center' : 'gap-3'} w-full ${compactMode && !isHovered ? 'p-2' : 'px-3 py-2'} text-sm text-muted-foreground hover:text-foreground hover:bg-sidebar-accent/30 rounded-md transition-all`}
+						className={`flex items-center ${isSidebarCollapsed ? 'justify-center' : 'gap-3'} w-full ${isSidebarCollapsed ? 'p-2' : 'px-3 py-2'} text-sm text-muted-foreground hover:text-foreground hover:bg-sidebar-accent/30 rounded-md transition-all`}
 						title="Search conversations"
 					>
 						<Search className="w-4 h-4" />
-						{(!compactMode || isHovered) && <span>Search</span>}
+						{isSidebarExpanded && <span>Search</span>}
 					</button>
 				</div>
 
 				<div
-					className={`${compactMode && !isHovered ? 'px-2' : 'px-4'} pb-8 space-y-1 transition-all duration-300`}
+					className={`${isSidebarCollapsed ? 'px-2' : 'px-4'} pb-8 space-y-1 transition-all duration-300`}
 				>
 					<button
 						onClick={handleNewChat}
-						className={`flex items-center ${compactMode && !isHovered ? 'justify-center' : 'gap-3'} w-full ${compactMode && !isHovered ? 'p-2.5' : 'px-3 py-2.5'} text-sm font-medium text-foreground bg-sidebar-accent/50 hover:bg-sidebar-accent rounded-md transition-all group border border-transparent hover:border-border`}
-						title={compactMode && !isHovered ? 'New Discussion' : undefined}
+						className={`flex items-center ${isSidebarCollapsed ? 'justify-center' : 'gap-3'} w-full ${isSidebarCollapsed ? 'p-2.5' : 'px-3 py-2.5'} text-sm font-medium text-foreground bg-sidebar-accent/50 hover:bg-sidebar-accent rounded-md transition-all group border border-transparent hover:border-border`}
+						title={isSidebarCollapsed ? 'New Discussion' : undefined}
 					>
 						<div className="p-1 rounded bg-background border border-border group-hover:border-foreground/20 transition-colors">
 							<Plus className="w-3 h-3 text-muted-foreground group-hover:text-foreground transition-colors" />
 						</div>
-						{(!compactMode || isHovered) && <span>New Discussion</span>}
+						{isSidebarExpanded && <span>New Discussion</span>}
 					</button>
 				</div>
 
 				<div
-					className={`${compactMode && !isHovered ? 'px-2' : 'px-4'} space-y-8 overflow-y-auto flex-1 transition-all duration-300`}
+					className={`${isSidebarCollapsed ? 'px-2' : 'px-4'} space-y-8 overflow-y-auto flex-1 transition-all duration-300`}
 				>
 					<div>
-						{(!compactMode || isHovered) && (
+						{isSidebarExpanded && (
 							<h3 className="px-3 mb-3 text-[10px] uppercase font-bold tracking-widest text-muted-foreground/60 font-sans">
 								Library
 							</h3>
@@ -870,11 +915,11 @@ export function Sidebar() {
 								<button
 									key={item.id}
 									onClick={() => handleFeatureClick(item.id)}
-									className={`flex items-center ${compactMode && !isHovered ? 'justify-center' : 'gap-3'} w-full ${compactMode && !isHovered ? 'p-2' : 'px-3 py-2'} text-sm text-muted-foreground hover:text-primary hover:bg-primary/5 rounded-md transition-all group`}
-									title={compactMode && !isHovered ? item.label : undefined}
+									className={`flex items-center ${isSidebarCollapsed ? 'justify-center' : 'gap-3'} w-full ${isSidebarCollapsed ? 'p-2' : 'px-3 py-2'} text-sm text-muted-foreground hover:text-primary hover:bg-primary/5 rounded-md transition-all group`}
+									title={isSidebarCollapsed ? item.label : undefined}
 								>
 									<item.icon className="w-4 h-4 stroke-[1.5] text-muted-foreground/70 group-hover:text-primary transition-colors" />
-									{(!compactMode || isHovered) && (
+									{isSidebarExpanded && (
 										<span className="opacity-100 transition-opacity duration-300">
 											{item.label}
 										</span>
@@ -884,7 +929,7 @@ export function Sidebar() {
 						</div>
 					</div>
 
-					{(!compactMode || isHovered) && (
+					{isSidebarExpanded && (
 						<>
 							{showConversationLoader ? (
 								<div className="flex items-center justify-center py-4">
@@ -911,15 +956,15 @@ export function Sidebar() {
 				</div>
 
 				<div
-					className={`mt-auto ${compactMode && !isHovered ? 'px-2' : 'px-4'} pb-8 transition-all duration-300`}
+					className={`mt-auto ${isSidebarCollapsed ? 'px-2' : 'px-4'} pb-8 transition-all duration-300`}
 				>
 					<button
 						onClick={() => setSettingsOpen(true)}
-						className={`flex items-center ${compactMode && !isHovered ? 'justify-center' : 'gap-3'} w-full ${compactMode && !isHovered ? 'p-2' : 'px-3 py-2'} text-sm text-muted-foreground hover:text-foreground transition-colors`}
-						title={compactMode && !isHovered ? 'Preferences' : undefined}
+						className={`flex items-center ${isSidebarCollapsed ? 'justify-center' : 'gap-3'} w-full ${isSidebarCollapsed ? 'p-2' : 'px-3 py-2'} text-sm text-muted-foreground hover:text-foreground transition-colors`}
+						title={isSidebarCollapsed ? 'Preferences' : undefined}
 					>
 						<Settings className="w-4 h-4" />
-						{(!compactMode || isHovered) && <span>Preferences</span>}
+						{isSidebarExpanded && <span>Preferences</span>}
 					</button>
 				</div>
 			</aside>
