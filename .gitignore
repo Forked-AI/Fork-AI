@@ -19,3 +19,6 @@ generated
 tests
 .codex
 .playwright*
+*.sql
+*.png
+*.jpg
