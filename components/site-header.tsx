@@ -86,8 +86,8 @@ export function SiteHeader() {
 		{ name: 'FAQ', id: 'faq' },
 	]
 
-	// Hide header on chat page
-	if (pathname === '/chat') {
+	// Hide the marketing header on standalone app/public-share routes.
+	if (pathname?.startsWith('/chat') || pathname?.startsWith('/share')) {
 		return null
 	}
 
