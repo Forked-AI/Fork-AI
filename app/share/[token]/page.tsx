@@ -1,8 +1,12 @@
-import type { MessageSnapshot } from '@/app/api/chat/share/route'
+import { OpenInForkAICta } from '@/components/share/open-in-fork-ai-cta'
+import { MarkdownRenderer } from '@/components/chat/markdown-renderer'
+import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import type { MessageSnapshot, ShareSummaryData } from '@/lib/share/types'
 import type { Metadata } from 'next'
+import { headers } from 'next/headers'
 import Link from 'next/link'
-import { notFound } from 'next/navigation'
+import { redirect } from 'next/navigation'
 
 // --- Metadata for social preview ---
 
@@ -22,7 +26,12 @@ export async function generateMetadata({
 	}
 
 	const snapshots: MessageSnapshot[] = JSON.parse(share.snapshotData)
-	const description = `${snapshots.length} message${snapshots.length !== 1 ? 's' : ''} shared via Fork AI`
+	const summary: ShareSummaryData | null = share.summaryData
+		? JSON.parse(share.summaryData)
+		: null
+	const description =
+		summary?.overview ||
+		`${snapshots.length} message${snapshots.length !== 1 ? 's' : ''} shared via Fork AI`
 
 	return {
 		title: `${share.title} — Fork AI`,
@@ -45,10 +54,13 @@ export async function generateMetadata({
 
 export default async function SharePage({
 	params,
+	searchParams,
 }: {
 	params: Promise<{ token: string }>
+	searchParams?: Promise<Record<string, string | string[] | undefined>>
 }) {
 	const { token } = await params
+	const resolvedSearchParams = (await searchParams) ?? {}
 
 	const share = await prisma.sharedConversation.findUnique({
 		where: { shareToken: token },
@@ -73,35 +85,57 @@ export default async function SharePage({
 		.catch(() => {})
 
 	const snapshots: MessageSnapshot[] = JSON.parse(share.snapshotData)
+	const summary: ShareSummaryData | null = share.summaryData
+		? JSON.parse(share.summaryData)
+		: null
+	const session = await auth.api.getSession({ headers: await headers() })
+	const viewerUserId = session?.user?.id ?? null
+	const openInChatValue = resolvedSearchParams.openInChat
+	const normalizedOpenInChatValue = Array.isArray(openInChatValue)
+		? openInChatValue[0]
+		: openInChatValue
+	const openInChat = normalizedOpenInChatValue === '1'
+
+	if (openInChat && viewerUserId === share.createdBy) {
+		redirect(`/chat?c=${share.conversationId}`)
+	}
 
 	// Build download content if allowed
 	const markdownContent = share.allowDownload
-		? buildMarkdown(share.title, snapshots, share.showTimestamps, share.showModel)
+		? buildMarkdown(
+				share.title,
+				summary,
+				snapshots,
+				share.showTimestamps,
+				share.showModel
+			)
 		: null
 
 	return (
-		<div className="min-h-screen bg-[#0a0d11] text-foreground">
+		<div className="min-h-screen overflow-x-hidden bg-[#0a0d11] text-foreground">
+			<OpenInForkAICta
+				shareToken={share.shareToken}
+				conversationId={share.conversationId}
+				shareOwnerId={share.createdBy}
+				viewerUserId={viewerUserId}
+				autoOpen={openInChat && !!viewerUserId && viewerUserId !== share.createdBy}
+			/>
+
 			{/* Header */}
 			<header className="sticky top-0 z-10 border-b border-white/10 bg-[#0a0d11]/90 backdrop-blur-xl">
-				<div className="max-w-3xl mx-auto px-6 py-4 flex items-center justify-between">
+				<div className="mx-auto flex w-full min-w-0 max-w-4xl items-center px-6 py-4">
 					<Link href="/" className="flex items-center gap-2 group">
 						<span className="text-lg font-bold text-[#57FCFF] group-hover:opacity-80 transition-opacity">
 							Fork AI
 						</span>
 					</Link>
-					<Link
-						href="/chat"
-						className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[#57FCFF]/10 border border-[#57FCFF]/30 text-[#57FCFF] text-sm font-medium hover:bg-[#57FCFF]/20 transition-all"
-					>
-						Open in Fork AI →
-					</Link>
 				</div>
 			</header>
 
 			{/* Main content */}
-			<main className="max-w-3xl mx-auto px-6 py-10">
+			<main className="mx-auto w-full min-w-0 max-w-4xl overflow-x-hidden px-6 py-10 pb-32">
 				{/* Conversation title & meta */}
-				<div className="mb-8">
+				<div className="mb-8 min-w-0">
 					<h1 className="text-2xl font-bold text-white mb-2">{share.title}</h1>
 					<p className="text-sm text-white/40">
 						{snapshots.length} message{snapshots.length !== 1 ? 's' : ''} · shared via Fork AI
@@ -111,8 +145,41 @@ export default async function SharePage({
 					</p>
 				</div>
 
+				{summary && (
+					<div
+						data-testid="share-summary-card"
+						className="mb-8 min-w-0 overflow-hidden rounded-2xl border border-[#57FCFF]/20 bg-white/[0.03] p-6 shadow-[0_18px_60px_-32px_rgba(87,252,255,0.45)]"
+					>
+						<p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-[#57FCFF]/80">
+							Share Summary
+						</p>
+						<div className="min-w-0 max-w-full text-sm text-white/90">
+							<MarkdownRenderer
+								content={summary.overview}
+								variant="compact"
+								className="text-sm text-white/90"
+							/>
+						</div>
+						{summary.keyPoints.length > 0 && (
+							<div className="mt-5">
+								<p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-white/45">
+									Key Points
+								</p>
+								<ul className="space-y-2 text-sm text-white/75">
+									{summary.keyPoints.map((point) => (
+										<li key={point} className="flex gap-2">
+											<span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-[#57FCFF]/70" />
+											<span>{point}</span>
+										</li>
+									))}
+								</ul>
+							</div>
+						)}
+					</div>
+				)}
+
 				{/* Messages */}
-				<div className="space-y-6">
+				<div className="min-w-0 space-y-6">
 					{snapshots.map((message) => (
 						<SharedMessageBubble
 							key={message.id}
@@ -194,16 +261,20 @@ function SharedMessageBubble({
 	const isRedacted = message.content === '[Message redacted by author]'
 
 	return (
-		<div className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
+		<div
+			data-testid={`shared-message-row-${message.id}`}
+			className={`flex w-full min-w-0 ${isUser ? 'justify-end' : 'justify-start'}`}
+		>
 			<div
-				className={`max-w-[85%] rounded-2xl px-5 py-4 ${
+				data-testid={`shared-message-bubble-${message.id}`}
+				className={`w-full min-w-0 overflow-hidden rounded-2xl px-5 py-4 sm:max-w-[85%] ${
 					isUser
 						? 'bg-[#57FCFF]/10 border border-[#57FCFF]/20 text-white'
 						: 'bg-white/5 border border-white/10 text-white/90'
 				}`}
 			>
 				{/* Role label */}
-				<div className="flex items-center gap-2 mb-2">
+				<div className="mb-2 flex min-w-0 flex-wrap items-center gap-2">
 					<span
 						className={`text-[10px] font-semibold uppercase tracking-wider ${
 							isUser ? 'text-[#57FCFF]/70' : 'text-white/40'
@@ -222,8 +293,12 @@ function SharedMessageBubble({
 				{isRedacted ? (
 					<p className="text-sm text-white/30 italic">[Message redacted by author]</p>
 				) : (
-					<div className="text-sm leading-relaxed whitespace-pre-wrap break-words">
-						{message.content}
+					<div className="min-w-0 max-w-full text-sm leading-relaxed break-words [overflow-wrap:anywhere]">
+						<MarkdownRenderer
+							content={message.content}
+							variant="compact"
+							className="text-sm text-white/90"
+						/>
 					</div>
 				)}
 			</div>
@@ -260,6 +335,7 @@ function DownloadButton({ content, title }: { content: string; title: string }) 
 
 function buildMarkdown(
 	title: string,
+	summary: ShareSummaryData | null,
 	snapshots: MessageSnapshot[],
 	showTimestamps: boolean,
 	showModel: boolean
@@ -272,6 +348,23 @@ function buildMarkdown(
 		'---',
 		'',
 	]
+
+	if (summary) {
+		lines.push('## Summary')
+		lines.push('')
+		lines.push(summary.overview)
+		lines.push('')
+		if (summary.keyPoints.length > 0) {
+			lines.push('### Key Points')
+			lines.push('')
+			for (const point of summary.keyPoints) {
+				lines.push(`- ${point}`)
+			}
+			lines.push('')
+		}
+		lines.push('---')
+		lines.push('')
+	}
 
 	for (const msg of snapshots) {
 		const role = msg.role === 'user' ? '**You**' : `**Assistant${showModel && msg.model ? ` (${msg.model})` : ''}**`
