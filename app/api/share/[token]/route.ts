@@ -2,7 +2,7 @@ import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { headers } from 'next/headers'
 import { NextResponse } from 'next/server'
-import type { MessageSnapshot } from '@/app/api/chat/share/route'
+import type { MessageSnapshot, ShareSummaryData } from '@/lib/share/types'
 
 // --- GET /api/share/[token] — public read of a shared conversation ---
 
@@ -41,10 +41,14 @@ export async function GET(
 			.catch(() => {}) // ignore errors on counter update
 
 		const snapshots: MessageSnapshot[] = JSON.parse(share.snapshotData)
+		const summary: ShareSummaryData | null = share.summaryData
+			? JSON.parse(share.summaryData)
+			: null
 
 		return NextResponse.json({
 			shareToken: share.shareToken,
 			title: share.title,
+			summary,
 			messages: snapshots,
 			settings: {
 				allowDownload: share.allowDownload,

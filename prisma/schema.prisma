@@ -114,6 +114,8 @@ model Conversation {
   user             User        @relation(fields: [userId], references: [id], onDelete: Cascade)
   collectionId     String?
   collection       Collection? @relation(fields: [collectionId], references: [id], onDelete: SetNull)
+  isPinned         Boolean     @default(false)
+  pinnedAt         DateTime?
   messages         Message[]
   sharedConversations SharedConversation[]
   activeMessageIds String?     @db.Text // JSON array of message IDs representing the active branch path
@@ -122,6 +124,7 @@ model Conversation {
 
   @@index([userId])
   @@index([collectionId])
+  @@index([userId, isPinned, pinnedAt])
   @@map("conversation")
 }
 
@@ -180,6 +183,8 @@ model SharedConversation {
   createdBy          String
   selectedMessageIds String    @db.Text               // JSON: string[] ordered list of message IDs
   snapshotData       String    @db.Text               // JSON: MessageSnapshot[] frozen at share time
+  summaryData        String?   @db.Text               // JSON: ShareSummaryData | null
+  maskingData        String?   @db.Text               // JSON: ShareMaskingData | null
   title              String                           // snapshot of conversation title at share time
   createdAt          DateTime  @default(now())
   expiresAt          DateTime?
