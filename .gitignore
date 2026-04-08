@@ -17,3 +17,5 @@ coverage
 /generated/prisma
 generated
 tests
+.codex
+.playwright*
