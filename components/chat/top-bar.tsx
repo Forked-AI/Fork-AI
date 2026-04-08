@@ -1,9 +1,7 @@
 'use client'
 
-import { ShareModal } from '@/components/chat/share-modal'
 import { useAuth } from '@/contexts/auth-context'
-import type { Message } from '@/hooks/use-chat'
-import { GitBranch, LogOut, Plus, Share2, UserCircle } from 'lucide-react'
+import { Download, GitBranch, LogOut, Plus, Share2, UserCircle } from 'lucide-react'
 import Link from 'next/link'
 import { useState } from 'react'
 
@@ -13,7 +11,8 @@ interface TopBarProps {
 	onRename?: (newTitle: string) => void | Promise<void>
 	onToggleGraph?: () => void
 	showGraphView?: boolean
-	messages?: Message[]
+	onExport?: () => void
+	onShare?: () => void
 }
 
 export function TopBar({
@@ -22,11 +21,11 @@ export function TopBar({
 	onRename,
 	onToggleGraph,
 	showGraphView,
-	messages = [],
+	onExport,
+	onShare,
 }: TopBarProps) {
 	const [isEditing, setIsEditing] = useState(false)
 	const [editTitle, setEditTitle] = useState('')
-	const [shareOpen, setShareOpen] = useState(false)
 	const [showUserMenu, setShowUserMenu] = useState(false)
 	const { user, logout } = useAuth()
 
@@ -62,8 +61,7 @@ export function TopBar({
 	}
 
 	return (
-		<>
-			<header className="h-16 px-6 flex items-center justify-between sticky top-0 z-20 bg-background border-b border-border/50">
+		<header className="h-16 px-6 flex items-center justify-between sticky top-0 z-20 bg-background border-b border-border/50">
 				{/* Left - New Chat Button */}
 				<div className="flex items-center gap-2">
 					{onNewChat && (
@@ -127,8 +125,21 @@ export function TopBar({
 							<div className="w-px h-3 bg-border" />
 						</>
 					)}
+					{onExport && (
+						<>
+							<button
+								onClick={onExport}
+								className="flex items-center gap-2 text-xs font-medium text-muted-foreground transition-colors uppercase tracking-wider group hover:text-foreground"
+							>
+								<Download className="h-3.5 w-3.5 transition-colors group-hover:text-primary" />
+								<span className="hidden sm:inline">Export</span>
+							</button>
+							<div className="w-px h-3 bg-border" />
+						</>
+					)}
 					<button
-						onClick={() => setShareOpen(true)}
+						onClick={onShare}
+						disabled={!onShare}
 						className="flex items-center gap-2 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors uppercase tracking-wider group"
 					>
 						<Share2 className="w-3.5 h-3.5 group-hover:text-primary transition-colors" />
@@ -187,14 +198,6 @@ export function TopBar({
 						</Link>
 					)}
 				</div>
-			</header>
-
-			<ShareModal
-				open={shareOpen}
-				onOpenChange={setShareOpen}
-				messages={messages}
-				conversationTitle={title || 'Untitled Conversation'}
-			/>
-		</>
+		</header>
 	)
 }

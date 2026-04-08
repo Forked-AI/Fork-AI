@@ -9,8 +9,8 @@ import {
     CommandList,
 } from '@/components/ui/command'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
-import { openConversation } from '@/lib/chat-navigation'
 import { History, Loader2, MessageSquare } from 'lucide-react'
+import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 interface SearchModalProps {
@@ -30,6 +30,7 @@ interface SearchResult {
 }
 
 export function SearchModal({ open, onOpenChange }: SearchModalProps) {
+	const router = useRouter()
 	const [searchQuery, setSearchQuery] = useState('')
 	const [results, setResults] = useState<SearchResult[]>([])
 	const [isLoading, setIsLoading] = useState(false)
@@ -106,7 +107,7 @@ export function SearchModal({ open, onOpenChange }: SearchModalProps) {
 	}, [])
 
 	const handleSelectChat = (conversationId: string) => {
-		openConversation(conversationId)
+		router.replace(`/chat?c=${conversationId}`, { scroll: false })
 		onOpenChange(false)
 	}
 

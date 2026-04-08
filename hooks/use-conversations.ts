@@ -519,15 +519,6 @@ export function useConversations(options: UseConversationsOptions = {}) {
 		// Title generation
 		generateTitle: async (conversationId: string) => {
 			try {
-				// Dispatch event to show skeleton
-				if (typeof window !== "undefined") {
-					window.dispatchEvent(
-						new CustomEvent("titleGenerating", {
-							detail: { conversationId },
-						})
-					);
-				}
-
 				const response = await fetch(
 					`/api/conversations/${conversationId}/generate-title`,
 					{
@@ -543,36 +534,10 @@ export function useConversations(options: UseConversationsOptions = {}) {
 						queryKey: ["conversations"],
 					});
 
-					// Dispatch event to hide skeleton
-					if (typeof window !== "undefined") {
-						window.dispatchEvent(
-							new CustomEvent("titleGenerated", {
-								detail: { conversationId },
-							})
-						);
-					}
-
 					return data.title;
-				} else {
-					// Hide skeleton on error too
-					if (typeof window !== "undefined") {
-						window.dispatchEvent(
-							new CustomEvent("titleGenerated", {
-								detail: { conversationId },
-							})
-						);
-					}
 				}
 			} catch (error) {
 				console.error("Failed to generate title:", error);
-				// Hide skeleton on error
-				if (typeof window !== "undefined") {
-					window.dispatchEvent(
-						new CustomEvent("titleGenerated", {
-							detail: { conversationId },
-						})
-					);
-				}
 			}
 			return null;
 		},

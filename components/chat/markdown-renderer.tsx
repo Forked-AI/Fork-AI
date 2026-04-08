@@ -14,6 +14,7 @@ import remarkMath from 'remark-math'
 interface MarkdownRendererProps {
 	content: string
 	className?: string
+	variant?: 'default' | 'compact'
 }
 
 // Security: Sanitize URLs to prevent XSS attacks
@@ -46,9 +47,11 @@ function sanitizeUrl(url: string | undefined): string | undefined {
 function CodeBlock({
 	language,
 	children,
+	compact = false,
 }: {
 	language: string | undefined
 	children: string
+	compact?: boolean
 }) {
 	const [copied, setCopied] = useState(false)
 
@@ -61,7 +64,7 @@ function CodeBlock({
 	const lineCount = children.split('\n').length
 
 	return (
-		<div className="relative my-4 group">
+		<div className={cn('group relative', compact ? 'my-2' : 'my-4')}>
 			{/* Language tag - minimal, positioned top-right */}
 			{language && (
 				<div className="absolute -top-2.5 left-4 z-10">
@@ -85,24 +88,31 @@ function CodeBlock({
 			</button>
 
 			{/* Code content */}
-			<div className="rounded-lg overflow-hidden border border-border/30 bg-[#0d1117]">
+			<div className="max-w-full overflow-x-auto rounded-lg border border-border/30 bg-[#0d1117]">
 				<SyntaxHighlighter
 					language={language || 'text'}
 					style={oneDark}
 					customStyle={{
 						margin: 0,
-						padding: '1.25rem',
-						paddingTop: language ? '1.5rem' : '1.25rem',
+						padding: compact ? '0.875rem' : '1.25rem',
+						paddingTop: language
+							? compact
+								? '1.125rem'
+								: '1.5rem'
+							: compact
+								? '0.875rem'
+								: '1.25rem',
 						background: 'transparent',
-						fontSize: '0.8125rem',
+						fontSize: compact ? '0.75rem' : '0.8125rem',
 						lineHeight: 1.7,
+						minWidth: '100%',
 					}}
 					showLineNumbers={lineCount > 5}
 					lineNumberStyle={{
 						minWidth: '2.5em',
 						paddingRight: '1em',
 						color: 'rgba(255,255,255,0.15)',
-						fontSize: '0.75rem',
+						fontSize: compact ? '0.6875rem' : '0.75rem',
 						userSelect: 'none',
 					}}
 					codeTagProps={{
@@ -121,14 +131,14 @@ function CodeBlock({
 // Inline code component
 function InlineCode({ children }: { children: React.ReactNode }) {
 	return (
-		<code className="px-1.5 py-0.5 rounded bg-[#1a1d24] text-[#57FCFF] font-mono text-sm border border-border/30">
+		<code className="break-all whitespace-pre-wrap rounded border border-border/30 bg-[#1a1d24] px-1.5 py-0.5 font-mono text-sm text-[#57FCFF]">
 			{children}
 		</code>
 	)
 }
 
 // YouTube video component
-function YouTubeEmbed({ url }: { url: string }) {
+function YouTubeEmbed({ url, compact = false }: { url: string; compact?: boolean }) {
 	// Security: Extract video ID only from official YouTube domains
 	const getVideoId = (url: string): string | null => {
 		try {
@@ -169,7 +179,12 @@ function YouTubeEmbed({ url }: { url: string }) {
 	}
 
 	return (
-		<div className="my-4 relative rounded-lg overflow-hidden border border-border/30 bg-[#0d1117]">
+		<div
+			className={cn(
+				'relative overflow-hidden rounded-lg border border-border/30 bg-[#0d1117]',
+				compact ? 'my-2' : 'my-4'
+			)}
+		>
 			<div className="relative w-full" style={{ paddingBottom: '56.25%' }}>
 				<iframe
 					className="absolute top-0 left-0 w-full h-full"
@@ -184,7 +199,15 @@ function YouTubeEmbed({ url }: { url: string }) {
 }
 
 // Image component with error handling
-function MarkdownImage({ src, alt }: { src?: string; alt?: string }) {
+function MarkdownImage({
+	src,
+	alt,
+	compact = false,
+}: {
+	src?: string
+	alt?: string
+	compact?: boolean
+}) {
 	const [error, setError] = useState(false)
 	const [loading, setLoading] = useState(true)
 
@@ -207,7 +230,12 @@ function MarkdownImage({ src, alt }: { src?: string; alt?: string }) {
 	}
 
 	return (
-		<div className="my-4 relative rounded-lg overflow-hidden border border-border/30 bg-[#0d1117]">
+		<div
+			className={cn(
+				'relative max-w-full overflow-hidden rounded-lg border border-border/30 bg-[#0d1117]',
+				compact ? 'my-2' : 'my-4'
+			)}
+		>
 			{loading && (
 				<div className="absolute inset-0 flex items-center justify-center bg-[#1a1d24]/50">
 					<div className="w-8 h-8 border-2 border-[#57FCFF]/30 border-t-[#57FCFF] rounded-full animate-spin" />
@@ -239,7 +267,9 @@ function MarkdownImage({ src, alt }: { src?: string; alt?: string }) {
 export const MarkdownRenderer = memo(function MarkdownRenderer({
 	content,
 	className,
+	variant = 'default',
 }: MarkdownRendererProps) {
+	const compact = variant === 'compact'
 	// Comprehensive content preprocessing for proper rendering
 	const processedContent = useMemo(
 		() =>
@@ -260,7 +290,14 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({
 	)
 
 	return (
-		<div className={cn('prose prose-invert max-w-none', className)}>
+		<div
+			className={cn(
+				'prose prose-invert min-w-0 max-w-none break-words [overflow-wrap:anywhere] [&_*]:max-w-full',
+				compact &&
+					'text-sm leading-relaxed [&_blockquote]:my-2 [&_blockquote]:pl-3 [&_hr]:my-4 [&_li]:my-0 [&_ol]:my-2 [&_p]:my-2 [&_table]:text-xs [&_ul]:my-2',
+				className
+			)}
+		>
 			<ReactMarkdown
 				remarkPlugins={[remarkMath, remarkGfm]}
 				rehypePlugins={[rehypeKatex]}
@@ -275,7 +312,7 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({
 						}
 
 						return (
-							<CodeBlock language={match?.[1]}>
+							<CodeBlock language={match?.[1]} compact={compact}>
 								{String(children).replace(/\n$/, '')}
 							</CodeBlock>
 						)
@@ -295,7 +332,7 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({
 								sanitizedHref
 							)
 						) {
-							return <YouTubeEmbed url={sanitizedHref} />
+							return <YouTubeEmbed url={sanitizedHref} compact={compact} />
 						}
 
 						return (
@@ -303,7 +340,7 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({
 								href={sanitizedHref}
 								target="_blank"
 								rel="noopener noreferrer"
-								className="text-[#57FCFF] hover:underline"
+								className="break-all text-[#57FCFF] hover:underline"
 							>
 								{children}
 							</a>
@@ -314,39 +351,68 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({
 					img({ src, alt }) {
 						// Only handle string URLs, ignore Blob types
 						if (typeof src !== 'string') return null
-						return <MarkdownImage src={src} alt={alt} />
+						return <MarkdownImage src={src} alt={alt} compact={compact} />
 					},
 
 					// Paragraphs
 					p({ children }) {
-						return <p className="mb-4 last:mb-0 leading-relaxed">{children}</p>
+						return (
+							<p
+								className={cn(
+									'leading-relaxed',
+									compact ? 'mb-2 last:mb-0' : 'mb-4 last:mb-0'
+								)}
+							>
+								{children}
+							</p>
+						)
 					},
 
 					// Headings
 					h1({ children }) {
 						return (
-							<h1 className="text-2xl font-bold mb-4 mt-6 first:mt-0">
+							<h1
+								className={cn(
+									'font-bold first:mt-0',
+									compact ? 'mb-2 mt-4 text-xl' : 'mb-4 mt-6 text-2xl'
+								)}
+							>
 								{children}
 							</h1>
 						)
 					},
 					h2({ children }) {
 						return (
-							<h2 className="text-xl font-bold mb-3 mt-5 first:mt-0">
+							<h2
+								className={cn(
+									'font-bold first:mt-0',
+									compact ? 'mb-2 mt-4 text-lg' : 'mb-3 mt-5 text-xl'
+								)}
+							>
 								{children}
 							</h2>
 						)
 					},
 					h3({ children }) {
 						return (
-							<h3 className="text-lg font-semibold mb-2 mt-4 first:mt-0">
+							<h3
+								className={cn(
+									'font-semibold first:mt-0',
+									compact ? 'mb-1.5 mt-3 text-base' : 'mb-2 mt-4 text-lg'
+								)}
+							>
 								{children}
 							</h3>
 						)
 					},
 					h4({ children }) {
 						return (
-							<h4 className="text-base font-semibold mb-2 mt-3 first:mt-0">
+							<h4
+								className={cn(
+									'font-semibold first:mt-0',
+									compact ? 'mb-1.5 mt-3 text-sm' : 'mb-2 mt-3 text-base'
+								)}
+							>
 								{children}
 							</h4>
 						)
@@ -355,26 +421,47 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({
 					// Lists
 					ul({ children }) {
 						return (
-							<ul className="list-disc list-inside mb-4 space-y-1">
+							<ul
+								className={cn(
+									'list-inside list-disc space-y-1',
+									compact ? 'mb-2 pl-1' : 'mb-4'
+								)}
+							>
 								{children}
 							</ul>
 						)
 					},
 					ol({ children }) {
 						return (
-							<ol className="list-decimal list-inside mb-4 space-y-1">
+							<ol
+								className={cn(
+									'list-inside list-decimal space-y-1',
+									compact ? 'mb-2 pl-1' : 'mb-4'
+								)}
+							>
 								{children}
 							</ol>
 						)
 					},
 					li({ children }) {
-						return <li className="leading-relaxed">{children}</li>
+						return (
+							<li className={cn('leading-relaxed', compact && '[overflow-wrap:anywhere]')}>
+								{children}
+							</li>
+						)
 					},
 
 					// Blockquotes
 					blockquote({ children }) {
 						return (
-							<blockquote className="border-l-4 border-[#57FCFF]/50 pl-4 my-4 italic text-muted-foreground">
+							<blockquote
+								className={cn(
+									'italic text-muted-foreground',
+									compact
+										? 'my-2 border-l-2 border-[#57FCFF]/50 pl-3'
+										: 'my-4 border-l-4 border-[#57FCFF]/50 pl-4'
+								)}
+							>
 								{children}
 							</blockquote>
 						)
@@ -383,7 +470,7 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({
 					// Tables
 					table({ children }) {
 						return (
-							<div className="overflow-x-auto my-4">
+							<div className={cn('max-w-full overflow-x-auto', compact ? 'my-2' : 'my-4')}>
 								<table className="min-w-full border-collapse border border-border/50 rounded-lg overflow-hidden">
 									{children}
 								</table>
@@ -410,7 +497,7 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({
 
 					// Horizontal rule
 					hr() {
-						return <hr className="my-6 border-border/50" />
+						return <hr className={cn('border-border/50', compact ? 'my-4' : 'my-6')} />
 					},
 
 					// Strong/Bold

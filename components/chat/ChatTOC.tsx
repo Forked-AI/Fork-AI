@@ -104,6 +104,16 @@ export function ChatTOC({
 		return cleaned.slice(0, maxLength) + '...'
 	}
 
+	const formatTimestamp = (date?: Date) => {
+		if (!date) return null
+		return new Intl.DateTimeFormat(undefined, {
+			month: 'short',
+			day: 'numeric',
+			hour: 'numeric',
+			minute: '2-digit',
+		}).format(date)
+	}
+
 	// Get full preview for tooltip (first 250 chars)
 	const getFullPreview = (text: string) => {
 		const cleaned = stripFormatting(text)
@@ -166,10 +176,11 @@ export function ChatTOC({
 			<div className="flex-1 overflow-hidden">
 				<ScrollArea className="h-full max-h-[45vh]">
 					<div className="py-2 flex flex-col">
-						{visibleMessages.map((message, index) => {
-							const isUser = message.role === 'user'
-							const isActive = activeMessageId === message.id
-							const isSelected = selectedMessageIds.has(message.id)
+							{visibleMessages.map((message, index) => {
+								const isUser = message.role === 'user'
+								const isActive = activeMessageId === message.id
+								const isSelected = selectedMessageIds.has(message.id)
+								const timestamp = formatTimestamp(message.createdAt)
 
 							return (
 								<TooltipProvider key={message.id} delayDuration={400}>
@@ -210,20 +221,25 @@ export function ChatTOC({
 													) : (
 														<Bot className="w-3.5 h-3.5 text-muted-foreground/60 shrink-0 mt-0.5" />
 													)}
-													<div className="flex flex-col gap-0.5 flex-1 min-w-0">
-														<span
-															className={cn(
+														<div className="flex flex-col gap-0.5 flex-1 min-w-0">
+															<span
+																className={cn(
 																'text-[11px] leading-relaxed truncate',
 																isUser
 																	? 'text-foreground/90 font-medium'
 																	: 'text-muted-foreground/70',
 																isActive && 'text-primary'
 															)}
-														>
-															{truncateText(message.content, 30)}
-														</span>
+															>
+																{truncateText(message.content, 30)}
+															</span>
+															{timestamp && (
+																<span className="text-[10px] text-muted-foreground/45">
+																	{timestamp}
+																</span>
+															)}
+														</div>
 													</div>
-												</div>
 											</div>
 										</TooltipTrigger>
 										<TooltipContent

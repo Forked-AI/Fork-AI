@@ -1,13 +1,7 @@
 'use client'
 
-import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogHeader,
-    DialogTitle,
-} from '@/components/ui/dialog'
-import { LucideIcon } from 'lucide-react'
+import { ChatModalShell } from '@/components/chat/chat-modal-shell'
+import type { LucideIcon } from 'lucide-react'
 
 interface PlaceholderModalProps {
 	open: boolean
@@ -25,31 +19,24 @@ export function PlaceholderModal({
 	icon: Icon,
 }: PlaceholderModalProps) {
 	return (
-		<Dialog open={open} onOpenChange={onOpenChange}>
-			<DialogContent className="bg-popover border border-primary/20 sm:max-w-md">
-				<DialogHeader>
-					<DialogTitle className="text-foreground flex items-center gap-2">
-						<Icon className="w-5 h-5 text-[#57FCFF]" />
-						{title}
-					</DialogTitle>
-					<DialogDescription className="text-muted-foreground">
-						{description}
-					</DialogDescription>
-				</DialogHeader>
-
-				<div className="py-8 text-center">
-					<div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-sidebar border border-border/50 mb-4">
-						<Icon className="w-8 h-8 text-muted-foreground" />
-					</div>
-					<h3 className="text-lg font-medium text-foreground mb-2">
-						Coming Soon
-					</h3>
-					<p className="text-sm text-muted-foreground max-w-xs mx-auto">
-						This feature is currently under development and will be available in
-						an upcoming release.
-					</p>
+		<ChatModalShell
+			open={open}
+			onOpenChange={onOpenChange}
+			title={title}
+			description={description}
+			icon={<Icon className="h-5 w-5 text-[#57FCFF]" />}
+			contentClassName="sm:max-w-md"
+		>
+			<div className="py-8 text-center">
+				<div className="mb-4 inline-flex h-16 w-16 items-center justify-center rounded-full border border-border/50 bg-sidebar">
+					<Icon className="h-8 w-8 text-muted-foreground" />
 				</div>
-			</DialogContent>
-		</Dialog>
+				<h3 className="mb-2 text-lg font-medium text-foreground">Coming Soon</h3>
+				<p className="mx-auto max-w-xs text-sm text-muted-foreground">
+					This feature is currently under development and will be available in
+					an upcoming release.
+				</p>
+			</div>
+		</ChatModalShell>
 	)
 }

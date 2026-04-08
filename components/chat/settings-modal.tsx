@@ -1,13 +1,13 @@
 'use client'
 
+import { ChatModalShell } from '@/components/chat/chat-modal-shell'
 import { Button } from '@/components/ui/button'
 import {
-	Dialog,
-	DialogContent,
-	DialogDescription,
-	DialogHeader,
-	DialogTitle,
-} from '@/components/ui/dialog'
+	Field,
+	FieldContent,
+	FieldDescription,
+	FieldLabel,
+} from '@/components/ui/field'
 import { Label } from '@/components/ui/label'
 import {
 	Select,
@@ -47,6 +47,46 @@ interface SettingsModalProps {
 	onCompactModeChange: (compact: boolean) => void
 }
 
+interface SettingsSwitchRowProps {
+	id: string
+	label: string
+	description?: string
+	checked: boolean
+	onCheckedChange: (checked: boolean) => void
+}
+
+function SettingsSwitchRow({
+	id,
+	label,
+	description,
+	checked,
+	onCheckedChange,
+}: SettingsSwitchRowProps) {
+	return (
+		<Field
+			orientation="horizontal"
+			className="items-start justify-between gap-4 rounded-lg border border-border/40 bg-sidebar/20 px-3 py-2.5"
+		>
+			<FieldContent className="gap-0.5">
+				<FieldLabel htmlFor={id} className="w-auto text-sm font-medium text-foreground">
+					{label}
+				</FieldLabel>
+				{description ? (
+					<FieldDescription className="text-xs text-muted-foreground">
+						{description}
+					</FieldDescription>
+				) : null}
+			</FieldContent>
+			<Switch
+				id={id}
+				checked={checked}
+				onCheckedChange={onCheckedChange}
+				className="mt-0.5 data-[state=checked]:bg-primary"
+			/>
+		</Field>
+	)
+}
+
 export function SettingsModal({
 	open,
 	onOpenChange,
@@ -62,6 +102,11 @@ export function SettingsModal({
 		resolveEffectiveTheme(settings.theme, resolvedTheme) ?? 'dark'
 	const previewPalette = resolveThemePalette(settings, previewTheme)
 
+	const showSavedIndicator = () => {
+		setShowSaved(true)
+		setTimeout(() => setShowSaved(false), 2000)
+	}
+
 	const handleCompactModeToggle = (checked: boolean) => {
 		onCompactModeChange(checked)
 		updateSettings({ compactMode: checked })
@@ -69,7 +114,7 @@ export function SettingsModal({
 	}
 
 	const handleTruncateLengthChange = (value: string) => {
-		updateSettings({ messageTruncateLength: parseInt(value) })
+		updateSettings({ messageTruncateLength: Number.parseInt(value, 10) })
 		showSavedIndicator()
 	}
 
@@ -98,11 +143,6 @@ export function SettingsModal({
 		}
 	}
 
-	const showSavedIndicator = () => {
-		setShowSaved(true)
-		setTimeout(() => setShowSaved(false), 2000)
-	}
-
 	const keyboardShortcuts = [
 		{ keys: ['Ctrl', 'I'], description: 'Focus input' },
 		{ keys: ['Cmd', 'B'], description: 'Toggle sidebar' },
@@ -113,30 +153,28 @@ export function SettingsModal({
 	]
 
 	return (
-		<Dialog open={open} onOpenChange={onOpenChange}>
-			<DialogContent className="bg-popover border border-primary/20 sm:max-w-2xl max-h-[85vh] overflow-y-auto">
-				<DialogHeader>
-					<DialogTitle className="text-foreground flex items-center gap-2">
-						<SettingsIcon className="w-5 h-5 text-primary" />
-						Preferences
-					</DialogTitle>
-					<DialogDescription className="text-muted-foreground flex items-center gap-2">
-						Customize your Fork AI experience
-						{showSaved && (
-							<span className="inline-flex items-center gap-1 text-xs text-primary">
-								<Check className="w-3 h-3" />
-								Saved locally
-							</span>
-						)}
-					</DialogDescription>
-				</DialogHeader>
-
-				<div className="space-y-6 py-4">
-					{/* Appearance Section */}
+		<>
+			<ChatModalShell
+				open={open}
+				onOpenChange={onOpenChange}
+				title="Preferences"
+				description="Customize your Fork AI experience"
+				icon={<SettingsIcon className="h-5 w-5 text-primary" />}
+				contentClassName="sm:max-w-2xl max-h-[85vh] overflow-y-auto"
+				headerTrailing={
+					showSaved ? (
+						<span className="inline-flex items-center gap-1 text-xs text-primary">
+							<Check className="h-3 w-3" />
+							Saved locally
+						</span>
+					) : null
+				}
+			>
+				<div className="space-y-6">
 					<div className="space-y-4">
-						<div className="flex items-center gap-2 pb-2 border-b border-border/50">
-							<Palette className="w-4 h-4 text-muted-foreground" />
-							<h3 className="text-sm font-semibold text-foreground uppercase tracking-wider">
+						<div className="flex items-center gap-2 border-b border-border/50 pb-2">
+							<Palette className="h-4 w-4 text-muted-foreground" />
+							<h3 className="text-sm font-semibold uppercase tracking-wider text-foreground">
 								Appearance
 							</h3>
 						</div>
@@ -144,10 +182,10 @@ export function SettingsModal({
 						<div className="space-y-3 pl-6">
 							<button
 								onClick={() => setThemeModalOpen(true)}
-								className="w-full flex items-center justify-between p-3 rounded-lg border border-border/50 hover:border-primary/50 hover:bg-primary/5 transition-all text-left group"
+								className="group flex w-full items-center justify-between rounded-lg border border-border/50 p-3 text-left transition-all hover:border-primary/50 hover:bg-primary/5"
 							>
 								<div className="flex-1">
-									<div className="flex items-center gap-2 mb-1">
+									<div className="mb-1 flex items-center gap-2">
 										<p className="text-sm font-medium">Customize Palette</p>
 										{settings.activePreset && (
 											<span className="text-xs text-muted-foreground">
@@ -161,42 +199,46 @@ export function SettingsModal({
 								</div>
 								<div className="flex items-center gap-3">
 									<div className="flex items-center gap-1.5">
-										{/* Show theme preview: background, primary, secondary */}
 										<div
-											className="w-5 h-5 rounded-md border border-white/20"
+											className="h-5 w-5 rounded-md border border-white/20"
 											style={{
 												background: previewPalette.themeChatBackground,
 											}}
 											title="Background"
 										/>
 										<div
-											className="w-4 h-4 rounded-full border border-white/20"
+											className="h-4 w-4 rounded-full border border-white/20"
 											style={{ backgroundColor: previewPalette.themePrimary }}
 											title="Primary"
 										/>
 										<div
-											className="w-3 h-3 rounded-full border border-white/20"
+											className="h-3 w-3 rounded-full border border-white/20"
 											style={{
 												backgroundColor: previewPalette.themeSecondary,
 											}}
 											title="Secondary"
 										/>
 									</div>
-									<ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" />
+									<ChevronRight className="h-4 w-4 text-muted-foreground transition-colors group-hover:text-primary" />
 								</div>
 							</button>
 
-							<div className="flex items-center justify-between">
-								<div className="space-y-0.5">
-									<Label className="text-sm font-medium">Appearance Mode</Label>
-									<p className="text-xs text-muted-foreground">
+							<Field
+								orientation="horizontal"
+								className="items-start justify-between gap-4 rounded-lg border border-border/40 bg-sidebar/20 px-3 py-2.5"
+							>
+								<FieldContent className="gap-0.5">
+									<FieldLabel className="w-auto text-sm font-medium text-foreground">
+										Appearance Mode
+									</FieldLabel>
+									<FieldDescription className="text-xs text-muted-foreground">
 										{settings.theme === 'system'
 											? 'Follow system'
 											: settings.theme === 'dark'
 												? 'Dark'
 												: 'Light'}
-									</p>
-								</div>
+									</FieldDescription>
+								</FieldContent>
 								<Select
 									value={settings.theme}
 									onValueChange={(value: 'dark' | 'light' | 'system') => {
@@ -204,16 +246,17 @@ export function SettingsModal({
 										showSavedIndicator()
 									}}
 								>
-									<SelectTrigger className="w-32 bg-sidebar/30 border-border/50">
+									<SelectTrigger className="w-32 border-border/50 bg-sidebar/30">
 										<SelectValue />
 									</SelectTrigger>
-									<SelectContent className="bg-popover border-border/50">
+									<SelectContent className="border-border/50 bg-popover">
 										<SelectItem value="dark">Dark</SelectItem>
 										<SelectItem value="light">Light</SelectItem>
 										<SelectItem value="system">System</SelectItem>
 									</SelectContent>
 								</Select>
-							</div>
+							</Field>
+
 							<p className="text-xs text-muted-foreground">
 								Light mode uses an auto-derived version of your palette. Dark
 								mode uses your saved palette directly.
@@ -221,11 +264,10 @@ export function SettingsModal({
 						</div>
 					</div>
 
-					{/* Chat Behavior Section - Simplified */}
 					<div className="space-y-4">
-						<div className="flex items-center gap-2 pb-2 border-b border-border/50">
-							<Zap className="w-4 h-4 text-muted-foreground" />
-							<h3 className="text-sm font-semibold text-foreground uppercase tracking-wider">
+						<div className="flex items-center gap-2 border-b border-border/50 pb-2">
+							<Zap className="h-4 w-4 text-muted-foreground" />
+							<h3 className="text-sm font-semibold uppercase tracking-wider text-foreground">
 								Chat Behavior
 							</h3>
 						</div>
@@ -233,12 +275,10 @@ export function SettingsModal({
 						<div className="space-y-3 pl-6">
 							<button
 								onClick={() => setChatBehaviorModalOpen(true)}
-								className="w-full flex items-center justify-between p-3 rounded-lg border border-border/50 hover:border-primary/50 hover:bg-primary/5 transition-all text-left group"
+								className="group flex w-full items-center justify-between rounded-lg border border-border/50 p-3 text-left transition-all hover:border-primary/50 hover:bg-primary/5"
 							>
 								<div className="flex-1">
-									<p className="text-sm font-medium mb-1">
-										Configure AI Behavior
-									</p>
+									<p className="mb-1 text-sm font-medium">Configure AI Behavior</p>
 									<p className="text-xs text-muted-foreground">
 										Temperature: {settings.chatTemperature.toFixed(1)} •
 										{settings.systemPrompt
@@ -246,16 +286,15 @@ export function SettingsModal({
 											: ' No prompt'}
 									</p>
 								</div>
-								<ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" />
+								<ChevronRight className="h-4 w-4 text-muted-foreground transition-colors group-hover:text-primary" />
 							</button>
 						</div>
 					</div>
 
-					{/* Feature Toggles Section */}
 					<div className="space-y-4">
-						<div className="flex items-center gap-2 pb-2 border-b border-border/50">
-							<Sparkles className="w-4 h-4 text-muted-foreground" />
-							<h3 className="text-sm font-semibold text-foreground uppercase tracking-wider">
+						<div className="flex items-center gap-2 border-b border-border/50 pb-2">
+							<Sparkles className="h-4 w-4 text-muted-foreground" />
+							<h3 className="text-sm font-semibold uppercase tracking-wider text-foreground">
 								Feature Toggles
 							</h3>
 						</div>
@@ -265,126 +304,90 @@ export function SettingsModal({
 								<p className="text-xs font-medium text-muted-foreground">
 									Chat UI
 								</p>
-
-								<div className="flex items-center justify-between">
-									<Label className="text-sm font-medium">Show Timestamps</Label>
-									<Switch
-										checked={settings.enabledFeatures.showMessageTimestamps}
-										onCheckedChange={(checked) =>
-											handleFeatureToggle('showMessageTimestamps', checked)
-										}
-										className="data-[state=checked]:bg-primary"
-									/>
-								</div>
-
-								<div className="flex items-center justify-between">
-									<Label className="text-sm font-medium">
-										Markdown Preview
-									</Label>
-									<Switch
-										checked={settings.enabledFeatures.enableMarkdownPreview}
-										onCheckedChange={(checked) =>
-											handleFeatureToggle('enableMarkdownPreview', checked)
-										}
-										className="data-[state=checked]:bg-primary"
-									/>
-								</div>
-
-								<div className="flex items-center justify-between">
-									<Label className="text-sm font-medium">
-										Show Token Count
-									</Label>
-									<Switch
-										checked={settings.enabledFeatures.showTokenCount}
-										onCheckedChange={(checked) =>
-											handleFeatureToggle('showTokenCount', checked)
-										}
-										className="data-[state=checked]:bg-primary"
-									/>
-								</div>
+								<SettingsSwitchRow
+									id="settings-show-timestamps"
+									label="Show Timestamps"
+									checked={settings.enabledFeatures.showMessageTimestamps}
+									onCheckedChange={(checked) =>
+										handleFeatureToggle('showMessageTimestamps', checked)
+									}
+								/>
+								<SettingsSwitchRow
+									id="settings-markdown-preview"
+									label="Markdown Preview"
+									checked={settings.enabledFeatures.enableMarkdownPreview}
+									onCheckedChange={(checked) =>
+										handleFeatureToggle('enableMarkdownPreview', checked)
+									}
+								/>
+								<SettingsSwitchRow
+									id="settings-token-count"
+									label="Show Token Count"
+									checked={settings.enabledFeatures.showTokenCount}
+									onCheckedChange={(checked) =>
+										handleFeatureToggle('showTokenCount', checked)
+									}
+								/>
 							</div>
 
 							<div className="space-y-3 pt-2">
 								<p className="text-xs font-medium text-muted-foreground">
 									System
 								</p>
-
-								<div className="flex items-center justify-between">
-									<Label className="text-sm font-medium">
-										Auto-Save Conversations
-									</Label>
-									<Switch
-										checked={settings.enabledFeatures.autoSaveConversations}
-										onCheckedChange={(checked) =>
-											handleFeatureToggle('autoSaveConversations', checked)
-										}
-										className="data-[state=checked]:bg-primary"
-									/>
-								</div>
-
-								<div className="flex items-center justify-between">
-									<Label className="text-sm font-medium">Sound Effects</Label>
-									<Switch
-										checked={settings.enabledFeatures.enableSoundEffects}
-										onCheckedChange={(checked) =>
-											handleFeatureToggle('enableSoundEffects', checked)
-										}
-										className="data-[state=checked]:bg-primary"
-									/>
-								</div>
-							</div>
-						</div>
-					</div>
-
-					{/* Appearance Section (simplified) */}
-					<div className="space-y-4">
-						<div className="flex items-center gap-2 pb-2 border-b border-border/50">
-							<Moon className="w-4 h-4 text-muted-foreground" />
-							<h3 className="text-sm font-semibold text-foreground uppercase tracking-wider">
-								Appearance
-							</h3>
-						</div>
-
-						<div className="space-y-4 pl-6"></div>
-					</div>
-
-					{/* Sidebar Section */}
-					<div className="space-y-4">
-						<div className="flex items-center gap-2 pb-2 border-b border-border/50">
-							<PanelLeft className="w-4 h-4 text-muted-foreground" />
-							<h3 className="text-sm font-semibold text-foreground uppercase tracking-wider">
-								Sidebar
-							</h3>
-						</div>
-
-						<div className="space-y-4 pl-6">
-							<div className="flex items-center justify-between">
-								<div className="space-y-0.5">
-									<Label
-										htmlFor="compact"
-										className="text-sm font-medium text-foreground"
-									>
-										Compact Mode
-									</Label>
-									<p className="text-xs text-muted-foreground">
-										Show only icons in the sidebar
-									</p>
-								</div>
-								<Switch
-									id="compact"
-									checked={compactMode}
-									onCheckedChange={handleCompactModeToggle}
-									className="data-[state=checked]:bg-primary"
+								<SettingsSwitchRow
+									id="settings-auto-save"
+									label="Auto-Save Conversations"
+									checked={settings.enabledFeatures.autoSaveConversations}
+									onCheckedChange={(checked) =>
+										handleFeatureToggle('autoSaveConversations', checked)
+									}
+								/>
+								<SettingsSwitchRow
+									id="settings-sound-effects"
+									label="Sound Effects"
+									checked={settings.enabledFeatures.enableSoundEffects}
+									onCheckedChange={(checked) =>
+										handleFeatureToggle('enableSoundEffects', checked)
+									}
 								/>
 							</div>
 						</div>
 					</div>
 
-					{/* Chat Section */}
 					<div className="space-y-4">
-						<div className="flex items-center gap-2 pb-2 border-b border-border/50">
-							<MessageSquare className="w-4 h-4 text-muted-foreground" />
-							<h3 className="text-sm font-semibold text-foreground uppercase tracking-wider">
+						<div className="flex items-center gap-2 border-b border-border/50 pb-2">
+							<Moon className="h-4 w-4 text-muted-foreground" />
+							<h3 className="text-sm font-semibold uppercase tracking-wider text-foreground">
+								Appearance
+							</h3>
+						</div>
+
+						<div className="space-y-4 pl-6" />
+					</div>
+
+					<div className="space-y-4">
+						<div className="flex items-center gap-2 border-b border-border/50 pb-2">
+							<PanelLeft className="h-4 w-4 text-muted-foreground" />
+							<h3 className="text-sm font-semibold uppercase tracking-wider text-foreground">
+								Sidebar
+							</h3>
+						</div>
+
+						<div className="space-y-4 pl-6">
+							<SettingsSwitchRow
+								id="compact"
+								label="Compact Mode"
+								description="Show only icons in the sidebar"
+								checked={compactMode}
+								onCheckedChange={handleCompactModeToggle}
+							/>
+						</div>
+					</div>
+
+					<div className="space-y-4">
+						<div className="flex items-center gap-2 border-b border-border/50 pb-2">
+							<MessageSquare className="h-4 w-4 text-muted-foreground" />
+							<h3 className="text-sm font-semibold uppercase tracking-wider text-foreground">
 								Chat Preferences
 							</h3>
 						</div>
@@ -397,7 +400,7 @@ export function SettingsModal({
 								>
 									Message Truncate Length
 								</Label>
-								<p className="text-xs text-muted-foreground mb-2">
+								<p className="mb-2 text-xs text-muted-foreground">
 									Long user messages will be collapsed beyond this length
 								</p>
 								<Select
@@ -406,11 +409,11 @@ export function SettingsModal({
 								>
 									<SelectTrigger
 										id="truncate"
-										className="w-full bg-sidebar/30 border-border/50"
+										className="w-full border-border/50 bg-sidebar/30"
 									>
 										<SelectValue />
 									</SelectTrigger>
-									<SelectContent className="bg-popover border-border/50">
+									<SelectContent className="border-border/50 bg-popover">
 										<SelectItem value="150">150 characters</SelectItem>
 										<SelectItem value="200">200 characters</SelectItem>
 										<SelectItem value="300">300 characters</SelectItem>
@@ -428,7 +431,7 @@ export function SettingsModal({
 								>
 									Send Message Keybinding
 								</Label>
-								<p className="text-xs text-muted-foreground mb-2">
+								<p className="mb-2 text-xs text-muted-foreground">
 									Choose how to send messages
 								</p>
 								<Select
@@ -439,11 +442,11 @@ export function SettingsModal({
 								>
 									<SelectTrigger
 										id="keybinding"
-										className="w-full bg-sidebar/30 border-border/50"
+										className="w-full border-border/50 bg-sidebar/30"
 									>
 										<SelectValue />
 									</SelectTrigger>
-									<SelectContent className="bg-popover border-border/50">
+									<SelectContent className="border-border/50 bg-popover">
 										<SelectItem value="enter">
 											<div className="flex flex-col items-start">
 												<span className="font-medium">Enter to send</span>
@@ -466,11 +469,10 @@ export function SettingsModal({
 						</div>
 					</div>
 
-					{/* Keyboard Shortcuts Section */}
 					<div className="space-y-4">
-						<div className="flex items-center gap-2 pb-2 border-b border-border/50">
-							<Keyboard className="w-4 h-4 text-muted-foreground" />
-							<h3 className="text-sm font-semibold text-foreground uppercase tracking-wider">
+						<div className="flex items-center gap-2 border-b border-border/50 pb-2">
+							<Keyboard className="h-4 w-4 text-muted-foreground" />
+							<h3 className="text-sm font-semibold uppercase tracking-wider text-foreground">
 								Keyboard Shortcuts
 							</h3>
 						</div>
@@ -487,7 +489,7 @@ export function SettingsModal({
 									<div className="flex items-center gap-1">
 										{shortcut.keys.map((key, i) => (
 											<span key={i} className="flex items-center gap-1">
-												<kbd className="px-2 py-1 text-xs font-mono bg-sidebar border border-border rounded">
+												<kbd className="rounded border border-border bg-sidebar px-2 py-1 text-xs font-mono">
 													{key}
 												</kbd>
 												{i < shortcut.keys.length - 1 && (
@@ -501,7 +503,6 @@ export function SettingsModal({
 						</div>
 					</div>
 
-					{/* Reset Button */}
 					<div className="flex items-center justify-between pt-2">
 						<Button
 							variant="destructive"
@@ -509,23 +510,21 @@ export function SettingsModal({
 							onClick={handleResetAll}
 							className="gap-2"
 						>
-							<RotateCcw className="w-4 h-4" />
+							<RotateCcw className="h-4 w-4" />
 							Reset All to Defaults
 						</Button>
 					</div>
 
-					{/* Info Note */}
-					<div className="bg-sidebar/30 border border-border/50 rounded-lg p-4">
+					<div className="rounded-lg border border-border/50 bg-sidebar/30 p-4">
 						<p className="text-xs text-muted-foreground">
 							<span className="font-semibold text-foreground">Note:</span>{' '}
-							Settings are saved locally in your browser. Cloud sync will be
-							available in a future update.
+							Settings are stored locally in your browser and sync instantly
+							across the chat UI.
 						</p>
 					</div>
 				</div>
-			</DialogContent>
+			</ChatModalShell>
 
-			{/* Sub-modals */}
 			<ThemeCustomizationModal
 				open={themeModalOpen}
 				onOpenChange={setThemeModalOpen}
@@ -538,6 +537,6 @@ export function SettingsModal({
 				open={chatBehaviorModalOpen}
 				onOpenChange={setChatBehaviorModalOpen}
 			/>
-		</Dialog>
+		</>
 	)
 }

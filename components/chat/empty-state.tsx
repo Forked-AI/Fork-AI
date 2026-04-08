@@ -1,23 +1,34 @@
 'use client'
 
+import {
+	Empty,
+	EmptyDescription,
+	EmptyHeader,
+	EmptyMedia,
+	EmptyTitle,
+} from '@/components/ui/empty'
 import { Sparkles } from 'lucide-react'
 
 export function EmptyState() {
 	return (
-		<div className="flex flex-col items-center justify-center text-center animate-in fade-in slide-in-from-bottom-4 duration-1000">
-			{/* Fork AI Brand Mark - Restored from Figma */}
-			<div className="mb-12 relative group cursor-default">
-				<div className="absolute inset-0 bg-primary/20 blur-[40px] rounded-full opacity-10" />
-				<div className="relative flex items-center justify-center w-20 h-20 bg-background border border-border rounded-2xl shadow-2xl mb-6 mx-auto group-hover:border-primary/50 transition-colors">
-					<Sparkles className="w-10 h-10 text-primary" />
+		<Empty className="animate-in slide-in-from-bottom-4 border-0 bg-transparent p-0 shadow-none duration-1000">
+			<EmptyHeader className="gap-0">
+				<div className="group relative mb-6 cursor-default">
+					<div className="absolute inset-0 rounded-full bg-primary/20 opacity-10 blur-[40px]" />
+					<EmptyMedia
+						variant="default"
+						className="relative mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-2xl border border-border bg-background shadow-2xl transition-colors group-hover:border-primary/50"
+					>
+						<Sparkles className="h-10 w-10 text-primary" />
+					</EmptyMedia>
 				</div>
-				<h1 className="text-4xl font-bold tracking-tight text-foreground">
+				<EmptyTitle className="text-4xl font-bold tracking-tight text-foreground">
 					FORK AI
-				</h1>
-				<p className="mt-2 text-muted-foreground text-sm tracking-widest uppercase font-mono opacity-60">
+				</EmptyTitle>
+				<EmptyDescription className="mt-2 text-sm font-mono uppercase tracking-[0.3em] text-muted-foreground/60">
 					Ready to create
-				</p>
-			</div>
-		</div>
+				</EmptyDescription>
+			</EmptyHeader>
+		</Empty>
 	)
 }
