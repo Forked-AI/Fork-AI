@@ -7,25 +7,30 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { authClient } from '@/lib/auth-client'
+import { buildPreservedNextQuery, resolveAuthCallbackPath } from '@/lib/auth-redirect'
 import { motion } from 'framer-motion'
 import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
 import { useState } from 'react'
 
 export const dynamic = 'force-dynamic'
 
 export default function LoginPage() {
+	const searchParams = useSearchParams()
 	const [email, setEmail] = useState('')
 	const [password, setPassword] = useState('')
 	const [rememberMe, setRememberMe] = useState(false)
 	const [isLoading, setIsLoading] = useState(false)
 	const [error, setError] = useState('')
+	const callbackURL = resolveAuthCallbackPath(searchParams.get('next'))
+	const preservedNextQuery = buildPreservedNextQuery(searchParams.get('next'))
 
 	const handleSubmit = async (e: React.FormEvent) => {
 		e.preventDefault()
 		setIsLoading(true)
 		setError('')
 		try {
-			await authClient.signIn.email({ email, password, rememberMe })
+			await authClient.signIn.email({ email, password, rememberMe, callbackURL })
 			// Redirect will be handled by Better Auth
 		} catch (err) {
 			setError('Invalid email or password')
@@ -38,7 +43,7 @@ export default function LoginPage() {
 		try {
 			await authClient.signIn.social({
 				provider: 'google',
-				callbackURL: '/chat',
+				callbackURL,
 			})
 		} catch (err) {
 			setError('Failed to sign in with Google')
@@ -176,7 +181,7 @@ export default function LoginPage() {
 								<p className="text-muted-foreground">
 									Don't have an account?{' '}
 									<Link
-										href="/signup"
+										href={`/signup${preservedNextQuery}`}
 										className="text-white hover:underline font-medium transition-colors"
 									>
 										Sign up

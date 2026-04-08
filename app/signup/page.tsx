@@ -7,13 +7,16 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { authClient } from '@/lib/auth-client'
+import { buildPreservedNextQuery, resolveAuthCallbackPath } from '@/lib/auth-redirect'
 import { motion } from 'framer-motion'
 import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
 import { useState } from 'react'
 
 export const dynamic = 'force-dynamic'
 
 export default function SignupPage() {
+	const searchParams = useSearchParams()
 	const [formData, setFormData] = useState({
 		name: '',
 		email: '',
@@ -22,6 +25,8 @@ export default function SignupPage() {
 	})
 	const [isLoading, setIsLoading] = useState(false)
 	const [error, setError] = useState('')
+	const callbackURL = resolveAuthCallbackPath(searchParams.get('next'))
+	const preservedNextQuery = buildPreservedNextQuery(searchParams.get('next'))
 
 	const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
 		setFormData((prev) => ({
@@ -43,6 +48,7 @@ export default function SignupPage() {
 				name: formData.name,
 				email: formData.email,
 				password: formData.password,
+				callbackURL,
 				// role: 'user',
 			})
 			// Redirect handled by Better Auth
@@ -57,7 +63,7 @@ export default function SignupPage() {
 		try {
 			await authClient.signIn.social({
 				provider: 'google',
-				callbackURL: '/chat',
+				callbackURL,
 			})
 		} catch (err) {
 			setError('Failed to sign up with Google')
@@ -237,7 +243,7 @@ export default function SignupPage() {
 								<p className="text-muted-foreground">
 									Already have an account?{' '}
 									<Link
-										href="/login"
+										href={`/login${preservedNextQuery}`}
 										className="text-white hover:underline font-medium transition-colors"
 									>
 										Sign in
