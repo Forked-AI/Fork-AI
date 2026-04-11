@@ -1,9 +1,12 @@
 import { createAuthClient } from "better-auth/client";
 import { adminClient } from "better-auth/client/plugins";
 
+const publicAuthBaseUrl = process.env.NEXT_PUBLIC_BETTER_AUTH_URL?.trim();
+
 export const authClient = createAuthClient({
-	/** The base URL of the server (optional if you're using the same domain) */
-	baseURL: process.env.BETTER_AUTH_URL || "http://localhost:3000",
+	// Same-origin is the default for this app. Only set baseURL when an explicit
+	// browser-visible override is needed for a separate auth origin.
+	...(publicAuthBaseUrl ? { baseURL: publicAuthBaseUrl } : {}),
 	plugins: [
 		adminClient(),
 		// inferAdditionalFields({
