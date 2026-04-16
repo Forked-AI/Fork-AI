@@ -1,20 +1,26 @@
 'use client'
 
-import { useToast } from '@/hooks/use-toast'
-import type { Collection } from '@/hooks/use-collections'
-import type { Message } from '@/hooks/use-chat'
-import type { ConversationPreview } from '@/hooks/use-conversations'
 import type { MenuAction } from '@/components/chat/menu-action-renderer'
+import type { Message } from '@/hooks/use-chat'
+import type { Collection } from '@/hooks/use-collections'
+import type { ConversationPreview } from '@/hooks/use-conversations'
+import { useToast } from '@/hooks/use-toast'
 import {
-	Edit2,
-	Folder,
-	FolderOpen,
-	Loader2,
-	MessageSquare,
-	Pin,
-	PinOff,
-	Share2,
-	Trash2,
+    conversationDetailQueryKey,
+    fetchConversationDetail,
+    type ConversationDetailPayload,
+} from '@/lib/conversation-api'
+import { useQueryClient } from '@tanstack/react-query'
+import {
+    Edit2,
+    Folder,
+    FolderOpen,
+    Loader2,
+    MessageSquare,
+    Pin,
+    PinOff,
+    Share2,
+    Trash2,
 } from 'lucide-react'
 import { useCallback, useMemo, useState } from 'react'
 
@@ -41,7 +47,6 @@ interface UseSidebarConversationActionsOptions {
 	deleteConversation: (conversationId: string) => Promise<unknown>
 	handleChatClick: (conversationId: string) => void
 	handleNewChat: () => void
-	invalidateConversations: () => void
 	isDeleting: boolean
 	updateConversation: (input: {
 		id: string
@@ -57,11 +62,11 @@ export function useSidebarConversationActions({
 	deleteConversation,
 	handleChatClick,
 	handleNewChat,
-	invalidateConversations,
 	isDeleting,
 	updateConversation,
 }: UseSidebarConversationActionsOptions) {
 	const { toast } = useToast()
+	const queryClient = useQueryClient()
 	const [renameDialog, setRenameDialog] = useState<{
 		id: string
 		title: string
@@ -201,29 +206,26 @@ export function useSidebarConversationActions({
 
 			setShareLoadingId(conversation.id)
 			try {
-				const response = await fetch(`/api/conversations/${conversation.id}`, {
-					credentials: 'include',
-				})
+				const cachedConversation = queryClient.getQueryData<
+					ConversationDetailPayload | null
+				>(conversationDetailQueryKey(conversation.id))
 
-				if (!response.ok) {
-					const error = await response.json()
-					throw new Error(error.error || 'Failed to load conversation.')
-				}
+				const conversationDetail =
+					cachedConversation ?? (await fetchConversationDetail(conversation.id))
 
-				const data = await response.json()
-				const shareableMessages: Message[] = data.conversation.messages
+				const shareableMessages: Message[] = conversationDetail.messages
 					.filter(
 						(message: { role: string }) =>
 							message.role === 'user' || message.role === 'assistant'
 					)
-					.map(
-						(message: Omit<Message, 'createdAt'> & { createdAt?: string }) => ({
-							...message,
-							createdAt: message.createdAt
-								? new Date(message.createdAt)
-								: undefined,
-						})
-					)
+					.map((message) => ({
+						...message,
+						model: message.model ?? undefined,
+						promptTokens: message.promptTokens ?? undefined,
+						completionTokens: message.completionTokens ?? undefined,
+						isError: message.isError ?? undefined,
+						createdAt: message.createdAt ? new Date(message.createdAt) : undefined,
+					}))
 
 				if (shareableMessages.length === 0) {
 					toast({
@@ -236,7 +238,7 @@ export function useSidebarConversationActions({
 
 				setShareDialog({
 					conversationId: conversation.id,
-					conversationTitle: data.conversation.title ?? conversation.title,
+					conversationTitle: conversationDetail.title ?? conversation.title,
 					selectedMessageIds: shareableMessages.map((message) => message.id),
 					allMessages: shareableMessages,
 				})
@@ -251,7 +253,7 @@ export function useSidebarConversationActions({
 				setShareLoadingId(null)
 			}
 		},
-		[shareLoadingId, toast]
+		[queryClient, shareLoadingId, toast]
 	)
 
 	const handleAutoCompleteSharePairs = useCallback((messageIds: string[]) => {
@@ -378,6 +380,5 @@ export function useSidebarConversationActions({
 		getConversationActions,
 		handleConversationMenuOpenChange,
 		handleAutoCompleteSharePairs,
-		invalidateConversations,
 	}
 }

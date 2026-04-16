@@ -8,21 +8,21 @@ import { useSidebarConversationActions } from '@/components/chat/sidebar/use-sid
 import { useAuth } from '@/contexts/auth-context'
 import { type Collection, useCollections } from '@/hooks/use-collections'
 import {
-	type ConversationPreview,
-	useConversations,
+    type ConversationPreview,
+    useConversations,
 } from '@/hooks/use-conversations'
 import { useSettings } from '@/hooks/use-settings'
 import {
-	Folder,
-	GitBranch,
-	History,
-	Loader2,
-	PanelLeftClose,
-	PanelLeftOpen,
-	Plus,
-	Search,
-	Settings,
-	Share2,
+    Folder,
+    GitBranch,
+    History,
+    Loader2,
+    PanelLeftClose,
+    PanelLeftOpen,
+    Plus,
+    Search,
+    Settings,
+    Share2,
 } from 'lucide-react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { useCallback, useEffect, useState } from 'react'
@@ -75,7 +75,6 @@ export function Sidebar() {
 		isDeleting,
 		updateConversation,
 		isUpdating,
-		invalidateConversations,
 	} = useConversations({ limit: 10, pinned: false, enabled: !!user })
 
 	useEffect(() => {
@@ -139,7 +138,6 @@ export function Sidebar() {
 		deleteConversation,
 		handleChatClick,
 		handleNewChat,
-		invalidateConversations,
 		isDeleting,
 		updateConversation,
 	})

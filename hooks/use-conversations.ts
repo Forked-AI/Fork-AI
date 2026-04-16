@@ -1,9 +1,16 @@
 import {
-	type QueryKey,
-	useMutation,
-	useQuery,
-	useQueryClient,
+    conversationDetailQueryKey,
+    fetchConversationDetail,
+    type ConversationDetailPayload,
+} from "@/lib/conversation-api";
+import {
+    useMutation,
+    useQuery,
+    useQueryClient,
+    type QueryClient,
+    type QueryKey,
 } from "@tanstack/react-query";
+import { useCallback } from "react";
 
 export interface ConversationPreview {
 	id: string;
@@ -136,6 +143,59 @@ function updateCollectionCounts(
 	});
 }
 
+function patchConversationTitleInCaches(
+	queryClient: QueryClient,
+	conversationId: string,
+	title: string
+) {
+	const conversationQueries =
+		queryClient.getQueriesData<ConversationsResponse>({
+			queryKey: ["conversations"],
+		});
+
+	for (const [queryKey, data] of conversationQueries) {
+		if (!data) {
+			continue;
+		}
+
+		let didChange = false;
+		const nextConversations = data.conversations.map((conversation) => {
+			if (conversation.id !== conversationId || conversation.title === title) {
+				return conversation;
+			}
+
+			didChange = true;
+			return {
+				...conversation,
+				title,
+			};
+		});
+
+		if (!didChange) {
+			continue;
+		}
+
+		queryClient.setQueryData<ConversationsResponse>(queryKey, {
+			...data,
+			conversations: nextConversations,
+		});
+	}
+
+	queryClient.setQueryData<ConversationDetailPayload | null>(
+		conversationDetailQueryKey(conversationId),
+		(currentConversation) => {
+			if (!currentConversation || currentConversation.title === title) {
+				return currentConversation;
+			}
+
+			return {
+				...currentConversation,
+				title,
+			};
+		}
+	);
+}
+
 // Fetch conversations list
 async function fetchConversations(
 	page: number = 1,
@@ -240,10 +300,14 @@ export function useConversations(options: UseConversationsOptions = {}) {
 	} = options;
 	const queryClient = useQueryClient();
 
-	const invalidateConversationRelatedQueries = () => {
+	const invalidateConversationListQueries = useCallback(() => {
 		queryClient.invalidateQueries({ queryKey: ["conversations"] });
+	}, [queryClient]);
+
+	const invalidateConversationRelatedQueries = useCallback(() => {
+		invalidateConversationListQueries();
 		queryClient.invalidateQueries({ queryKey: ["collections"] });
-	};
+	}, [invalidateConversationListQueries, queryClient]);
 
 	// Query for fetching conversations
 	const conversationsQuery = useQuery({
@@ -477,9 +541,21 @@ export function useConversations(options: UseConversationsOptions = {}) {
 
 			queryClient.setQueryData(["collections"], context.previousCollections);
 		},
-		onSuccess: (_data, variables) => {
-			if (variables.collectionId === undefined) {
-				invalidateConversationRelatedQueries();
+		onSuccess: (data, variables) => {
+			if (variables.collectionId !== undefined) {
+				return;
+			}
+
+			if (variables.title !== undefined) {
+				patchConversationTitleInCaches(
+					queryClient,
+					data.conversation.id,
+					data.conversation.title
+				);
+			}
+
+			if (variables.isPinned !== undefined) {
+				invalidateConversationListQueries();
 			}
 		},
 		onSettled: (_data, _error, variables) => {
@@ -490,10 +566,6 @@ export function useConversations(options: UseConversationsOptions = {}) {
 	});
 
 	// Helper to invalidate conversations cache
-	const invalidateConversations = () => {
-		invalidateConversationRelatedQueries();
-	};
-
 	return {
 		// Query data
 		conversations: conversationsQuery.data?.conversations ?? [],
@@ -514,7 +586,8 @@ export function useConversations(options: UseConversationsOptions = {}) {
 		isUpdating: updateMutation.isPending,
 
 		// Helpers
-		invalidateConversations,
+		invalidateConversations: invalidateConversationRelatedQueries,
+		invalidateConversationList: invalidateConversationListQueries,
 
 		// Title generation
 		generateTitle: async (conversationId: string) => {
@@ -529,12 +602,15 @@ export function useConversations(options: UseConversationsOptions = {}) {
 
 				if (response.ok) {
 					const data = await response.json();
-					// Invalidate to refresh the sidebar
-					queryClient.invalidateQueries({
-						queryKey: ["conversations"],
-					});
-
-					return data.title;
+					if (typeof data.title === "string" && data.title.trim()) {
+						const generatedTitle = data.title.trim();
+						patchConversationTitleInCaches(
+							queryClient,
+							conversationId,
+							generatedTitle
+						);
+						return generatedTitle;
+					}
 				}
 			} catch (error) {
 				console.error("Failed to generate title:", error);
@@ -547,21 +623,10 @@ export function useConversations(options: UseConversationsOptions = {}) {
 // Hook for fetching a single conversation with messages
 export function useConversation(conversationId: string | null) {
 	return useQuery({
-		queryKey: ["conversation", conversationId],
+		queryKey: conversationDetailQueryKey(conversationId),
 		queryFn: async () => {
 			if (!conversationId) return null;
-
-			const response = await fetch(
-				`/api/conversations/${conversationId}`,
-				{ credentials: "include" }
-			);
-			if (!response.ok) {
-				const error = await response.json();
-				throw new Error(error.error || "Failed to fetch conversation");
-			}
-
-			const data = await response.json();
-			return data.conversation;
+			return fetchConversationDetail(conversationId);
 		},
 		enabled: !!conversationId,
 		staleTime: 10000, // 10 seconds
