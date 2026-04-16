@@ -287,7 +287,7 @@ export default function Hero() {
             <SplitWords text="Fork your" />
             <span
               className="hero-word inline-block overflow-hidden"
-              style={{ marginLeft: '0.3em' }}
+              // style={{ marginLeft: '0.3em' }}
             >
               <span className="hero-word-inner inline-block">
                 <span className="inline-flex items-center justify-center min-w-[140px] md:min-w-[220px]">
