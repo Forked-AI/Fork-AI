@@ -12,11 +12,14 @@ import {
 	ArrowUp,
 	ChevronDown,
 	GitBranch,
+	ListOrdered,
 	Mic,
 	Paperclip,
 	Pause,
+	Play,
 	Sparkles,
 	Star,
+	Trash2,
 	X,
 } from 'lucide-react'
 import { forwardRef, KeyboardEvent, useCallback, useState } from 'react'
@@ -86,6 +89,16 @@ interface ChatInputProps {
 	onStop?: () => void
 	isStreaming?: boolean
 	disabled?: boolean
+	queuedMessages?: Array<{
+		id: string
+		content: string
+		model: string
+		createdAt: Date
+	}>
+	queueStatus?: 'idle' | 'running' | 'halted'
+	onRemoveQueuedMessage?: (id: string) => void
+	onClearQueue?: () => void
+	onResumeQueue?: () => void
 	branchContext?: {
 		messageId: string
 		preview: string
@@ -100,6 +113,11 @@ export const ChatInput = forwardRef<HTMLTextAreaElement, ChatInputProps>(
 			onStop,
 			isStreaming = false,
 			disabled = false,
+			queuedMessages = [],
+			queueStatus = 'idle',
+			onRemoveQueuedMessage,
+			onClearQueue,
+			onResumeQueue,
 			branchContext,
 			onClearBranchContext,
 		},
@@ -127,8 +145,11 @@ export const ChatInput = forwardRef<HTMLTextAreaElement, ChatInputProps>(
 			setSelectedModel(model)
 		}
 
+		const getModelLabel = (modelId: string) =>
+			models.find((model) => model.id === modelId)?.name ?? modelId
+
 		const handleSend = useCallback(async () => {
-			if (!message.trim() || isStreaming || disabled) return
+			if (!message.trim() || disabled) return
 
 			const content = message.trim()
 			setMessage('') // Clear input immediately for better UX
@@ -140,7 +161,7 @@ export const ChatInput = forwardRef<HTMLTextAreaElement, ChatInputProps>(
 				setMessage(content)
 				console.error('Failed to send message:', error)
 			}
-		}, [message, selectedModel.id, isStreaming, disabled, onSendMessage])
+		}, [message, selectedModel.id, disabled, onSendMessage])
 
 		const handleKeyDown = useCallback(
 			(e: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -167,7 +188,8 @@ export const ChatInput = forwardRef<HTMLTextAreaElement, ChatInputProps>(
 			[handleSend, settings.sendKeybinding]
 		)
 
-		const isDisabled = isStreaming || disabled || !message.trim()
+		const isSubmitDisabled = disabled || !message.trim()
+		const hasQueue = queuedMessages.length > 0
 
 		return (
 			<>
@@ -207,6 +229,78 @@ export const ChatInput = forwardRef<HTMLTextAreaElement, ChatInputProps>(
 								</button>
 							</div>
 						)}
+
+						{hasQueue ? (
+							<div className="border-b border-border/50 bg-background/30">
+								<div className="flex items-center justify-between gap-3 px-4 py-2.5">
+									<div className="flex min-w-0 items-center gap-2">
+										<ListOrdered className="h-4 w-4 text-primary" />
+										<span className="text-xs font-medium text-foreground">
+											Queued {queuedMessages.length}
+										</span>
+										{queueStatus === 'halted' ? (
+											<span className="text-[11px] text-destructive">
+												Paused after an error
+											</span>
+										) : (
+											<span className="text-[11px] text-muted-foreground">
+												{isStreaming ? 'Waiting for current reply' : 'Ready to continue'}
+											</span>
+										)}
+									</div>
+									<div className="flex items-center gap-2">
+										{queueStatus === 'halted' ? (
+											<button
+												onClick={onResumeQueue}
+												className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium text-primary transition-colors hover:bg-primary/10"
+												type="button"
+											>
+												<Play className="h-3 w-3" />
+												Resume
+											</button>
+										) : null}
+										<button
+											onClick={onClearQueue}
+											className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+											type="button"
+										>
+											<Trash2 className="h-3 w-3" />
+											Clear all
+										</button>
+									</div>
+								</div>
+								<div className="max-h-36 overflow-y-auto border-t border-border/40">
+									{queuedMessages.map((queuedMessage, index) => (
+										<div
+											key={queuedMessage.id}
+											className="flex items-center gap-3 px-4 py-2 text-xs"
+										>
+											<span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-border/60 text-[10px] font-medium text-muted-foreground">
+												{index + 1}
+											</span>
+											<div className="min-w-0 flex-1">
+												<p className="truncate text-foreground">
+													{queuedMessage.content}
+												</p>
+												<p className="truncate text-[10px] uppercase tracking-wider text-muted-foreground">
+													{getModelLabel(queuedMessage.model)}
+												</p>
+											</div>
+											<button
+												onClick={() =>
+													onRemoveQueuedMessage?.(queuedMessage.id)
+												}
+												className="rounded p-1 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+												aria-label={`Remove queued message ${index + 1}`}
+												type="button"
+											>
+												<X className="h-3.5 w-3.5" />
+											</button>
+										</div>
+									))}
+								</div>
+							</div>
+						) : null}
 
 						{/* Input Field */}
 						<textarea
@@ -296,9 +390,9 @@ export const ChatInput = forwardRef<HTMLTextAreaElement, ChatInputProps>(
 										className="relative p-2 rounded-lg hover:scale-105 transition-all duration-200 group"
 										aria-label="Stop generating"
 										title="Stop generating"
+										type="button"
 									>
 										<div className="relative w-8 h-8 flex items-center justify-center">
-											{/* Spinner ring */}
 											<svg
 												className="absolute inset-0 w-8 h-8 animate-spin group-hover:opacity-100 transition-opacity"
 												viewBox="0 0 32 32"
@@ -315,20 +409,20 @@ export const ChatInput = forwardRef<HTMLTextAreaElement, ChatInputProps>(
 													className="text-primary opacity-80 group-hover:opacity-100"
 												/>
 											</svg>
-											{/* Pause icon in center */}
 											<Pause className="w-4 h-4 text-primary z-10 group-hover:scale-110 transition-transform" />
 										</div>
 									</button>
-								) : (
-									<button
-										onClick={handleSend}
-										className="p-2 rounded-lg bg-primary text-primary-foreground shadow-[0_0_15px_-3px_var(--primary)] hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
-										disabled={isDisabled}
-										aria-label="Send message"
-									>
-										<ArrowUp className="w-4 h-4" />
-									</button>
-								)}
+								) : null}
+								<button
+									onClick={handleSend}
+									className="p-2 rounded-lg bg-primary text-primary-foreground shadow-[0_0_15px_-3px_var(--primary)] hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
+									disabled={isSubmitDisabled}
+									aria-label={isStreaming ? 'Queue message' : 'Send message'}
+									title={isStreaming ? 'Queue message' : 'Send message'}
+									type="button"
+								>
+									<ArrowUp className="w-4 h-4" />
+								</button>
 							</div>
 						</div>
 					</div>

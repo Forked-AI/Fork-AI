@@ -10,6 +10,7 @@ interface SiblingNav {
 	totalCount: number
 	onPrevious: () => void
 	onNext: () => void
+	disabled?: boolean
 }
 
 interface ConversationMessageListProps {
@@ -26,6 +27,7 @@ interface ConversationMessageListProps {
 	onEdit: (messageId: string, newContent: string) => void
 	onEditParent: (messageId: string) => void
 	editHandlersRef: MutableRefObject<Map<string, () => void>>
+	disableMutatingActions?: boolean
 }
 
 export function ConversationMessageList({
@@ -42,6 +44,7 @@ export function ConversationMessageList({
 	onEdit,
 	onEditParent,
 	editHandlersRef,
+	disableMutatingActions = false,
 }: ConversationMessageListProps) {
 	return (
 		<div
@@ -64,6 +67,7 @@ export function ConversationMessageList({
 							onToggleSelection={() => onToggleMessageSelection(message.id)}
 							onEditParent={onEditParent}
 							editHandlersRef={editHandlersRef}
+							disableMutatingActions={disableMutatingActions}
 						/>
 					))}
 					<div ref={messagesEndRef} />

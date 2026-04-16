@@ -1,14 +1,19 @@
 'use client'
 
-import { ConversationExportDialog } from '@/components/chat/conversation-export-dialog'
-import { useChatUI } from '@/components/chat/chat-ui-provider'
 import { ConversationMessageList } from '@/components/chat/chat-area/conversation-message-list'
 import { useChatAreaGraph } from '@/components/chat/chat-area/use-chat-area-graph'
 import { useChatAreaScroll } from '@/components/chat/chat-area/use-chat-area-scroll'
+import { useChatUI } from '@/components/chat/chat-ui-provider'
+import { ConversationExportDialog } from '@/components/chat/conversation-export-dialog'
 import { useConversationLoader } from '@/components/chat/use-conversation-loader'
 import { useShareSelectionController } from '@/components/chat/use-share-selection-controller'
 import { useAuth } from '@/contexts/auth-context'
-import { useChat, type Message } from '@/hooks/use-chat'
+import {
+	buildLocalHistorySnapshot,
+	useChat,
+	type Message,
+	type MessageHistoryEntry,
+} from '@/hooks/use-chat'
 import { useConversation, useConversations } from '@/hooks/use-conversations'
 import { useMessageTree } from '@/hooks/use-message-tree'
 import { AlertCircle } from 'lucide-react'
@@ -24,19 +29,44 @@ import { TopBar } from './top-bar'
 const GraphMap = dynamic(() => import('./GraphMap'), { ssr: false })
 const GraphInspector = dynamic(() => import('./GraphInspector'), { ssr: false })
 
+type QueueStatus = 'idle' | 'running' | 'halted'
+
+interface QueuedMessage {
+	id: string
+	content: string
+	model: string
+	createdAt: Date
+}
+
 export function ChatArea() {
 	const router = useRouter()
 	const { startTitleGeneration, finishTitleGeneration } = useChatUI()
 	const inputRef = useRef<HTMLTextAreaElement>(null)
 	const editHandlersRef = useRef<Map<string, () => void>>(new Map())
+	const messagesRef = useRef<Message[]>([])
+	const previousIsStreamingRef = useRef(false)
+	const selectedConversationIdRef = useRef<string | null>(null)
+	const activeSendParentMessageIdRef = useRef<string | null>(null)
+	const activeSendHistoryRef = useRef<MessageHistoryEntry[]>([])
+	const queuedMessagesRef = useRef<QueuedMessage[]>([])
+	const queueStatusRef = useRef<QueueStatus>('idle')
+	const queueTailMessageIdRef = useRef<string | null>(null)
+	const queueHistoryRef = useRef<MessageHistoryEntry[]>([])
+	const tocMessagesSnapshotRef = useRef<Message[]>([])
+	const isDrainingQueueRef = useRef(false)
 	const [branchFromMessageId, setBranchFromMessageId] = useState<string | null>(
 		null
 	)
+	const [pendingConversationId, setPendingConversationId] = useState<
+		string | null
+	>(null)
 	const [showExportDialog, setShowExportDialog] = useState(false)
+	const [queuedMessages, setQueuedMessages] = useState<QueuedMessage[]>([])
+	const [queueStatus, setQueueStatus] = useState<QueueStatus>('idle')
 
 	const { user } = useAuth()
 
-	const { invalidateConversations, generateTitle, updateConversation } =
+	const { invalidateConversationList, generateTitle, updateConversation } =
 		useConversations({
 			enabled: false,
 		})
@@ -54,7 +84,17 @@ export function ChatArea() {
 		loadConversation,
 	} = useChat({
 		onConversationCreated: (id) => {
-			router.replace(`/chat?c=${id}`, { scroll: false })
+			setPendingConversationId(id)
+
+			const params = new URLSearchParams(window.location.search)
+			params.set('c', id)
+
+			const nextSearch = params.toString()
+			const nextUrl = `${window.location.pathname}${
+				nextSearch ? `?${nextSearch}` : ''
+			}${window.location.hash}`
+
+			window.history.replaceState(window.history.state, '', nextUrl)
 		},
 		onTitleGenerationNeeded: async (id) => {
 			startTitleGeneration(id)
@@ -84,6 +124,16 @@ export function ChatArea() {
 		return getActivePath(messages)
 	}, [branchFromMessageId, getActivePath, getAncestorPath, messages])
 
+	const tocMessages = useMemo(() => {
+		if (!isStreaming || tocMessagesSnapshotRef.current.length === 0) {
+			tocMessagesSnapshotRef.current = displayedMessages
+		}
+
+		return tocMessagesSnapshotRef.current
+	}, [displayedMessages, isStreaming])
+
+	messagesRef.current = messages
+
 	const {
 		selectedMessageIds,
 		showSignInModal,
@@ -102,10 +152,12 @@ export function ChatArea() {
 		isAuthenticated: !!user,
 	})
 
-	useConversationLoader({
+	const { selectedConversationId } = useConversationLoader({
 		conversationId,
 		loadConversation,
 		clearMessages,
+		isStreaming,
+		suppressLoadConversationId: pendingConversationId,
 	})
 
 	const { data: conversation } = useConversation(conversationId)
@@ -119,12 +171,200 @@ export function ChatArea() {
 		showScrollButton,
 	} = useChatAreaScroll(messages)
 
+	const setQueueStatusState = useCallback((nextStatus: QueueStatus) => {
+		queueStatusRef.current = nextStatus
+		setQueueStatus(nextStatus)
+	}, [])
+
+	const setQueuedMessagesState = useCallback(
+		(
+			updater:
+				| QueuedMessage[]
+				| ((currentQueuedMessages: QueuedMessage[]) => QueuedMessage[])
+		) => {
+			setQueuedMessages((currentQueuedMessages) => {
+				const nextQueuedMessages =
+					typeof updater === 'function'
+						? updater(currentQueuedMessages)
+						: updater
+				queuedMessagesRef.current = nextQueuedMessages
+				return nextQueuedMessages
+			})
+		},
+		[]
+	)
+
+	const setQueueTailMessageId = useCallback((messageId: string | null) => {
+		queueTailMessageIdRef.current = messageId
+	}, [])
+
+	const setQueueHistory = useCallback((history: MessageHistoryEntry[]) => {
+		queueHistoryRef.current = history
+	}, [])
+
+	const clearQueuedState = useCallback(() => {
+		setQueuedMessagesState([])
+		setQueueStatusState('idle')
+		setQueueTailMessageId(null)
+		setQueueHistory([])
+	}, [
+		setQueueHistory,
+		setQueueStatusState,
+		setQueueTailMessageId,
+		setQueuedMessagesState,
+	])
+
+	const enqueueMessage = useCallback(
+		(
+			content: string,
+			model: string,
+			anchorMessageId: string | null,
+			anchorHistory: MessageHistoryEntry[]
+		) => {
+			const queuedMessage: QueuedMessage = {
+				id: `queued-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+				content,
+				model,
+				createdAt: new Date(),
+			}
+
+			if (queueTailMessageIdRef.current === null) {
+				setQueueTailMessageId(anchorMessageId)
+			}
+
+			if (queueHistoryRef.current.length === 0) {
+				setQueueHistory(anchorHistory)
+			}
+
+			setQueuedMessagesState((currentQueuedMessages) => [
+				...currentQueuedMessages,
+				queuedMessage,
+			])
+
+			if (queueStatusRef.current !== 'halted') {
+				setQueueStatusState('running')
+			}
+
+			return queuedMessage
+		},
+		[
+			setQueueHistory,
+			setQueueStatusState,
+			setQueueTailMessageId,
+			setQueuedMessagesState,
+		]
+	)
+
+	const readHistorySnapshot = useCallback(
+		async (parentMessageId: string | null) => {
+			if (parentMessageId === null) {
+				return queueHistoryRef.current
+			}
+
+			for (let attempt = 0; attempt < 5; attempt += 1) {
+				const snapshot = buildLocalHistorySnapshot(
+					messagesRef.current,
+					parentMessageId
+				)
+				if (snapshot.length > 0) {
+					return snapshot
+				}
+
+				await new Promise((resolve) => setTimeout(resolve, 0))
+			}
+
+			return buildLocalHistorySnapshot(messagesRef.current, parentMessageId)
+		},
+		[]
+	)
+
+	const drainQueuedMessages = useCallback(async () => {
+		if (isDrainingQueueRef.current || queueStatusRef.current !== 'running') {
+			return
+		}
+
+		isDrainingQueueRef.current = true
+
+		try {
+			while (
+				queueStatusRef.current === 'running' &&
+				queuedMessagesRef.current.length > 0
+			) {
+				const [nextQueuedMessage, ...remainingQueuedMessages] =
+					queuedMessagesRef.current
+
+				setQueuedMessagesState(remainingQueuedMessages)
+
+				const parentMessageId = queueTailMessageIdRef.current
+				const history =
+					parentMessageId === null
+						? queueHistoryRef.current
+						: buildLocalHistorySnapshot(messagesRef.current, parentMessageId)
+
+				activeSendParentMessageIdRef.current = parentMessageId
+				activeSendHistoryRef.current = history
+
+				const result = await sendMessage(
+					nextQueuedMessage.content,
+					nextQueuedMessage.model,
+					parentMessageId,
+					history
+				)
+
+				if (queueStatusRef.current !== 'running') {
+					return
+				}
+
+				if (result.status === 'done') {
+					setQueueTailMessageId(result.assistantMessageId)
+					setQueueHistory(
+						await readHistorySnapshot(result.assistantMessageId)
+					)
+					continue
+				}
+
+				if (result.status === 'error') {
+					if (queuedMessagesRef.current.length > 0) {
+						setQueueStatusState('halted')
+					} else {
+						clearQueuedState()
+					}
+					return
+				}
+
+				clearQueuedState()
+				return
+			}
+
+			if (
+				queueStatusRef.current === 'running' &&
+				queuedMessagesRef.current.length === 0
+			) {
+				clearQueuedState()
+			}
+		} finally {
+			isDrainingQueueRef.current = false
+		}
+	}, [
+		clearQueuedState,
+		readHistorySnapshot,
+		sendMessage,
+		setQueueStatusState,
+		setQueueTailMessageId,
+		setQueuedMessagesState,
+	])
+
+	const hasQueuedWork = queuedMessages.length > 0 || queueStatus === 'halted'
+
 	const handleBranchFromMessage = useCallback(
 		(messageId: string) => {
+			if (hasQueuedWork) {
+				return
+			}
 			setBranchFromMessageId(messageId)
 			scrollToMessage(messageId)
 		},
-		[scrollToMessage]
+		[hasQueuedWork, scrollToMessage]
 	)
 
 	const {
@@ -141,6 +381,7 @@ export function ChatArea() {
 	} = useChatAreaGraph({
 		messages,
 		isAuthenticated: !!user,
+		interactionsLocked: hasQueuedWork,
 		clearBranchContext: () => setBranchFromMessageId(null),
 		onFocusMessage: scrollToMessage,
 		onRequireSignIn: () => setShowSignInModal(true),
@@ -160,54 +401,211 @@ export function ChatArea() {
 	}, [])
 
 	useEffect(() => {
-		if (!isStreaming && messages.length > 0) {
-			invalidateConversations()
+		const wasStreaming = previousIsStreamingRef.current
+		previousIsStreamingRef.current = isStreaming
+
+		if (wasStreaming && !isStreaming && messages.length > 0) {
+			invalidateConversationList()
 		}
-	}, [invalidateConversations, isStreaming, messages.length])
+	}, [invalidateConversationList, isStreaming, messages.length])
+
+	useEffect(() => {
+		if (
+			pendingConversationId &&
+			!isStreaming &&
+			selectedConversationId === pendingConversationId
+		) {
+			setPendingConversationId(null)
+		}
+	}, [isStreaming, pendingConversationId, selectedConversationId])
+
+	useEffect(() => {
+		const previousSelectedConversationId = selectedConversationIdRef.current
+		selectedConversationIdRef.current = selectedConversationId
+
+		if (
+			previousSelectedConversationId === selectedConversationId ||
+			(pendingConversationId && selectedConversationId === pendingConversationId)
+		) {
+			return
+		}
+
+		clearQueuedState()
+	}, [clearQueuedState, pendingConversationId, selectedConversationId])
 
 	const handleSendMessage = useCallback(
 		async (content: string, model: string) => {
-			if (branchFromMessageId && !user) {
-				setShowSignInModal(true)
+			const branchId = branchFromMessageId
+			const parentMessageId = branchId ?? displayedMessages.at(-1)?.id ?? null
+			const history: MessageHistoryEntry[] = displayedMessages.map(
+				({ role, content }) => ({
+					role,
+					content,
+				})
+			)
+
+			if (branchId) {
+				setBranchFromMessageId(null)
+			}
+
+			if (
+				isStreaming ||
+				queuedMessagesRef.current.length > 0 ||
+				queueStatusRef.current === 'halted'
+			) {
+				enqueueMessage(
+					content,
+					model,
+					queueTailMessageIdRef.current ??
+						activeSendParentMessageIdRef.current ??
+						parentMessageId,
+					queueHistoryRef.current.length > 0
+						? queueHistoryRef.current
+						: isStreaming && activeSendHistoryRef.current.length > 0
+							? activeSendHistoryRef.current
+							: history
+				)
+
+				if (
+					!isStreaming &&
+					queueStatusRef.current === 'running' &&
+					!isDrainingQueueRef.current
+				) {
+					void drainQueuedMessages()
+				}
+
 				return
 			}
-			const branchId = branchFromMessageId
-			if (branchId) setBranchFromMessageId(null)
-			await sendMessage(content, model, branchId ?? undefined)
+
+			activeSendParentMessageIdRef.current = parentMessageId
+			activeSendHistoryRef.current = history
+
+			const result = await sendMessage(content, model, parentMessageId, history)
+
+			if (queuedMessagesRef.current.length === 0) {
+				return
+			}
+
+			if (result.status === 'done') {
+				setQueueTailMessageId(result.assistantMessageId)
+				setQueueHistory(await readHistorySnapshot(result.assistantMessageId))
+				void drainQueuedMessages()
+				return
+			}
+
+			if (result.status === 'error') {
+				setQueueStatusState('halted')
+				return
+			}
+
+			clearQueuedState()
 		},
-		[branchFromMessageId, sendMessage, user]
+		[
+			branchFromMessageId,
+			clearQueuedState,
+			displayedMessages,
+			drainQueuedMessages,
+			enqueueMessage,
+			isStreaming,
+			readHistorySnapshot,
+			sendMessage,
+			setQueueHistory,
+			setQueueStatusState,
+			setQueueTailMessageId,
+		]
 	)
 
 	const handleRetry = useCallback(
 		async (messageId: string) => {
+			if (hasQueuedWork) {
+				return
+			}
 			await regenerate(messageId)
 		},
-		[regenerate]
+		[hasQueuedWork, regenerate]
 	)
 
 	const handleEdit = useCallback(
 		async (messageId: string, newContent: string) => {
+			if (hasQueuedWork) {
+				return
+			}
 			await editAndRegenerate(messageId, newContent)
 		},
-		[editAndRegenerate]
+		[editAndRegenerate, hasQueuedWork]
 	)
 
 	const handleEditParent = useCallback(
 		(messageId: string) => {
+			if (hasQueuedWork) {
+				return
+			}
 			const editHandler = editHandlersRef.current.get(messageId)
 			if (editHandler) {
 				scrollToMessage(messageId)
 				setTimeout(() => editHandler(), 300)
 			}
 		},
-		[scrollToMessage]
+		[hasQueuedWork, scrollToMessage]
 	)
 
+	const handleStopGeneration = useCallback(() => {
+		stopGeneration()
+		clearQueuedState()
+	}, [clearQueuedState, stopGeneration])
+
+	const handleRemoveQueuedMessage = useCallback(
+		(queueMessageId: string) => {
+			const nextQueuedMessages = queuedMessagesRef.current.filter(
+				(queuedMessage) => queuedMessage.id !== queueMessageId
+			)
+
+			setQueuedMessagesState(nextQueuedMessages)
+
+			if (nextQueuedMessages.length === 0) {
+				clearQueuedState()
+			}
+		},
+		[clearQueuedState, setQueuedMessagesState]
+	)
+
+	const handleClearQueue = useCallback(() => {
+		clearQueuedState()
+	}, [clearQueuedState])
+
+	const handleResumeQueue = useCallback(() => {
+		if (
+			queueStatusRef.current !== 'halted' ||
+			queuedMessagesRef.current.length === 0 ||
+			isStreaming
+		) {
+			return
+		}
+
+		setQueueStatusState('running')
+		void drainQueuedMessages()
+	}, [drainQueuedMessages, isStreaming, setQueueStatusState])
+
+	const handleClearBranchContext = useCallback(() => {
+		if (hasQueuedWork) {
+			return
+		}
+
+		setBranchFromMessageId(null)
+	}, [hasQueuedWork])
+
 	const handleNewChat = useCallback(() => {
+		setPendingConversationId(null)
+		handleStopGeneration()
 		clearMessages()
 		handleDeselectAllMessages()
 		router.replace('/chat', { scroll: false })
-	}, [clearMessages, handleDeselectAllMessages, router])
+	}, [
+		clearMessages,
+		handleDeselectAllMessages,
+		handleStopGeneration,
+		router,
+	])
 
 	const handleRename = useCallback(
 		async (newTitle: string) => {
@@ -217,10 +615,9 @@ export function ChatArea() {
 				newTitle.trim() !== conversation?.title?.trim()
 			) {
 				await updateConversation({ id: conversationId, title: newTitle })
-				invalidateConversations()
 			}
 		},
-		[conversation?.title, conversationId, invalidateConversations, updateConversation]
+		[conversation?.title, conversationId, updateConversation]
 	)
 
 	const getSiblingNav = useCallback(
@@ -234,9 +631,10 @@ export function ChatArea() {
 				totalCount: siblings.length,
 				onPrevious: () => navigateSibling(message, 'prev'),
 				onNext: () => navigateSibling(message, 'next'),
+				disabled: hasQueuedWork,
 			}
 		},
-		[getSiblingIndex, getSiblings, navigateSibling]
+		[getSiblingIndex, getSiblings, hasQueuedWork, navigateSibling]
 	)
 
 	return (
@@ -294,10 +692,11 @@ export function ChatArea() {
 					selectedMessageIds={selectedMessageIds}
 					onToggleMessageSelection={handleToggleMessageSelection}
 					onRetry={handleRetry}
-					onStop={stopGeneration}
+					onStop={handleStopGeneration}
 					onEdit={handleEdit}
 					onEditParent={handleEditParent}
 					editHandlersRef={editHandlersRef}
+					disableMutatingActions={hasQueuedWork}
 				/>
 			) : null}
 
@@ -384,7 +783,7 @@ export function ChatArea() {
 
 			{!showGraphView && messages.length > 0 ? (
 				<ChatTOC
-					messages={displayedMessages}
+					messages={tocMessages}
 					onScrollToMessage={scrollToMessage}
 					selectedMessageIds={selectedMessageIds}
 					onToggleSelection={handleToggleMessageSelection}
@@ -392,6 +791,7 @@ export function ChatArea() {
 					onDeselectAll={handleDeselectAllMessages}
 					activeMessageId={activeMessageId}
 					onShare={handleShareMessages}
+					isStreaming={isStreaming}
 				/>
 			) : null}
 
@@ -400,8 +800,13 @@ export function ChatArea() {
 					<ChatInput
 						ref={inputRef}
 						onSendMessage={handleSendMessage}
-						onStop={stopGeneration}
+						onStop={handleStopGeneration}
 						isStreaming={isStreaming}
+						queuedMessages={queuedMessages}
+						queueStatus={queueStatus}
+						onRemoveQueuedMessage={handleRemoveQueuedMessage}
+						onClearQueue={handleClearQueue}
+						onResumeQueue={handleResumeQueue}
 						branchContext={
 							branchFromMessageId
 								? {
@@ -413,7 +818,7 @@ export function ChatArea() {
 								  }
 								: null
 						}
-						onClearBranchContext={() => setBranchFromMessageId(null)}
+						onClearBranchContext={handleClearBranchContext}
 					/>
 				</div>
 			) : null}

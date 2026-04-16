@@ -23,6 +23,7 @@ function mapGraphNode(message: Message) {
 interface UseChatAreaGraphOptions {
 	messages: Message[]
 	isAuthenticated: boolean
+	interactionsLocked: boolean
 	clearBranchContext: () => void
 	onFocusMessage: (messageId: string) => void
 	onRequireSignIn: () => void
@@ -32,6 +33,7 @@ interface UseChatAreaGraphOptions {
 export function useChatAreaGraph({
 	messages,
 	isAuthenticated,
+	interactionsLocked,
 	clearBranchContext,
 	onFocusMessage,
 	onRequireSignIn,
@@ -64,6 +66,9 @@ export function useChatAreaGraph({
 					break
 				case 'branch':
 					if (nodeId) {
+						if (interactionsLocked) {
+							return
+						}
 						if (!isAuthenticated) {
 							onRequireSignIn()
 							return
@@ -93,7 +98,13 @@ export function useChatAreaGraph({
 					console.log('Graph action:', action, nodeId)
 			}
 		},
-		[isAuthenticated, onFocusMessage, onRequireSignIn, onStartBranch]
+		[
+			interactionsLocked,
+			isAuthenticated,
+			onFocusMessage,
+			onRequireSignIn,
+			onStartBranch,
+		]
 	)
 
 	const handleStartAttach = useCallback((nodeId: string) => {

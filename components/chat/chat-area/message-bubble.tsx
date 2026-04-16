@@ -33,6 +33,7 @@ interface SiblingNav {
 	totalCount: number
 	onPrevious: () => void
 	onNext: () => void
+	disabled?: boolean
 }
 
 export interface MessageBubbleProps {
@@ -47,6 +48,7 @@ export interface MessageBubbleProps {
 	onToggleSelection?: () => void
 	onEditParent?: (messageId: string) => void
 	editHandlersRef?: MutableRefObject<Map<string, () => void>>
+	disableMutatingActions?: boolean
 }
 
 function StreamingText({ content }: { content: string }) {
@@ -89,6 +91,7 @@ export function MessageBubble({
 	onToggleSelection,
 	onEditParent,
 	editHandlersRef,
+	disableMutatingActions = false,
 }: MessageBubbleProps) {
 	const isUser = message.role === 'user'
 	const isAssistant = message.role === 'assistant'
@@ -133,6 +136,7 @@ export function MessageBubble({
 	}, [isEditing])
 
 	const handleSaveEdit = () => {
+		if (disableMutatingActions) return
 		if (editContent.trim() && editContent !== message.content) {
 			onEdit(message.id, editContent)
 		}
@@ -145,6 +149,13 @@ export function MessageBubble({
 	}
 
 	const handleKeyDown = (event: ReactKeyboardEvent) => {
+		if (disableMutatingActions) {
+			if (event.key === 'Escape') {
+				handleCancelEdit()
+			}
+			return
+		}
+
 		if (event.key === 'Enter' && !event.shiftKey) {
 			event.preventDefault()
 			handleSaveEdit()
@@ -287,6 +298,7 @@ export function MessageBubble({
 									</button>
 									<button
 										onClick={handleSaveEdit}
+										disabled={disableMutatingActions}
 										className="flex items-center gap-1 rounded px-2 py-1 text-xs text-primary transition-colors hover:bg-primary/10"
 									>
 										<Check className="h-3 w-3" />
@@ -303,9 +315,18 @@ export function MessageBubble({
 								)
 							) : (
 								<div
-									onClick={() => !isEditing && setIsEditing(true)}
-									className="cursor-pointer transition-opacity hover:opacity-80"
-									title="Click to edit"
+									onClick={() => {
+										if (!isEditing && !disableMutatingActions) {
+											setIsEditing(true)
+										}
+									}}
+									className={cn(
+										'transition-opacity',
+										disableMutatingActions
+											? 'cursor-default'
+											: 'cursor-pointer hover:opacity-80'
+									)}
+									title={disableMutatingActions ? undefined : 'Click to edit'}
 								>
 									<span className="whitespace-pre-wrap">{displayContent}</span>
 									{shouldTruncate ? (
@@ -349,6 +370,7 @@ export function MessageBubble({
 									{!message.isStreaming && isAssistant ? (
 										<button
 											onClick={() => onRetry(message.id)}
+											disabled={disableMutatingActions}
 											className="mt-2 flex items-center gap-1.5 rounded-lg bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary transition-colors hover:bg-primary/20"
 										>
 											<RefreshCw className="h-3 w-3" />
@@ -362,9 +384,14 @@ export function MessageBubble({
 
 					{isUser && !isEditing && !isStreaming ? (
 						<button
-							onClick={() => setIsEditing(true)}
-							className="absolute -left-8 top-1/2 rounded-lg bg-background/50 p-1.5 opacity-0 transition-all group-hover:opacity-100 hover:bg-background"
-							title="Edit message"
+							onClick={() => {
+								if (!disableMutatingActions) {
+									setIsEditing(true)
+								}
+							}}
+							disabled={disableMutatingActions}
+							className="absolute -left-8 top-1/2 rounded-lg bg-background/50 p-1.5 opacity-0 transition-all group-hover:opacity-100 hover:bg-background disabled:cursor-not-allowed disabled:opacity-30"
+							title={disableMutatingActions ? 'Queue must finish before editing' : 'Edit message'}
 						>
 							<Pencil className="h-3.5 w-3.5 text-muted-foreground hover:text-foreground" />
 						</button>
@@ -378,7 +405,7 @@ export function MessageBubble({
 							<div className="flex items-center gap-1">
 								<button
 									onClick={siblingNav.onPrevious}
-									disabled={siblingNav.currentIndex === 1}
+									disabled={siblingNav.disabled || siblingNav.currentIndex === 1}
 									className="rounded p-1 transition-colors hover:bg-primary/10 disabled:opacity-30 disabled:hover:bg-transparent"
 									title="Previous version"
 								>
@@ -386,7 +413,10 @@ export function MessageBubble({
 								</button>
 								<button
 									onClick={siblingNav.onNext}
-									disabled={siblingNav.currentIndex === siblingNav.totalCount}
+									disabled={
+										siblingNav.disabled ||
+										siblingNav.currentIndex === siblingNav.totalCount
+									}
 									className="rounded p-1 transition-colors hover:bg-primary/10 disabled:opacity-30 disabled:hover:bg-transparent"
 									title="Next version"
 								>
@@ -413,6 +443,7 @@ export function MessageBubble({
 							</span>
 							<button
 								onClick={() => onRetry(message.id)}
+								disabled={disableMutatingActions}
 								className="ml-auto flex items-center gap-1.5 rounded-lg bg-primary/10 px-3 py-1 text-xs font-medium text-primary transition-colors hover:bg-primary/20"
 							>
 								<RefreshCw className="h-3 w-3" />
@@ -428,6 +459,7 @@ export function MessageBubble({
 							</span>
 							<button
 								onClick={() => onRetry(message.id)}
+								disabled={disableMutatingActions}
 								className="ml-auto flex items-center gap-1.5 rounded-lg bg-primary/10 px-3 py-1 text-xs font-medium text-primary transition-colors hover:bg-primary/20"
 							>
 								<RefreshCw className="h-3 w-3" />
@@ -450,9 +482,18 @@ export function MessageBubble({
 				<div className="mt-2 flex items-center justify-start gap-1">
 					{message.parentMessageId && onEditParent ? (
 						<button
-							onClick={() => onEditParent(message.parentMessageId!)}
-							className="flex items-center gap-1.5 rounded px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-background/50 hover:text-foreground"
-							title="Edit prompt"
+							onClick={() => {
+								if (!disableMutatingActions) {
+									onEditParent(message.parentMessageId!)
+								}
+							}}
+							disabled={disableMutatingActions}
+							className="flex items-center gap-1.5 rounded px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-background/50 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
+							title={
+								disableMutatingActions
+									? 'Queue must finish before editing'
+									: 'Edit prompt'
+							}
 						>
 							<Pencil className="h-3.5 w-3.5" />
 							Edit
@@ -498,8 +539,13 @@ export function MessageBubble({
 					</button>
 					<button
 						onClick={() => onRetry(message.id)}
-						className="flex items-center gap-1.5 rounded px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-background/50 hover:text-foreground"
-						title="Retry generation"
+						disabled={disableMutatingActions}
+						className="flex items-center gap-1.5 rounded px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-background/50 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
+						title={
+							disableMutatingActions
+								? 'Queue must finish before retrying'
+								: 'Retry generation'
+						}
 					>
 						<RefreshCw className="h-3.5 w-3.5" />
 						Retry

@@ -1,3 +1,4 @@
+import { fetchConversationDetail } from "@/lib/conversation-api";
 import { useCallback, useRef, useState } from "react";
 
 export interface Message {
@@ -14,12 +15,68 @@ export interface Message {
 	parentMessageId?: string | null;
 }
 
+export interface MessageHistoryEntry {
+	role: Message["role"];
+	content: string;
+}
+
+function mapMessagesToHistory(messages: Message[]): MessageHistoryEntry[] {
+	return messages.map(({ role, content }) => ({ role, content }));
+}
+
+export function buildLocalHistorySnapshot(
+	messages: Message[],
+	parentMessageId?: string | null
+): MessageHistoryEntry[] {
+	if (!parentMessageId) {
+		return mapMessagesToHistory(
+			[...messages].sort((a, b) => {
+				const aTime = a.createdAt?.getTime() ?? 0;
+				const bTime = b.createdAt?.getTime() ?? 0;
+				return aTime - bTime;
+			})
+		);
+	}
+
+	const messageById = new Map(messages.map((message) => [message.id, message]));
+	const path: Message[] = [];
+	let currentId: string | null = parentMessageId;
+
+	while (currentId) {
+		const currentMessage = messageById.get(currentId);
+		if (!currentMessage) break;
+		path.unshift(currentMessage);
+		currentId = currentMessage.parentMessageId ?? null;
+	}
+
+	return mapMessagesToHistory(path);
+}
+
+function extractSsePayload(rawEvent: string): string | null {
+	const dataLines = rawEvent
+		.split(/\r?\n/)
+		.filter((line) => line.startsWith("data:"));
+
+	if (dataLines.length === 0) return null;
+
+	return dataLines
+		.map((line) => (line.startsWith("data: ") ? line.slice(6) : line.slice(5)))
+		.join("\n");
+}
+
 export interface UseChatOptions {
 	conversationId?: string;
 	model?: string;
 	onConversationCreated?: (conversationId: string) => void;
 	onTitleGenerationNeeded?: (conversationId: string) => void;
 	onError?: (error: Error) => void;
+}
+
+export interface SendMessageResult {
+	conversationId: string | null;
+	userMessageId: string | null;
+	assistantMessageId: string | null;
+	status: "done" | "stopped" | "error";
 }
 
 export interface UseChatReturn {
@@ -31,8 +88,9 @@ export interface UseChatReturn {
 	sendMessage: (
 		content: string,
 		model?: string,
-		parentMessageId?: string | null
-	) => Promise<void>;
+		parentMessageId?: string | null,
+		history?: MessageHistoryEntry[]
+	) => Promise<SendMessageResult>;
 	regenerate: (messageId: string) => Promise<void>;
 	editAndRegenerate: (messageId: string, newContent: string) => Promise<void>;
 	stopGeneration: () => void;
@@ -49,9 +107,14 @@ export function useChat(options: UseChatOptions = {}): UseChatReturn {
 	);
 
 	const abortControllerRef = useRef<AbortController | null>(null);
+	const messagesRef = useRef<Message[]>(messages);
+	const conversationIdRef = useRef<string | null>(conversationId);
 	const currentModelRef = useRef<string>(
 		options.model || "mistral-large-latest"
 	);
+
+	messagesRef.current = messages;
+	conversationIdRef.current = conversationId;
 
 	// Store callbacks in refs to avoid dependency issues
 	const onConversationCreatedRef = useRef(options.onConversationCreated);
@@ -67,20 +130,17 @@ export function useChat(options: UseChatOptions = {}): UseChatReturn {
 	const loadConversation = useCallback(async (convId: string) => {
 		try {
 			setError(null);
-			const response = await fetch(`/api/conversations/${convId}`);
-
-			if (!response.ok) {
-				const data = await response.json();
-				throw new Error(data.error || "Failed to load conversation");
-			}
-
-			const { conversation } = await response.json();
+			const conversation = await fetchConversationDetail(convId);
 
 			setConversationId(convId);
 			setMessages(
-				conversation.messages.map((msg: Message) => ({
+				conversation.messages.map((msg) => ({
 					...msg,
-					createdAt: new Date(msg.createdAt!),
+					model: msg.model ?? undefined,
+					promptTokens: msg.promptTokens ?? undefined,
+					completionTokens: msg.completionTokens ?? undefined,
+					isError: msg.isError ?? undefined,
+					createdAt: msg.createdAt ? new Date(msg.createdAt) : undefined,
 				}))
 			);
 		} catch (err) {
@@ -100,11 +160,21 @@ export function useChat(options: UseChatOptions = {}): UseChatReturn {
 		async (
 			content: string,
 			model?: string,
-			parentMessageId?: string | null
-		) => {
-			if (!content.trim() || isStreaming) return;
+			parentMessageId?: string | null,
+			history?: MessageHistoryEntry[]
+		): Promise<SendMessageResult> => {
+			if (!content.trim() || isStreaming) {
+				return {
+					conversationId: conversationIdRef.current,
+					userMessageId: null,
+					assistantMessageId: null,
+					status: "error",
+				};
+			}
 
 			const selectedModel = model || currentModelRef.current;
+			const requestHistory =
+				history ?? buildLocalHistorySnapshot(messagesRef.current, parentMessageId);
 			currentModelRef.current = selectedModel;
 
 			// Create optimistic user message
@@ -140,6 +210,7 @@ export function useChat(options: UseChatOptions = {}): UseChatReturn {
 			let accumulatedContent = "";
 			let realUserMessageId = tempUserMessageId;
 			let realAssistantMessageId = tempAssistantMessageId;
+			let finalStatus: SendMessageResult["status"] = "done";
 
 			try {
 				const response = await fetch("/api/chat/stream", {
@@ -148,8 +219,9 @@ export function useChat(options: UseChatOptions = {}): UseChatReturn {
 					body: JSON.stringify({
 						message: content.trim(),
 						model: selectedModel,
-						conversationId: conversationId,
+						conversationId: conversationIdRef.current,
 						parentMessageId: parentMessageId,
+						history: requestHistory,
 					}),
 					signal: abortControllerRef.current.signal,
 				});
@@ -165,145 +237,163 @@ export function useChat(options: UseChatOptions = {}): UseChatReturn {
 				if (!reader) throw new Error("No response body");
 
 				const decoder = new TextDecoder();
+				let buffer = "";
+
+				const handleStreamEvent = (jsonStr: string) => {
+					if (!jsonStr || jsonStr === "[DONE]") return;
+
+					try {
+						const data = JSON.parse(jsonStr);
+
+						switch (data.type) {
+							case "conversation":
+								if (typeof data.conversationId !== "string") return;
+								setConversationId(data.conversationId);
+								conversationIdRef.current = data.conversationId;
+								onConversationCreatedRef.current?.(data.conversationId);
+								break;
+
+							case "messageId":
+								if (typeof data.userMessageId !== "string") return;
+								realUserMessageId = data.userMessageId;
+								setMessages((prev) =>
+									prev.map((msg) => {
+										if (msg.id === tempUserMessageId) {
+											return {
+												...msg,
+												id: data.userMessageId,
+											};
+										}
+										if (
+											msg.id === tempAssistantMessageId &&
+											msg.parentMessageId === tempUserMessageId
+										) {
+											return {
+												...msg,
+												parentMessageId: data.userMessageId,
+											};
+										}
+										return msg;
+									})
+								);
+								break;
+
+							case "content":
+								if (typeof data.content !== "string") return;
+								accumulatedContent += data.content;
+								setMessages((prev) =>
+									prev.map((msg) =>
+										msg.id === tempAssistantMessageId ||
+										msg.id === realAssistantMessageId
+											? {
+													...msg,
+													content: accumulatedContent,
+												}
+											: msg
+									)
+								);
+								break;
+
+							case "done": {
+								const nextAssistantMessageId =
+									typeof data.assistantMessageId === "string"
+										? data.assistantMessageId
+										: null;
+								if (nextAssistantMessageId) {
+									realAssistantMessageId = nextAssistantMessageId;
+								}
+								setMessages((prev) => {
+									const updatedMessages = prev.map((msg) =>
+										msg.id === tempAssistantMessageId ||
+										msg.id === realAssistantMessageId
+											? {
+													...msg,
+													id: nextAssistantMessageId ?? msg.id,
+													content: accumulatedContent,
+													isStreaming: false,
+													promptTokens: data.usage?.promptTokens,
+													completionTokens:
+														data.usage?.completionTokens,
+												}
+											: msg
+									);
+
+									const currentConversationId = conversationIdRef.current;
+									if (
+										updatedMessages.length === 4 &&
+										currentConversationId
+									) {
+										onTitleGenerationNeededRef.current?.(
+											currentConversationId
+										);
+									}
+
+									return updatedMessages;
+								});
+								break;
+							}
+
+							case "error":
+								finalStatus = "error";
+								setError(data.error);
+								setMessages((prev) =>
+									prev.map((msg) =>
+										msg.id === tempAssistantMessageId ||
+										msg.id === realAssistantMessageId
+											? {
+													...msg,
+													content:
+														accumulatedContent ||
+														"An error occurred. Please try again.",
+													isStreaming: false,
+													isError: true,
+												}
+											: msg
+									)
+								);
+								break;
+						}
+					} catch {
+						// Ignore JSON parse errors until a full SSE event is available.
+					}
+				};
+
+				const flushCompleteEvents = () => {
+					while (true) {
+						const separatorMatch = buffer.match(/\r?\n\r?\n/);
+						if (!separatorMatch || separatorMatch.index === undefined) {
+							return;
+						}
+
+						const rawEvent = buffer.slice(0, separatorMatch.index);
+						buffer = buffer.slice(
+							separatorMatch.index + separatorMatch[0].length
+						);
+
+						const payload = extractSsePayload(rawEvent);
+						if (payload) {
+							handleStreamEvent(payload);
+						}
+					}
+				};
 
 				while (true) {
 					const { done, value } = await reader.read();
+					buffer += decoder.decode(value ?? new Uint8Array(), {
+						stream: !done,
+					});
+					flushCompleteEvents();
 					if (done) break;
+				}
 
-					const chunk = decoder.decode(value);
-					const lines = chunk.split("\n");
-
-					for (const line of lines) {
-						if (!line.startsWith("data: ")) continue;
-
-						const jsonStr = line.slice(6);
-						if (jsonStr === "[DONE]") continue;
-
-						try {
-							const data = JSON.parse(jsonStr);
-
-							switch (data.type) {
-								case "conversation":
-									// New conversation created
-									setConversationId(data.conversationId);
-									onConversationCreatedRef.current?.(
-										data.conversationId
-									);
-									break;
-
-								case "messageId":
-									// Update user message with real ID and update assistant's parentMessageId
-									realUserMessageId = data.userMessageId;
-									setMessages((prev) =>
-										prev.map((msg) => {
-											if (msg.id === tempUserMessageId) {
-												return {
-													...msg,
-													id: data.userMessageId,
-												};
-											}
-											// Update assistant's parentMessageId to the real user message ID
-											if (
-												msg.id ===
-													tempAssistantMessageId &&
-												msg.parentMessageId ===
-													tempUserMessageId
-											) {
-												return {
-													...msg,
-													parentMessageId:
-														data.userMessageId,
-												};
-											}
-											return msg;
-										})
-									);
-									break;
-
-								case "content":
-									// Stream content chunk
-									accumulatedContent += data.content;
-									setMessages((prev) =>
-										prev.map((msg) =>
-											msg.id === tempAssistantMessageId ||
-											msg.id === realAssistantMessageId
-												? {
-														...msg,
-														content:
-															accumulatedContent,
-													}
-												: msg
-										)
-									);
-									break;
-
-								case "done":
-									// Stream complete
-									realAssistantMessageId =
-										data.assistantMessageId;
-									setMessages((prev) => {
-										const updatedMessages = prev.map(
-											(msg) =>
-												msg.id ===
-												tempAssistantMessageId
-													? {
-															...msg,
-															id: data.assistantMessageId,
-															content:
-																accumulatedContent,
-															isStreaming: false,
-															promptTokens:
-																data.usage
-																	?.promptTokens,
-															completionTokens:
-																data.usage
-																	?.completionTokens,
-														}
-													: msg
-										);
-
-										// Trigger title generation after 3rd message (first full exchange + start of 2nd)
-										// This gives AI enough context to generate a meaningful title
-										if (
-											updatedMessages.length === 4 &&
-											conversationId
-										) {
-											onTitleGenerationNeededRef.current?.(
-												conversationId
-											);
-										}
-
-										return updatedMessages;
-									});
-									break;
-
-								case "error":
-									// Handle stream error
-									setError(data.error);
-									setMessages((prev) =>
-										prev.map((msg) =>
-											msg.id === tempAssistantMessageId ||
-											msg.id === realAssistantMessageId
-												? {
-														...msg,
-														content:
-															accumulatedContent ||
-															"An error occurred. Please try again.",
-														isStreaming: false,
-														isError: true,
-													}
-												: msg
-										)
-									);
-									break;
-							}
-						} catch {
-							// Ignore JSON parse errors for incomplete chunks
-						}
-					}
+				buffer += decoder.decode();
+				const finalPayload = extractSsePayload(buffer);
+				if (finalPayload) {
+					handleStreamEvent(finalPayload);
 				}
 			} catch (err) {
 				if (err instanceof Error && err.name === "AbortError") {
+					finalStatus = "stopped";
 					// Request was cancelled - keep accumulated content and mark as stopped
 					setMessages((prev) =>
 						prev.map((msg) =>
@@ -319,6 +409,7 @@ export function useChat(options: UseChatOptions = {}): UseChatReturn {
 						)
 					);
 				} else {
+					finalStatus = "error";
 					const errorMessage =
 						err instanceof Error
 							? err.message
@@ -344,8 +435,15 @@ export function useChat(options: UseChatOptions = {}): UseChatReturn {
 				setIsStreaming(false);
 				abortControllerRef.current = null;
 			}
+
+			return {
+				conversationId: conversationIdRef.current,
+				userMessageId: realUserMessageId,
+				assistantMessageId: realAssistantMessageId,
+				status: finalStatus,
+			};
 		},
-		[conversationId, isStreaming]
+		[isStreaming]
 	);
 
 	// Regenerate a failed or errored message by creating a branch
@@ -375,7 +473,11 @@ export function useChat(options: UseChatOptions = {}): UseChatReturn {
 				await sendMessage(
 					userMessage.content,
 					targetMessage.model,
-					targetMessage.parentMessageId
+					targetMessage.parentMessageId,
+					buildLocalHistorySnapshot(
+						messagesRef.current,
+						targetMessage.parentMessageId
+					)
 				);
 			}
 		},
@@ -423,7 +525,11 @@ export function useChat(options: UseChatOptions = {}): UseChatReturn {
 		await sendMessage(
 			newContent.trim(),
 			modelToUse,
-			targetMessage.parentMessageId // Create as sibling to preserve history
+			targetMessage.parentMessageId,
+			buildLocalHistorySnapshot(
+				messagesRef.current,
+				targetMessage.parentMessageId
+			)
 		);
 	},
 	[messages, sendMessage, isStreaming]

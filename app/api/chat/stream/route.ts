@@ -6,6 +6,14 @@ import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
+const historyEntrySchema = z.object({
+	role: z.enum(["user", "assistant", "system"]),
+	content: z
+		.string()
+		.min(1, "History message cannot be empty")
+		.max(32000, "History message too long"),
+});
+
 // Input validation schema
 const sendMessageSchema = z.object({
 	message: z
@@ -15,7 +23,10 @@ const sendMessageSchema = z.object({
 	model: z.string().default("mistral-large-latest"),
 	conversationId: z.string().optional().nullable(),
 	parentMessageId: z.string().optional().nullable(),
+	history: z.array(historyEntrySchema).optional(),
 });
+
+type HistoryEntry = z.infer<typeof historyEntrySchema>;
 
 // Supported models mapping
 const SUPPORTED_MODELS: Record<string, string> = {
@@ -62,7 +73,7 @@ export async function POST(request: Request) {
 			);
 		}
 
-		const { message, model, conversationId, parentMessageId } =
+		const { message, model, conversationId, parentMessageId, history } =
 			parseResult.data;
 
 		// 3. Validate model
@@ -106,10 +117,7 @@ export async function POST(request: Request) {
 		let conversation: any = null;
 		let isNewConversation = false;
 		let userMessage: any = null;
-		let messageHistory: Array<{
-			role: "user" | "assistant" | "system";
-			content: string;
-		}> = [];
+		let messageHistory: HistoryEntry[] = [];
 
 		const buildMessageHistory = async (
 			conversationIdToUse: string,
@@ -223,8 +231,11 @@ export async function POST(request: Request) {
 			// 8. Append current prompt as newest user turn
 			messageHistory = [...messageHistory, { role: "user", content: message }];
 		} else {
-			// For guest users, only send the current message (no history)
-			messageHistory = [{ role: "user", content: message }];
+			// For guest users, reuse the current in-memory path when provided.
+			messageHistory = [
+				...(history ?? []),
+				{ role: "user", content: message },
+			];
 		}
 
 	// 8. Create streaming response
@@ -232,7 +243,6 @@ export async function POST(request: Request) {
 	let fullResponse = "";
 	let promptTokens = 0;
 	let completionTokens = 0;
-	let streamError: Error | null = null;
 	
 	const readableStream = new ReadableStream({
 		async start(controller) {
@@ -331,7 +341,6 @@ export async function POST(request: Request) {
 				}
 			} catch (error) {
 				console.error("Stream error:", error);
-				streamError = error as Error;
 
 				// Save error to database for authenticated users
 				if (!isGuest && conversation) {
