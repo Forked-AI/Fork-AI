@@ -8,7 +8,12 @@ import {
     CommandItem,
     CommandList,
 } from '@/components/ui/command'
-import { Dialog, DialogContent } from '@/components/ui/dialog'
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogTitle,
+} from '@/components/ui/dialog'
 import { History, Loader2, MessageSquare } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -29,6 +34,10 @@ interface SearchResult {
 	updatedAt: string
 }
 
+function isAbortError(error: unknown): error is Error {
+	return error instanceof Error && error.name === 'AbortError'
+}
+
 export function SearchModal({ open, onOpenChange }: SearchModalProps) {
 	const router = useRouter()
 	const [searchQuery, setSearchQuery] = useState('')
@@ -36,15 +45,29 @@ export function SearchModal({ open, onOpenChange }: SearchModalProps) {
 	const [isLoading, setIsLoading] = useState(false)
 	const [hasSearched, setHasSearched] = useState(false)
 	const debounceRef = useRef<NodeJS.Timeout | null>(null)
+	const activeSearchRequestIdRef = useRef(0)
+	const searchAbortControllerRef = useRef<AbortController | null>(null)
+
+	const cancelInFlightSearch = useCallback(() => {
+		activeSearchRequestIdRef.current += 1
+		searchAbortControllerRef.current?.abort()
+		searchAbortControllerRef.current = null
+		setIsLoading(false)
+	}, [])
 
 	// Reset state when modal closes
 	useEffect(() => {
 		if (!open) {
+			if (debounceRef.current) {
+				clearTimeout(debounceRef.current)
+				debounceRef.current = null
+			}
+			cancelInFlightSearch()
 			setSearchQuery('')
 			setResults([])
 			setHasSearched(false)
 		}
-	}, [open])
+	}, [cancelInFlightSearch, open])
 
 	// Load recent conversations on open (no search term)
 	useEffect(() => {
@@ -55,6 +78,13 @@ export function SearchModal({ open, onOpenChange }: SearchModalProps) {
 
 	// Fetch conversations with optional search term
 	const fetchConversations = useCallback(async (search: string) => {
+		const requestId = activeSearchRequestIdRef.current + 1
+		activeSearchRequestIdRef.current = requestId
+
+		searchAbortControllerRef.current?.abort()
+		const abortController = new AbortController()
+		searchAbortControllerRef.current = abortController
+
 		setIsLoading(true)
 		try {
 			const params = new URLSearchParams({
@@ -62,20 +92,43 @@ export function SearchModal({ open, onOpenChange }: SearchModalProps) {
 				...(search && { search }),
 			})
 
-			const response = await fetch(`/api/conversations?${params}`)
+			const response = await fetch(`/api/conversations?${params}`, {
+				signal: abortController.signal,
+			})
+
+			if (requestId !== activeSearchRequestIdRef.current) {
+				return
+			}
 
 			if (response.ok) {
 				const data = await response.json()
+				if (requestId !== activeSearchRequestIdRef.current) {
+					return
+				}
 				setResults(data.conversations)
 			} else {
 				setResults([])
 			}
 		} catch (error) {
+			if (isAbortError(error)) {
+				return
+			}
+
+			if (requestId !== activeSearchRequestIdRef.current) {
+				return
+			}
+
 			console.error('Search failed:', error)
 			setResults([])
 		} finally {
-			setIsLoading(false)
-			setHasSearched(true)
+			if (requestId === activeSearchRequestIdRef.current) {
+				setIsLoading(false)
+				setHasSearched(true)
+
+				if (searchAbortControllerRef.current === abortController) {
+					searchAbortControllerRef.current = null
+				}
+			}
 		}
 	}, [])
 
@@ -89,12 +142,14 @@ export function SearchModal({ open, onOpenChange }: SearchModalProps) {
 				clearTimeout(debounceRef.current)
 			}
 
+			cancelInFlightSearch()
+
 			// Debounce the search
 			debounceRef.current = setTimeout(() => {
 				fetchConversations(value)
 			}, 300)
 		},
-		[fetchConversations]
+		[cancelInFlightSearch, fetchConversations]
 	)
 
 	// Cleanup debounce on unmount
@@ -102,9 +157,11 @@ export function SearchModal({ open, onOpenChange }: SearchModalProps) {
 		return () => {
 			if (debounceRef.current) {
 				clearTimeout(debounceRef.current)
+				debounceRef.current = null
 			}
+			cancelInFlightSearch()
 		}
-	}, [])
+	}, [cancelInFlightSearch])
 
 	const handleSelectChat = (conversationId: string) => {
 		router.replace(`/chat?c=${conversationId}`, { scroll: false })
@@ -151,6 +208,10 @@ export function SearchModal({ open, onOpenChange }: SearchModalProps) {
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
 			<DialogContent className="bg-popover border border-primary/30 shadow-2xl sm:max-w-3xl p-0 gap-0 max-h-[600px]">
+				<DialogTitle className="sr-only">Search conversations</DialogTitle>
+				<DialogDescription className="sr-only">
+					Search and open existing conversations.
+				</DialogDescription>
 				<Command className="bg-transparent border-0" shouldFilter={false}>
 					<div className="px-6 py-5 border-b border-[#57FCFF]/20">
 						<CommandInput

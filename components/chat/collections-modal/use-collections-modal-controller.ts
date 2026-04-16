@@ -1,6 +1,6 @@
 'use client'
 
-import { useToast } from '@/hooks/use-toast'
+import type { MenuAction } from '@/components/chat/menu-action-renderer'
 import {
 	useCollections,
 	useCreateCollection,
@@ -8,7 +8,7 @@ import {
 	useUpdateCollection,
 } from '@/hooks/use-collections'
 import { useConversations } from '@/hooks/use-conversations'
-import type { MenuAction } from '@/components/chat/menu-action-renderer'
+import { useToast } from '@/hooks/use-toast'
 import {
 	Edit2,
 	Folder,
@@ -31,6 +31,43 @@ const PRESET_COLORS = [
 ] as const
 
 const FOLDER_PAGE_SIZE = 100
+const BATCH_REQUEST_CONCURRENCY = 4
+
+async function runBatchedRequests<T>(
+	items: readonly T[],
+	worker: (item: T) => Promise<void>,
+	concurrency: number = BATCH_REQUEST_CONCURRENCY
+) {
+	if (items.length === 0) return
+
+	const workerCount = Math.max(1, Math.min(concurrency, items.length))
+	let cursor = 0
+	let firstError: unknown = null
+
+	const runWorker = async () => {
+		while (!firstError) {
+			const index = cursor
+			cursor += 1
+
+			if (index >= items.length) {
+				return
+			}
+
+			try {
+				await worker(items[index])
+			} catch (error) {
+				firstError = error
+				return
+			}
+		}
+	}
+
+	await Promise.all(Array.from({ length: workerCount }, () => runWorker()))
+
+	if (firstError) {
+		throw firstError
+	}
+}
 
 export type DateFilter = 'all' | 'today' | 'week' | 'month' | 'older'
 export type SortOrder = 'recent' | 'oldest' | 'alphabetical'
@@ -93,7 +130,6 @@ export function useCollectionsModalController({
 		isLoading: isLoadingChats,
 		updateConversation,
 		deleteConversation,
-		invalidateConversations,
 	} = useConversations({
 		page: folderPage,
 		collectionId: inspectingFolder?.id,
@@ -400,15 +436,12 @@ export function useCollectionsModalController({
 			const movedCount = chatIdsToMove.length
 			const destinationName = getFolderDestinationName(targetFolderId)
 			try {
-				await Promise.all(
-					chatIdsToMove.map((chatId) =>
-						updateConversation({ id: chatId, collectionId: targetFolderId })
-					)
-				)
+				await runBatchedRequests(chatIdsToMove, async (chatId) => {
+					await updateConversation({ id: chatId, collectionId: targetFolderId })
+				})
 				setSelectedChats(new Set())
 				setIsSelectMode(false)
 				setShowMoveDialog(false)
-				invalidateConversations()
 				toast({
 					title: movedCount === 1 ? 'Chat moved' : 'Chats moved',
 					description:
@@ -428,7 +461,6 @@ export function useCollectionsModalController({
 		[
 			filteredChats,
 			getFolderDestinationName,
-			invalidateConversations,
 			selectedChats,
 			toast,
 			updateConversation,
@@ -444,7 +476,6 @@ export function useCollectionsModalController({
 			const destinationName = getFolderDestinationName(targetFolderId)
 			try {
 				await updateConversation({ id: chatId, collectionId: targetFolderId })
-				invalidateConversations()
 				toast({
 					title: 'Chat moved',
 					description: `Moved to ${destinationName}.`,
@@ -458,7 +489,7 @@ export function useCollectionsModalController({
 				})
 			}
 		},
-		[filteredChats, getFolderDestinationName, invalidateConversations, toast, updateConversation]
+		[filteredChats, getFolderDestinationName, toast, updateConversation]
 	)
 
 	const handleOpenChat = useCallback(
@@ -478,10 +509,11 @@ export function useCollectionsModalController({
 		const deletedCount = deleteChatConfirm.count
 
 		try {
-			await Promise.all(deleteChatConfirm.ids.map((id) => deleteConversation(id)))
+			await runBatchedRequests(deleteChatConfirm.ids, async (id) => {
+				await deleteConversation(id)
+			})
 			setSelectedChats(new Set())
 			setDeleteChatConfirm(null)
-			invalidateConversations()
 			toast({
 				title: deletedCount === 1 ? 'Chat deleted' : 'Chats deleted',
 				description:
@@ -497,7 +529,7 @@ export function useCollectionsModalController({
 				variant: 'destructive',
 			})
 		}
-	}, [deleteChatConfirm, deleteConversation, invalidateConversations, toast])
+	}, [deleteChatConfirm, deleteConversation, toast])
 
 	const toggleSelectMode = useCallback(() => {
 		setIsSelectMode((current) => {
