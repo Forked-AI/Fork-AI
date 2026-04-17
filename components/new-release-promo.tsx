@@ -83,7 +83,7 @@ export function NewReleasePromo() {
 							</div>
 						</div>
 
-						<h1
+						<div
 							className="absolute inset-x-0 mt-[120px] text-center text-[80px] font-semibold text-transparent sm:mt-[30px] sm:text-[160px] pointer-events-none"
 							style={{
 								WebkitTextStroke: '1px rgba(148, 163, 184, 0.3)',
@@ -92,13 +92,13 @@ export function NewReleasePromo() {
 							aria-hidden="true"
 						>
 							Fork AI
-						</h1>
-						<h1
+						</div>
+						<div
 							className="absolute inset-x-0 mt-[120px] text-center text-[80px] font-semibold sm:mt-[30px] sm:text-[160px] pointer-events-none bg-gradient-to-b from-[#cbd5e1] to-[#64748b] bg-clip-text text-transparent"
 							aria-hidden="true"
 						>
 							Fork AI
-						</h1>
+						</div>
 					</div>
 				</div>
 			</div>

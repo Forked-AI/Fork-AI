@@ -44,9 +44,7 @@ export default function Home() {
 					/>
 
 					{/* Features Section */}
-					<div id="features">
-						<Features />
-					</div>
+					<Features />
 
 					{/* Wipe curtain between Features → Pricing */}
 					<SectionWipe
@@ -56,9 +54,7 @@ export default function Home() {
 					/>
 
 					{/* Pricing Section */}
-					<div id="pricing">
-						<PricingSection />
-					</div>
+					<PricingSection />
 
 					{/* Wipe curtain between Pricing → Testimonials */}
 					<SectionWipe
@@ -68,17 +64,13 @@ export default function Home() {
 					/>
 
 					{/* Testimonials Section */}
-					<div id="testimonials">
-						<Testimonials />
-					</div>
+					<Testimonials />
 
 					{/* New Release Promo */}
 					<NewReleasePromo />
 
 					{/* FAQ Section */}
-					<div id="faq">
-						<FAQSection />
-					</div>
+					<FAQSection />
 				</div>
 			</AuroraBackground>
 		</SmoothScroll>

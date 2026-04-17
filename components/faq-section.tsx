@@ -95,7 +95,7 @@ export function FAQSection() {
 							<motion.div
 								key={index}
 								/* Enhanced FAQ items with glass effect and hover animations */
-								className="glass-hover rounded-2xl border border-white/10 p-6 shadow-xl cursor-pointer shimmer"
+								className="glass-hover rounded-2xl border border-white/10 shadow-xl shimmer"
 								initial={{ opacity: 0, y: 20 }}
 								whileInView={{ opacity: 1, y: 0 }}
 								transition={{ duration: 0.5, delay: index * 0.1 }}
@@ -104,46 +104,49 @@ export function FAQSection() {
 									scale: 1.02,
 									borderColor: 'rgba(203, 213, 225, 0.3)',
 								}}
-								whileTap={{ scale: 0.98 }}
-								onClick={() => toggleItem(index)}
-								role="button"
-								tabIndex={0}
-								onKeyDown={(e) => {
-									if (e.key === 'Enter' || e.key === ' ') {
-										e.preventDefault()
-										toggleItem(index)
-									}
-								}}
 								{...(index === faqs.length - 1 && { 'data-faq': faq.question })}
 							>
-								<div className="flex items-start justify-between">
-									<h3 className="m-0 font-medium pr-4">{faq.question}</h3>
-									<motion.div
-										animate={{ rotate: openItems.includes(index) ? 180 : 0 }}
-										transition={{ duration: 0.3, ease: 'easeInOut' }}
-										className=""
+								<h3 className="m-0">
+									<motion.button
+										type="button"
+										id={`faq-trigger-${index}`}
+										className="flex w-full items-start justify-between p-6 text-left"
+										onClick={() => toggleItem(index)}
+										whileTap={{ scale: 0.98 }}
+										aria-expanded={openItems.includes(index)}
+										aria-controls={`faq-answer-${index}`}
 									>
-										{openItems.includes(index) ? (
-											/* Updated icon colors to silver */
-											<Minus
-												className="text-[#cbd5e1] flex-shrink-0 transition duration-300"
-												size={24}
-											/>
-										) : (
-											<Plus
-												className="text-[#cbd5e1] flex-shrink-0 transition duration-300"
-												size={24}
-											/>
-										)}
-									</motion.div>
-								</div>
+										<span className="font-medium pr-4">{faq.question}</span>
+										<motion.span
+											animate={{ rotate: openItems.includes(index) ? 180 : 0 }}
+											transition={{ duration: 0.3, ease: 'easeInOut' }}
+											className="shrink-0"
+										>
+											{openItems.includes(index) ? (
+												/* Updated icon colors to silver */
+												<Minus
+													className="text-[#cbd5e1] flex-shrink-0 transition duration-300"
+													size={24}
+												/>
+											) : (
+												<Plus
+													className="text-[#cbd5e1] flex-shrink-0 transition duration-300"
+													size={24}
+												/>
+											)}
+										</motion.span>
+									</motion.button>
+								</h3>
 								<AnimatePresence>
 									{openItems.includes(index) && (
 										<motion.div
-											className="mt-4 text-muted-foreground leading-relaxed overflow-hidden"
-											initial={{ opacity: 0, height: 0, marginTop: 0 }}
-											animate={{ opacity: 1, height: 'auto', marginTop: 16 }}
-											exit={{ opacity: 0, height: 0, marginTop: 0 }}
+											id={`faq-answer-${index}`}
+											role="region"
+											aria-labelledby={`faq-trigger-${index}`}
+											className="px-6 pb-6 text-muted-foreground leading-relaxed overflow-hidden"
+											initial={{ opacity: 0, height: 0 }}
+											animate={{ opacity: 1, height: 'auto' }}
+											exit={{ opacity: 0, height: 0 }}
 											transition={{
 												duration: 0.4,
 												ease: 'easeInOut',

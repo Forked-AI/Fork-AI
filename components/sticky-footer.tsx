@@ -1,6 +1,7 @@
 'use client'
 import { AnimatePresence, motion } from 'framer-motion'
 import { GitBranch } from 'lucide-react'
+import Link from 'next/link'
 import { useEffect, useState } from 'react'
 
 export function StickyFooter() {
@@ -40,7 +41,7 @@ export function StickyFooter() {
 	return (
 		<AnimatePresence>
 			{isAtBottom && (
-				<motion.div
+				<motion.footer
 					className="fixed z-50 bottom-0 left-0 w-full h-80 flex justify-center items-center glass"
 					style={{
 						background:
@@ -55,35 +56,63 @@ export function StickyFooter() {
 					<div className="relative overflow-hidden w-full h-full flex justify-end px-12 text-right items-start py-12">
 						<div className="absolute inset-0 shimmer"></div>
 
-						<motion.div
+						<motion.nav
+							aria-label="Footer links"
 							className="flex flex-row space-x-12 sm:space-x-16 md:space-x-24 text-sm sm:text-lg md:text-xl relative z-10"
 							initial={{ opacity: 0, y: 20 }}
 							animate={{ opacity: 1, y: 0 }}
 							transition={{ duration: 0.6, delay: 0.1 }}
 						>
 							<ul className="space-y-2">
-								<li className="hover:text-white cursor-pointer transition-all duration-300 text-[#cbd5e1] hover:translate-x-1">
-									Home
+								<li>
+									<Link
+										href="/"
+										className="text-[#cbd5e1] transition-all duration-300 hover:text-white hover:translate-x-1 inline-block"
+									>
+										Home
+									</Link>
 								</li>
-								<li className="hover:text-white cursor-pointer transition-all duration-300 text-[#cbd5e1] hover:translate-x-1">
-									Features
+								<li>
+									<Link
+										href="/landing#features"
+										className="text-[#cbd5e1] transition-all duration-300 hover:text-white hover:translate-x-1 inline-block"
+									>
+										Features
+									</Link>
 								</li>
-								<li className="hover:text-white cursor-pointer transition-all duration-300 text-[#cbd5e1] hover:translate-x-1">
-									Pricing
+								<li>
+									<Link
+										href="/landing#pricing"
+										className="text-[#cbd5e1] transition-all duration-300 hover:text-white hover:translate-x-1 inline-block"
+									>
+										Pricing
+									</Link>
 								</li>
 							</ul>
 							<ul className="space-y-2">
-								<li className="hover:text-white cursor-pointer transition-all duration-300 text-[#cbd5e1] hover:translate-x-1">
-									Twitter
+								<li>
+									<a
+										href="https://twitter.com/forkai"
+										target="_blank"
+										rel="noreferrer noopener"
+										className="text-[#cbd5e1] transition-all duration-300 hover:text-white hover:translate-x-1 inline-block"
+									>
+										Twitter
+									</a>
 								</li>
-								<li className="hover:text-white cursor-pointer transition-all duration-300 text-[#cbd5e1] hover:translate-x-1">
-									Discord
+								<li>
+									<span className="text-[#94a3b8]">Discord (soon)</span>
 								</li>
-								<li className="hover:text-white cursor-pointer transition-all duration-300 text-[#cbd5e1] hover:translate-x-1">
-									<a href="/policy">Privacy</a>
+								<li>
+									<Link
+										href="/policy"
+										className="text-[#cbd5e1] transition-all duration-300 hover:text-white hover:translate-x-1 inline-block"
+									>
+										Privacy
+									</Link>
 								</li>
 							</ul>
-						</motion.div>
+						</motion.nav>
 
 						<motion.div
 							className="absolute bottom-4 left-8 flex items-center gap-3"
@@ -97,7 +126,7 @@ export function StickyFooter() {
 							</span>
 						</motion.div>
 					</div>
-				</motion.div>
+				</motion.footer>
 			)}
 		</AnimatePresence>
 	)

@@ -400,18 +400,16 @@ export function Features() {
 
 					{/* Clipping-mask headline reveal — offground "We specialize in customer happiness" */}
 					<div className="features-main-headline overflow-hidden mb-6">
-						{['What is Fork AI?'].map((line, i) => (
-							<div key={i} className="overflow-hidden">
-								<div
-									className={cn(
-										'clip-line text-4xl md:text-[56px] md:leading-[1.1] font-bold tracking-tight text-white',
-										geist.className
-									)}
-								>
-									{line}
-								</div>
-							</div>
-						))}
+						<div className="overflow-hidden">
+							<h2
+								className={cn(
+									'clip-line text-4xl md:text-[56px] md:leading-[1.1] font-bold tracking-tight text-white',
+									geist.className
+								)}
+							>
+								What is Fork AI?
+							</h2>
+						</div>
 					</div>
 
 					<p className="features-subtext text-white/55 text-lg leading-relaxed max-w-xl">

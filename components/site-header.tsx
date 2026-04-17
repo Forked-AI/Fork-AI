@@ -117,7 +117,8 @@ export function SiteHeader() {
 					<span className="font-bold text-white text-lg">Fork AI</span>
 				</Link>
 
-				<div
+				<nav
+					aria-label="Primary"
 					className={`absolute inset-0 hidden flex-1 flex-row items-center justify-center text-sm font-medium text-muted-foreground transition duration-200 hover:text-foreground md:flex ${
 						isScrolled ? 'space-x-0' : 'space-x-2'
 					}`}
@@ -140,7 +141,7 @@ export function SiteHeader() {
 							<span className="absolute bottom-0 left-0 w-0 h-0.5 bg-gradient-to-r from-[#cbd5e1] to-[#94a3b8] transition-all duration-300 group-hover:w-full"></span>
 						</Link>
 					))}
-				</div>
+				</nav>
 
 				<div className="flex items-center gap-4 z-50">
 					{session ? (

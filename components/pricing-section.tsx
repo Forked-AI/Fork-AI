@@ -87,7 +87,7 @@ export function PricingSection() {
 	}, { scope: containerRef })
 
 	return (
-		<section ref={containerRef} className="relative py-24 px-4 overflow-hidden">
+		<section id="pricing" ref={containerRef} className="relative py-24 px-4 overflow-hidden">
 			{/* Ambient Parallax Background Shapes */}
 			<div className="absolute top-0 left-0 w-full h-full pointer-events-none overflow-hidden z-0">
 				<div className="pricing-orb-1 absolute top-[20%] -left-[10%] w-[40rem] h-[40rem] rounded-full bg-blue-500/10 blur-[100px]" />

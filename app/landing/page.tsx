@@ -35,27 +35,19 @@ export default function Landing() {
 				<Hero />
 
 				{/* Features Section */}
-				<div id="features">
-					<Features />
-				</div>
+				<Features />
 
 				{/* Pricing Section */}
-				<div id="pricing">
-					<PricingSection />
-				</div>
+				<PricingSection />
 
 				{/* Testimonials Section */}
-				<div id="testimonials">
-					<Testimonials />
-				</div>
+				<Testimonials />
 
 				{/* New Release Promo */}
 				<NewReleasePromo />
 
 				{/* FAQ Section */}
-				<div id="faq">
-					<FAQSection />
-				</div>
+				<FAQSection />
 			</div>
 		</AuroraBackground>
 	)
