@@ -2,11 +2,11 @@
 
 import { geist } from '@/lib/fonts'
 import { cn } from '@/lib/utils'
-import { ArrowLeftRight, GitBranch, Share2, Sparkles } from 'lucide-react'
-import { useRef } from 'react'
+import { useGSAP } from '@gsap/react'
 import gsap from 'gsap'
 import { ScrollTrigger } from 'gsap/ScrollTrigger'
-import { useGSAP } from '@gsap/react'
+import { ArrowLeftRight, GitBranch, Share2, Sparkles } from 'lucide-react'
+import { useRef } from 'react'
 
 gsap.registerPlugin(ScrollTrigger)
 

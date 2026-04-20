@@ -2,17 +2,21 @@
 import { Button } from '@/components/ui/button'
 import { geist } from '@/lib/fonts'
 import { cn } from '@/lib/utils'
+import { useGSAP } from '@gsap/react'
 import { AnimatePresence, motion } from 'framer-motion'
+import gsap from 'gsap'
+import { ScrollTrigger } from 'gsap/ScrollTrigger'
 import { MoveRight, Play } from 'lucide-react'
 import Link from 'next/link'
 import { useEffect, useRef, useState } from 'react'
-import gsap from 'gsap'
-import { ScrollTrigger } from 'gsap/ScrollTrigger'
-import { useGSAP } from '@gsap/react'
 
 gsap.registerPlugin(ScrollTrigger)
 
 const PIXEL_SCRIPT_URL = '/images/pixel.js'
+
+interface HeroProps {
+  showParticleSphere?: boolean
+}
 
 // ── Particle Sphere Canvas (Offground-style) ───────────────────────────────
 function ParticleSphere() {
@@ -114,6 +118,20 @@ function ParticleSphere() {
   )
 }
 
+function ParticleSphereFallback() {
+  return (
+    <div className="absolute inset-0 pointer-events-none" aria-hidden="true">
+      <div
+        className="absolute left-1/2 top-1/2 h-[42rem] w-[42rem] -translate-x-1/2 -translate-y-1/2 rounded-full"
+        style={{
+          background:
+            'radial-gradient(circle, rgba(148, 210, 225, 0.26) 0%, rgba(56, 189, 248, 0.16) 32%, rgba(56, 189, 248, 0.08) 48%, rgba(56, 189, 248, 0) 74%)',
+        }}
+      />
+    </div>
+  )
+}
+
 // ── Word split helper ──────────────────────────────────────────────────────
 function SplitWords({ text, className }: { text: string; className?: string }) {
   return (
@@ -131,10 +149,67 @@ function SplitWords({ text, className }: { text: string; className?: string }) {
   )
 }
 
-export default function Hero() {
+export default function Hero({ showParticleSphere = true }: HeroProps) {
   const [flipIndex, setFlipIndex] = useState(0)
   const flipWords = ['AI', 'Chats', 'Ideas', 'Everything']
   const containerRef = useRef<HTMLDivElement>(null)
+  const hasTopFallbackResetRef = useRef(false)
+  const heroResetTargets = [
+    '.hero-headline',
+    '.hero-subtitle',
+    '.hero-primary-cta',
+    '.hero-roles',
+    '.hero-scroll-indicator',
+    '.hero-sphere-wrap',
+    '.hero-bg-text',
+  ].join(', ')
+
+  const clearHeroInlineStyles = () => {
+    gsap.set(heroResetTargets, { clearProps: 'opacity,transform' })
+  }
+
+  useEffect(() => {
+    let lastScrollY = window.scrollY
+    let ticking = false
+
+    const handleScroll = () => {
+      if (ticking) return
+      ticking = true
+
+      requestAnimationFrame(() => {
+        const currentScrollY = window.scrollY
+        const isScrollingUp = currentScrollY < lastScrollY
+
+        const subtitleEl = document.querySelector('.hero-subtitle')
+        const subtitleOpacity = subtitleEl ? Number(window.getComputedStyle(subtitleEl).opacity) : 1
+        const needsTopFallback =
+          isScrollingUp &&
+          currentScrollY <= 120 &&
+          subtitleOpacity < 0.3 &&
+          !hasTopFallbackResetRef.current
+
+        // Last-resort fallback only near the page top to avoid abrupt snap-in
+        // during normal gradual reverse scrolling.
+        if (needsTopFallback) {
+          clearHeroInlineStyles()
+          hasTopFallbackResetRef.current = true
+        }
+
+        if (currentScrollY > 220) {
+          hasTopFallbackResetRef.current = false
+        }
+
+        lastScrollY = currentScrollY
+        ticking = false
+      })
+    }
+
+    window.addEventListener('scroll', handleScroll, { passive: true })
+
+    return () => {
+      window.removeEventListener('scroll', handleScroll)
+    }
+  }, [heroResetTargets])
 
   useGSAP(() => {
     const mm = gsap.matchMedia()
@@ -158,13 +233,12 @@ export default function Hero() {
         delay: 0.85,
       })
 
-      gsap.from('.hero-cta', {
+      gsap.from('.hero-primary-cta', {
         y: 24,
         opacity: 0,
         duration: 0.7,
         ease: 'power3.out',
         delay: 1.05,
-        stagger: 0.08,
       })
 
       gsap.from('.hero-roles', {
@@ -173,6 +247,14 @@ export default function Hero() {
         duration: 0.65,
         ease: 'power3.out',
         delay: 1.3,
+      })
+
+      gsap.from('.hero-scroll-indicator', {
+        y: 18,
+        opacity: 0,
+        duration: 0.6,
+        ease: 'power3.out',
+        delay: 1.35,
       })
 
       // ── 2. Big BG text slow rise (offground layer 1 — the slowest layer) ─
@@ -184,6 +266,7 @@ export default function Hero() {
           start: 'top top',
           end: '+=800',
           scrub: 1.5,
+          invalidateOnRefresh: true,
         },
       })
 
@@ -193,11 +276,27 @@ export default function Hero() {
         scrollTrigger: {
           trigger: containerRef.current,
           start: 'top top',
-          end: '+=700',
-          scrub: 0.7,
+          end: '+=560',
+          scrub: 0.3,
           pin: true,
           pinSpacing: true,
           anticipatePin: 1,
+          invalidateOnRefresh: true,
+          // Fast momentum + smooth scroll can leave inline transforms/opacities
+          // around when reaching top. Reset near top progress as a safeguard.
+          onUpdate: (self) => {
+            if (self.progress <= 0.015) {
+              clearHeroInlineStyles()
+            }
+          },
+          onLeaveBack: () => {
+            clearHeroInlineStyles()
+          },
+          onRefresh: (self) => {
+            if (self.progress <= 0.04) {
+              clearHeroInlineStyles()
+            }
+          },
         },
       })
 
@@ -207,7 +306,7 @@ export default function Hero() {
         // Subtitle (medium speed)
         .to('.hero-subtitle', { y: -140, opacity: 0, ease: 'power2.in' }, 0.05)
         // CTA + roles (slower exit)
-        .to('.hero-cta, .hero-roles', { y: -90, opacity: 0, ease: 'power2.in' }, 0.1)
+        .to('.hero-primary-cta, .hero-roles, .hero-scroll-indicator', { y: -90, opacity: 0, ease: 'power2.in' }, 0.1)
         // Sphere canvas exits up slower (layer 2 — medium)
         .to('.hero-sphere-wrap', { y: -300, scale: 1.1, opacity: 0, ease: 'power1.in' }, 0.15)
         // BG text exits slowest (layer 1 continues its drift)
@@ -269,7 +368,7 @@ export default function Hero() {
 
       {/* ── Layer 2: Particle sphere (medium speed, offground-style) ── */}
       <div className="hero-sphere-wrap absolute inset-0 will-change-transform z-[1] pointer-events-none">
-        <ParticleSphere />
+        {showParticleSphere ? <ParticleSphere /> : <ParticleSphereFallback />}
       </div>
 
       {/* ── Layer 3: Foreground content (fastest exit) ── */}
@@ -321,7 +420,7 @@ export default function Hero() {
         </div>
 
         {/* CTAs */}
-        <div className="hero-cta mt-10 flex flex-col sm:flex-row justify-center gap-4 items-center">
+        <div className="hero-primary-cta mt-10 flex flex-col sm:flex-row justify-center gap-4 items-center">
           <Link prefetch={false} href="/prelaunch">
             <Button className="bg-gradient-to-r from-white to-[#f8fafc] text-black hover:from-[#f8fafc] hover:to-white rounded-full px-8 py-6 text-lg font-medium transition-all hover:scale-105 hover:shadow-2xl hover:shadow-white/20">
               Get Early Access <MoveRight className="ml-2 h-5 w-5" />
@@ -356,7 +455,7 @@ export default function Hero() {
         </div>
 
         {/* Scroll indicator */}
-        <div className="hero-cta mt-14 flex justify-center">
+        <div className="hero-scroll-indicator mt-14 flex justify-center">
           <motion.div
             animate={{ y: [0, 10, 0] }}
             transition={{ duration: 1.6, repeat: Infinity, ease: 'easeInOut' }}

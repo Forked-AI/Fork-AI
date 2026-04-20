@@ -8,12 +8,14 @@ interface AuroraBackgroundProps {
 	className?: string
 	children?: React.ReactNode
 	showRadialGradient?: boolean
+	reducedEffects?: boolean
 }
 
 export const AuroraBackground = ({
 	className,
 	children,
 	showRadialGradient = true,
+	reducedEffects = false,
 }: AuroraBackgroundProps) => {
 	return (
 		<div
@@ -24,6 +26,7 @@ export const AuroraBackground = ({
 		>
 			<div className="absolute inset-0 overflow-hidden">
 				<div
+					data-testid="aurora-effect-layer"
 					className={cn(
 						`
             [--white-gradient:repeating-linear-gradient(100deg,#ffffff_0%,#ffffff_7%,transparent_10%,transparent_12%,#ffffff_16%)]
@@ -33,13 +36,15 @@ export const AuroraBackground = ({
             dark:[background-image:var(--dark-gradient),var(--aurora)]
             [background-size:300%,_200%]
             [background-position:50%_50%,50%_50%]
-            filter blur-[10px] invert dark:invert-0
+						invert dark:invert-0
             after:content-[""] after:absolute after:inset-0 after:[background-image:var(--white-gradient),var(--aurora)] 
             after:dark:[background-image:var(--dark-gradient),var(--aurora)]
             after:[background-size:200%,_100%] 
-            after:animate-aurora after:[background-attachment:fixed] after:mix-blend-difference
             pointer-events-none
-            absolute -inset-[10px] opacity-50 will-change-transform`,
+						absolute -inset-[10px]`,
+						reducedEffects
+							? 'opacity-35 will-change-auto'
+							: 'filter blur-[10px] after:animate-aurora after:[background-attachment:fixed] after:mix-blend-difference opacity-50 will-change-transform',
 
 						showRadialGradient &&
 							`[mask-image:radial-gradient(ellipse_at_100%_0%,black_10%,transparent_70%)]`
