@@ -1,8 +1,7 @@
 import {
-    JsonLd,
-    organizationSchema,
-    productSchema,
-    softwareApplicationSchema,
+	JsonLd,
+	organizationSchema,
+	softwareApplicationSchema,
 } from '@/components/json-ld'
 import { Providers } from '@/components/providers'
 import { fraunces, geist, manrope } from '@/lib/fonts'
@@ -106,7 +105,6 @@ export default function RootLayout({
 				)}
 				<JsonLd data={organizationSchema} />
 				<JsonLd data={softwareApplicationSchema} />
-				<JsonLd data={productSchema} />
 				<Script
 					src={`https://www.googletagmanager.com/gtag/js?id=${process.env.NEXT_PUBLIC_GA_ID}`}
 					strategy="afterInteractive"
