@@ -20,23 +20,25 @@ model WaitlistEntry {
 }
 
 model User {
-  id            String         @id
-  name          String
-  email         String
-  emailVerified Boolean        @default(false)
-  image         String?
-  role          String         @default("user")
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
-  sessions      Session[]
-  accounts      Account[]
-  collections   Collection[]
-  conversations Conversation[]
+  id                  String               @id
+  name                String
+  email               String
+  emailVerified       Boolean              @default(false)
+  image               String?
+  role                String               @default("user")
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  sessions            Session[]
+  accounts            Account[]
+  collections         Collection[]
+  conversations       Conversation[]
   sharedConversations SharedConversation[]
 
   banned     Boolean?  @default(false)
   banReason  String?
   banExpires DateTime?
+
+  stripeCustomerId String?
 
   @@unique([email])
   @@map("user")
@@ -108,19 +110,19 @@ model Collection {
 }
 
 model Conversation {
-  id               String      @id @default(cuid())
-  title            String
-  userId           String
-  user             User        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  collectionId     String?
-  collection       Collection? @relation(fields: [collectionId], references: [id], onDelete: SetNull)
-  isPinned         Boolean     @default(false)
-  pinnedAt         DateTime?
-  messages         Message[]
+  id                  String               @id @default(cuid())
+  title               String
+  userId              String
+  user                User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  collectionId        String?
+  collection          Collection?          @relation(fields: [collectionId], references: [id], onDelete: SetNull)
+  isPinned            Boolean              @default(false)
+  pinnedAt            DateTime?
+  messages            Message[]
   sharedConversations SharedConversation[]
-  activeMessageIds String?     @db.Text // JSON array of message IDs representing the active branch path
-  createdAt        DateTime    @default(now())
-  updatedAt        DateTime    @updatedAt
+  activeMessageIds    String?              @db.Text // JSON array of message IDs representing the active branch path
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
 
   @@index([userId])
   @@index([collectionId])
@@ -130,29 +132,25 @@ model Conversation {
 
 model Message {
   id               String            @id @default(cuid())
-  role             String            // "user" | "assistant" | "system"
+  role             String // "user" | "assistant" | "system"
   content          String            @db.Text
-  model            String?           // e.g., "mistral-large-latest"
+  model            String? // e.g., "mistral-large-latest"
   promptTokens     Int?
   completionTokens Int?
   isError          Boolean           @default(false) // For failed stream recovery
   conversationId   String
   conversation     Conversation      @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   feedback         MessageFeedback[]
-  
   // Tree structure for branching
   parentMessageId  String?           @map("parent_message_id")
   parentMessage    Message?          @relation("MessageTree", fields: [parentMessageId], references: [id], onDelete: SetNull)
   childMessages    Message[]         @relation("MessageTree")
-  
   // Graph visualization
   positionX        Float?
   positionY        Float?
-  
   // Root nodes for branching history
   isRootNode       Boolean           @default(false)
   rootNodeName     String?
-  
   createdAt        DateTime          @default(now())
 
   @@index([conversationId])
@@ -166,7 +164,7 @@ model MessageFeedback {
   messageId String
   message   Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
   userId    String
-  type      String   // "good" | "bad"
+  type      String // "good" | "bad"
   reasons   String[] // Array of reasons for bad feedback
   comment   String   @db.Text
   createdAt DateTime @default(now())
@@ -179,28 +177,50 @@ model MessageFeedback {
 model SharedConversation {
   id                 String    @id @default(cuid())
   conversationId     String
-  shareToken         String    @unique                // 10-char random token used in public URL
+  shareToken         String    @unique // 10-char random token used in public URL
   createdBy          String
-  selectedMessageIds String    @db.Text               // JSON: string[] ordered list of message IDs
-  snapshotData       String    @db.Text               // JSON: MessageSnapshot[] frozen at share time
-  summaryData        String?   @db.Text               // JSON: ShareSummaryData | null
-  maskingData        String?   @db.Text               // JSON: ShareMaskingData | null
-  title              String                           // snapshot of conversation title at share time
+  selectedMessageIds String    @db.Text // JSON: string[] ordered list of message IDs
+  snapshotData       String    @db.Text // JSON: MessageSnapshot[] frozen at share time
+  summaryData        String?   @db.Text // JSON: ShareSummaryData | null
+  maskingData        String?   @db.Text // JSON: ShareMaskingData | null
+  title              String // snapshot of conversation title at share time
   createdAt          DateTime  @default(now())
   expiresAt          DateTime?
   isActive           Boolean   @default(true)
   accessCount        Int       @default(0)
 
   // Privacy settings
-  allowDownload      Boolean   @default(false)
-  showTimestamps     Boolean   @default(true)
-  showModel          Boolean   @default(true)
+  allowDownload  Boolean @default(false)
+  showTimestamps Boolean @default(true)
+  showModel      Boolean @default(true)
 
-  user               User      @relation(fields: [createdBy], references: [id], onDelete: Cascade)
-  conversation       Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [createdBy], references: [id], onDelete: Cascade)
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
 
   @@index([shareToken])
   @@index([createdBy])
   @@index([conversationId])
   @@map("shared_conversation")
+}
+
+model Subscription {
+  id                   String    @id
+  plan                 String
+  referenceId          String
+  stripeCustomerId     String?
+  stripeSubscriptionId String?
+  status               String    @default("incomplete")
+  periodStart          DateTime?
+  periodEnd            DateTime?
+  trialStart           DateTime?
+  trialEnd             DateTime?
+  cancelAtPeriodEnd    Boolean?  @default(false)
+  cancelAt             DateTime?
+  canceledAt           DateTime?
+  endedAt              DateTime?
+  seats                Int?
+  billingInterval      String?
+  stripeScheduleId     String?
+
+  @@map("subscription")
 }

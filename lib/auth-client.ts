@@ -1,3 +1,4 @@
+import { stripeClient } from "@better-auth/stripe/client";
 import { createAuthClient } from "better-auth/client";
 import { adminClient } from "better-auth/client/plugins";
 
@@ -9,6 +10,9 @@ export const authClient = createAuthClient({
 	...(publicAuthBaseUrl ? { baseURL: publicAuthBaseUrl } : {}),
 	plugins: [
 		adminClient(),
+		stripeClient({
+			subscription: true,
+		}),
 		// inferAdditionalFields({
 		// 	user: {
 		// 		role: {

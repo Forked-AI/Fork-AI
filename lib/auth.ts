@@ -1,10 +1,12 @@
+import { stripe } from "@better-auth/stripe";
 import { betterAuth } from "better-auth";
 import { prismaAdapter } from "better-auth/adapters/prisma";
 import { admin, multiSession } from "better-auth/plugins";
 import nodeMailer from "nodemailer";
+import Stripe from "stripe";
 import {
-	checkOTPRateLimitByType,
-	recordOTPAttemptByType,
+    checkOTPRateLimitByType,
+    recordOTPAttemptByType,
 } from "./otp-rate-limit";
 import { prisma } from "./prisma";
 
@@ -14,6 +16,64 @@ export const AUTH_ERROR_CODES = {
 	ACCOUNT_BANNED: "ACCOUNT_BANNED",
 	ACCOUNT_BANNED_TEMPORARY: "ACCOUNT_BANNED_TEMPORARY",
 } as const;
+
+function parsePositiveInt(value: string | undefined, fallback: number): number {
+	const parsed = Number.parseInt(value ?? "", 10);
+	return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+const stripeSecretKey = process.env.STRIPE_SECRET_KEY?.trim();
+const stripeWebhookSecret = process.env.STRIPE_WEBHOOK_SECRET?.trim();
+const stripeProMonthlyPriceId = process.env.STRIPE_PRO_MONTHLY_PRICE_ID?.trim();
+const stripeProAnnualPriceId = process.env.STRIPE_PRO_ANNUAL_PRICE_ID?.trim();
+let stripeSubscriptionPlugin: ReturnType<typeof stripe> | null = null;
+
+if (stripeSecretKey && stripeWebhookSecret && stripeProMonthlyPriceId) {
+	const stripeClient = new Stripe(stripeSecretKey, {
+		apiVersion: "2026-03-25.dahlia"
+	});
+	stripeSubscriptionPlugin = stripe({
+		stripeClient,
+		stripeWebhookSecret,
+		createCustomerOnSignup: true,
+		subscription: {
+			enabled: true,
+			requireEmailVerification: true,
+			plans: [
+				{
+					name: "pro",
+					priceId: stripeProMonthlyPriceId,
+					...(stripeProAnnualPriceId
+						? { annualDiscountPriceId: stripeProAnnualPriceId }
+						: {}),
+					freeTrial: {
+						days: parsePositiveInt(process.env.PRO_TRIAL_DAYS, 7),
+					},
+					limits: {
+						monthlyTokens: parsePositiveInt(
+							process.env.PRO_MONTHLY_TOKEN_BUDGET,
+							10000000
+						),
+					},
+				},
+			],
+		},
+	});
+} else if (stripeSecretKey || stripeWebhookSecret || stripeProMonthlyPriceId) {
+	console.warn(
+		"[Auth] Stripe plugin disabled: set STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET, and STRIPE_PRO_MONTHLY_PRICE_ID to enable subscriptions."
+	);
+	/*missing log */
+	if (!stripeSecretKey) {
+		console.warn("[Auth] Missing STRIPE_SECRET_KEY");
+	}
+	if (!stripeWebhookSecret) {
+		console.warn("[Auth] Missing STRIPE_WEBHOOK_SECRET");
+	}
+	if (!stripeProMonthlyPriceId) {
+		console.warn("[Auth] Missing STRIPE_PRO_MONTHLY_PRICE_ID");
+	}
+}
 
 async function checkAccountStatus(email: string): Promise<{
 	isBlocked: boolean;
@@ -127,6 +187,7 @@ export const auth = betterAuth({
 			maximumSessions: 2,
 		}),
 		admin(),
+		...(stripeSubscriptionPlugin ? [stripeSubscriptionPlugin] : []),
 	],
 });
 
