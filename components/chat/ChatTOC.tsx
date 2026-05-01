@@ -272,8 +272,9 @@ export const ChatTOC = memo(function ChatTOC({
 
 	if (visibleMessages.length === 0) return null
 
-	const TOCContent = ({ isMobile = false }: { isMobile?: boolean }) => (
+	const renderTOCContent = (isMobile = false) => (
 		<motion.div
+			key={isMobile ? 'expanded-mobile' : 'expanded'}
 			className={cn('flex h-full w-full flex-col', isMobile ? 'p-0' : '')}
 			initial={{ opacity: 0 }}
 			animate={{ opacity: 1 }}
@@ -308,16 +309,16 @@ export const ChatTOC = memo(function ChatTOC({
 			<div className="flex-1 overflow-hidden">
 				<ScrollArea className="h-full max-h-[45vh]">
 					<div className="flex flex-col py-2">
-						{visibleMessages.map((message) => {
-							const isUser = message.role === 'user'
-							const isActive = activeMessageId === message.id
-							const isSelected = selectedMessageIds.has(message.id)
-							const previewData = resolvedPreviewDataByMessageId.get(message.id)
-							const timestamp = previewData?.timestampLabel
+						<TooltipProvider delayDuration={400}>
+							{visibleMessages.map((message) => {
+								const isUser = message.role === 'user'
+								const isActive = activeMessageId === message.id
+								const isSelected = selectedMessageIds.has(message.id)
+								const previewData = resolvedPreviewDataByMessageId.get(message.id)
+								const timestamp = previewData?.timestampLabel
 
-							return (
-								<TooltipProvider key={message.id} delayDuration={400}>
-									<Tooltip>
+								return (
+									<Tooltip key={message.id}>
 										<TooltipTrigger asChild>
 											<div
 												className={cn(
@@ -388,17 +389,18 @@ export const ChatTOC = memo(function ChatTOC({
 											</p>
 										</TooltipContent>
 									</Tooltip>
-								</TooltipProvider>
-							)
-						})}
+								)
+							})}
+						</TooltipProvider>
 					</div>
 				</ScrollArea>
 			</div>
 		</motion.div>
 	)
 
-	const LineIndicators = () => (
+	const renderLineIndicators = () => (
 		<motion.div
+			key="collapsed"
 			className="flex w-full flex-col items-end gap-1.5 px-3 py-4"
 			initial={{ opacity: 0 }}
 			animate={{ opacity: 1 }}
@@ -462,11 +464,7 @@ export const ChatTOC = memo(function ChatTOC({
 					layout
 				>
 					<AnimatePresence mode="wait">
-						{isExpanded ? (
-							<TOCContent key="expanded" />
-						) : (
-							<LineIndicators key="collapsed" />
-						)}
+						{isExpanded ? renderTOCContent() : renderLineIndicators()}
 					</AnimatePresence>
 				</motion.div>
 			</motion.div>
@@ -499,7 +497,7 @@ export const ChatTOC = memo(function ChatTOC({
 								Contents
 							</SheetTitle>
 						</SheetHeader>
-						<TOCContent isMobile />
+						{renderTOCContent(true)}
 					</SheetContent>
 				</Sheet>
 			</div>

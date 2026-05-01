@@ -1,7 +1,7 @@
 'use client'
 
 import type { Message } from '@/hooks/use-chat'
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 interface UseShareSelectionControllerOptions {
 	displayedMessages: Message[]
@@ -28,6 +28,13 @@ export function useShareSelectionController({
 				.map((message) => message.id),
 		[displayedMessages]
 	)
+	const visibleShareableMessageIdsRef = useRef<string[]>(
+		visibleShareableMessageIds
+	)
+
+	useEffect(() => {
+		visibleShareableMessageIdsRef.current = visibleShareableMessageIds
+	}, [visibleShareableMessageIds])
 
 	const handleToggleMessageSelection = useCallback((messageId: string) => {
 		setSelectedMessageIds((current) => {
@@ -39,8 +46,8 @@ export function useShareSelectionController({
 	}, [])
 
 	const handleSelectAllMessages = useCallback(() => {
-		setSelectedMessageIds(new Set(visibleShareableMessageIds))
-	}, [visibleShareableMessageIds])
+		setSelectedMessageIds(new Set(visibleShareableMessageIdsRef.current))
+	}, [])
 
 	const handleDeselectAllMessages = useCallback(() => {
 		setSelectedMessageIds(new Set())

@@ -22,7 +22,7 @@ import {
 	Trash2,
 	X,
 } from 'lucide-react'
-import { forwardRef, KeyboardEvent, useCallback, useState } from 'react'
+import { forwardRef, KeyboardEvent, useCallback, useRef, useState } from 'react'
 import { ModelsModal, type Model } from './models-modal'
 
 const ALL_MODELS: Model[] = [
@@ -124,6 +124,7 @@ export const ChatInput = forwardRef<HTMLTextAreaElement, ChatInputProps>(
 		ref
 	) {
 		const [message, setMessage] = useState('')
+		const lastSendAtRef = useRef(0)
 		const [models, setModels] = useState(ALL_MODELS)
 		const [selectedModel, setSelectedModel] = useState(
 			models.find((m) => m.isFavorite) || models[0]
@@ -151,6 +152,16 @@ export const ChatInput = forwardRef<HTMLTextAreaElement, ChatInputProps>(
 		const handleSend = useCallback(async () => {
 			if (!message.trim() || disabled) return
 
+			const shouldDebounce =
+				!isStreaming && queueStatus === 'idle' && queuedMessages.length === 0
+			if (shouldDebounce) {
+				const now = Date.now()
+				if (now - lastSendAtRef.current < 200) {
+					return
+				}
+				lastSendAtRef.current = now
+			}
+
 			const content = message.trim()
 			setMessage('') // Clear input immediately for better UX
 
@@ -161,7 +172,15 @@ export const ChatInput = forwardRef<HTMLTextAreaElement, ChatInputProps>(
 				setMessage(content)
 				console.error('Failed to send message:', error)
 			}
-		}, [message, selectedModel.id, disabled, onSendMessage])
+		}, [
+			message,
+			selectedModel.id,
+			disabled,
+			onSendMessage,
+			isStreaming,
+			queueStatus,
+			queuedMessages.length,
+		])
 
 		const handleKeyDown = useCallback(
 			(e: KeyboardEvent<HTMLTextAreaElement>) => {

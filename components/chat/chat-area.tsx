@@ -16,6 +16,7 @@ import {
 } from '@/hooks/use-chat'
 import { useConversation, useConversations } from '@/hooks/use-conversations'
 import { useMessageTree } from '@/hooks/use-message-tree'
+import { useSettings } from '@/hooks/use-settings'
 import { AlertCircle } from 'lucide-react'
 import dynamic from 'next/dynamic'
 import { useRouter } from 'next/navigation'
@@ -65,6 +66,7 @@ export function ChatArea() {
 	const [queueStatus, setQueueStatus] = useState<QueueStatus>('idle')
 
 	const { user } = useAuth()
+	const { settings } = useSettings()
 
 	const { invalidateConversationList, generateTitle, updateConversation } =
 		useConversations({
@@ -83,6 +85,7 @@ export function ChatArea() {
 		clearMessages,
 		loadConversation,
 	} = useChat({
+		systemPrompt: settings.systemPrompt,
 		onConversationCreated: (id) => {
 			setPendingConversationId(id)
 
