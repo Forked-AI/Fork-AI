@@ -12,6 +12,7 @@ export default function robots(): MetadataRoute.Robots {
 				allow: [
 					"/",
 					"/landing",
+					"/branching-ai-chat",
 					"/prelaunch",
 					"/login",
 					"/signup",
