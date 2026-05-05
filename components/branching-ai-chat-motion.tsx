@@ -1,6 +1,12 @@
 'use client'
 
 import {
+	motion,
+	useReducedMotion,
+	useScroll,
+	useTransform,
+} from 'framer-motion'
+import {
 	ArrowRight,
 	Bot,
 	Check,
@@ -13,22 +19,16 @@ import {
 	Sparkles,
 	X,
 } from 'lucide-react'
-import {
-	motion,
-	useReducedMotion,
-	useScroll,
-	useTransform,
-} from 'framer-motion'
-import type { MouseEvent, ReactNode } from 'react'
-import { useEffect, useRef, useState } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
+import type { MouseEvent, ReactNode } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
-import { cn } from '@/lib/utils'
 import type {
 	BranchingAiAside,
 	BranchingAiSection,
 } from '@/components/branching-ai-chat-content'
+import { cn } from '@/lib/utils'
 
 interface HeroProps {
 	eyebrow: string
@@ -485,9 +485,7 @@ function BranchGraphNode({
 		<div
 			className={cn(
 				'w-32 rounded-[1rem] border bg-slate-950/88 p-3 shadow-[0_14px_45px_rgba(2,6,23,0.35)] sm:w-40',
-				active
-					? 'border-sky-200/50 ring-2 ring-sky-200/15'
-					: 'border-white/10',
+				active ? 'border-sky-200/50 ring-2 ring-sky-200/15' : 'border-white/10',
 				className
 			)}
 		>
@@ -551,8 +549,12 @@ function BranchingComparisonDiagram() {
 						cx={step.x}
 						cy={step.y}
 						r="15"
-						fill={step.active ? 'rgba(125,211,252,0.16)' : 'rgba(15,23,42,0.94)'}
-						stroke={step.active ? 'rgba(125,211,252,0.72)' : 'rgba(226,232,240,0.35)'}
+						fill={
+							step.active ? 'rgba(125,211,252,0.16)' : 'rgba(15,23,42,0.94)'
+						}
+						stroke={
+							step.active ? 'rgba(125,211,252,0.72)' : 'rgba(226,232,240,0.35)'
+						}
 						strokeWidth="2"
 					/>
 					<circle
@@ -578,7 +580,9 @@ function BranchingComparisonDiagram() {
 						textAnchor="middle"
 						fontSize="12"
 						fontWeight="600"
-						fill={step.active ? 'rgba(224,242,254,0.92)' : 'rgba(226,232,240,0.82)'}
+						fill={
+							step.active ? 'rgba(224,242,254,0.92)' : 'rgba(226,232,240,0.82)'
+						}
 					>
 						{step.label}
 					</text>
@@ -1078,9 +1082,7 @@ export function PrivacySharingWidget() {
 														: 'border-white/10 bg-slate-950/62'
 												)}
 											>
-												<span className="text-sm text-slate-300">
-													{label}
-												</span>
+												<span className="text-sm text-slate-300">{label}</span>
 												<span
 													className={cn(
 														'rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em]',
@@ -1126,8 +1128,8 @@ export function AudienceRolesWidget() {
 					</div>
 				</div>
 				<p className="mt-4 max-w-2xl text-sm leading-7 text-slate-300">
-					Switch roles to see how engineers, creators, and researchers use
-					Fork AI differently.
+					Switch roles to see how engineers, creators, and researchers use Fork
+					AI differently.
 				</p>
 				<div className="mt-6 rounded-[1.25rem] border border-white/10 bg-white/[0.035] p-4">
 					<div className="flex flex-wrap gap-2">
@@ -1521,12 +1523,13 @@ export function SectionSpyNav({ items, mode }: SectionSpyNavProps) {
 			}
 
 			const activationLine =
-				window.scrollY + getTopOffset() + Math.min(window.innerHeight * 0.18, 180)
+				window.scrollY +
+				getTopOffset() +
+				Math.min(window.innerHeight * 0.18, 180)
 			let nextActiveId = sections[0].id
 
 			for (const section of sections) {
-				const sectionTop =
-					section.getBoundingClientRect().top + window.scrollY
+				const sectionTop = section.getBoundingClientRect().top + window.scrollY
 
 				if (sectionTop <= activationLine) {
 					nextActiveId = section.id
