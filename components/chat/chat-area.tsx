@@ -440,12 +440,15 @@ export function ChatArea() {
 		async (content: string, model: string) => {
 			const branchId = branchFromMessageId
 			const parentMessageId = branchId ?? displayedMessages.at(-1)?.id ?? null
-			const history: MessageHistoryEntry[] = displayedMessages.map(
-				({ role, content }) => ({
+			const history: MessageHistoryEntry[] = displayedMessages
+				.filter(
+					(message): message is typeof message & MessageHistoryEntry =>
+						message.role === 'user' || message.role === 'assistant'
+				)
+				.map(({ role, content }) => ({
 					role,
 					content,
-				})
-			)
+				}))
 
 			if (branchId) {
 				setBranchFromMessageId(null)

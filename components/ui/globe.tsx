@@ -40,10 +40,10 @@ const Earth: React.FC<EarthProps> = ({
 		let phi = 0
 
 		onResize()
-		const globe = createGlobe(canvasRef.current!, {
-			devicePixelRatio: 2,
-			width: width * 2,
-			height: width * 2,
+			const globe = createGlobe(canvasRef.current!, {
+				devicePixelRatio: 2,
+				width: width * 2,
+				height: width * 2,
 			phi: 0,
 			theta: theta,
 			dark: dark,
@@ -56,21 +56,33 @@ const Earth: React.FC<EarthProps> = ({
 			glowColor: glowColor,
 			opacity: 1,
 			offset: [0, 0],
-			markers: [
-				// longitude latitude
-			],
-			onRender: (state: Record<string, any>) => {
-				// Called on every animation frame.
-				// `state` will be an empty object, return updated params.\
-				state.phi = phi
+				markers: [
+					// longitude latitude
+				],
+			})
+			let animationFrame = 0
+			const animate = () => {
 				phi += 0.003
-			},
-		})
+				globe.update({ phi })
+				animationFrame = requestAnimationFrame(animate)
+			}
+			animate()
 
-		return () => {
-			globe.destroy()
-		}
-	}, [dark])
+			return () => {
+				cancelAnimationFrame(animationFrame)
+				globe.destroy()
+			}
+		}, [
+			baseColor,
+			dark,
+			diffuse,
+			glowColor,
+			mapBrightness,
+			mapSamples,
+			markerColor,
+			scale,
+			theta,
+		])
 
 	return (
 		<div
