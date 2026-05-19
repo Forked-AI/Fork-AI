@@ -16,12 +16,17 @@ export interface Message {
 }
 
 export interface MessageHistoryEntry {
-	role: Message["role"];
+	role: "user" | "assistant";
 	content: string;
 }
 
 function mapMessagesToHistory(messages: Message[]): MessageHistoryEntry[] {
-	return messages.map(({ role, content }) => ({ role, content }));
+	return messages
+		.filter(
+			(message): message is Message & { role: "user" | "assistant" } =>
+				message.role === "user" || message.role === "assistant"
+		)
+		.map(({ role, content }) => ({ role, content }));
 }
 
 export function buildLocalHistorySnapshot(
@@ -38,7 +43,9 @@ export function buildLocalHistorySnapshot(
 		);
 	}
 
-	const messageById = new Map(messages.map((message) => [message.id, message]));
+	const messageById = new Map(
+		messages.map((message) => [message.id, message])
+	);
 	const path: Message[] = [];
 	let currentId: string | null = parentMessageId;
 
@@ -60,13 +67,132 @@ function extractSsePayload(rawEvent: string): string | null {
 	if (dataLines.length === 0) return null;
 
 	return dataLines
-		.map((line) => (line.startsWith("data: ") ? line.slice(6) : line.slice(5)))
+		.map((line) =>
+			line.startsWith("data: ") ? line.slice(6) : line.slice(5)
+		)
 		.join("\n");
+}
+
+function parseRetryAfterSeconds(value: unknown): number | null {
+	if (typeof value === "number" && Number.isFinite(value) && value >= 0) {
+		return Math.ceil(value);
+	}
+
+	if (typeof value === "string") {
+		const asNumber = Number(value);
+		if (Number.isFinite(asNumber) && asNumber >= 0) {
+			return Math.ceil(asNumber);
+		}
+
+		const asDateMs = Date.parse(value);
+		if (!Number.isNaN(asDateMs)) {
+			return Math.max(0, Math.ceil((asDateMs - Date.now()) / 1000));
+		}
+	}
+
+	return null;
+}
+
+function formatRetryWindow(seconds: number | null): string {
+	if (seconds === null) {
+		return "in a moment";
+	}
+
+	if (seconds < 60) {
+		return `${seconds}s`;
+	}
+
+	const minutes = Math.ceil(seconds / 60);
+	return `${minutes}m`;
+}
+
+function buildRateLimitMessage(
+	scope: "provider" | "chat",
+	retryAfterSeconds: number | null
+): string {
+	const baseMessage =
+		scope === "provider"
+			? "Model is currently rate-limited."
+			: "Chat rate limit reached.";
+
+	return `${baseMessage} Please retry in ${formatRetryWindow(retryAfterSeconds)}.`;
+}
+
+function buildHttpErrorMessage(response: Response, errorData: unknown): string {
+	const parsedError =
+		typeof errorData === "object" && errorData !== null
+			? (errorData as {
+					error?: unknown;
+					errorCode?: unknown;
+					retryAfter?: unknown;
+					retryAfterSeconds?: unknown;
+				})
+			: {};
+
+	if (response.status === 429) {
+		const retryAfterSeconds =
+			parseRetryAfterSeconds(parsedError.retryAfterSeconds) ??
+			parseRetryAfterSeconds(parsedError.retryAfter) ??
+			parseRetryAfterSeconds(response.headers.get("retry-after"));
+
+		if (parsedError.errorCode === "CHAT_RATE_LIMIT_EXCEEDED") {
+			return buildRateLimitMessage("chat", retryAfterSeconds);
+		}
+
+		return buildRateLimitMessage("provider", retryAfterSeconds);
+	}
+
+	if (typeof parsedError.error === "string" && parsedError.error.length > 0) {
+		return parsedError.error;
+	}
+
+	return "Failed to send message";
+}
+
+function buildStreamErrorMessage(payload: unknown): string {
+	if (typeof payload !== "object" || payload === null) {
+		return "Stream interrupted. You can retry this message.";
+	}
+
+	const parsedPayload = payload as {
+		error?: unknown;
+		errorCode?: unknown;
+		providerStatusCode?: unknown;
+		retryAfterSeconds?: unknown;
+		retryAfter?: unknown;
+	};
+
+	if (
+		parsedPayload.errorCode === "PROVIDER_RATE_LIMITED" ||
+		parsedPayload.providerStatusCode === 429
+	) {
+		const retryAfterSeconds =
+			parseRetryAfterSeconds(parsedPayload.retryAfterSeconds) ??
+			parseRetryAfterSeconds(parsedPayload.retryAfter);
+		return buildRateLimitMessage("provider", retryAfterSeconds);
+	}
+
+	if (parsedPayload.errorCode === "CHAT_RATE_LIMIT_EXCEEDED") {
+		const retryAfterSeconds =
+			parseRetryAfterSeconds(parsedPayload.retryAfterSeconds) ??
+			parseRetryAfterSeconds(parsedPayload.retryAfter);
+		return buildRateLimitMessage("chat", retryAfterSeconds);
+	}
+
+	if (
+		typeof parsedPayload.error === "string" &&
+		parsedPayload.error.length > 0
+	) {
+		return parsedPayload.error;
+	}
+
+	return "Stream interrupted. You can retry this message.";
 }
 
 export interface UseChatOptions {
 	conversationId?: string;
 	model?: string;
+	systemPrompt?: string;
 	onConversationCreated?: (conversationId: string) => void;
 	onTitleGenerationNeeded?: (conversationId: string) => void;
 	onError?: (error: Error) => void;
@@ -107,14 +233,17 @@ export function useChat(options: UseChatOptions = {}): UseChatReturn {
 	);
 
 	const abortControllerRef = useRef<AbortController | null>(null);
+	const inFlightSendRef = useRef(false);
 	const messagesRef = useRef<Message[]>(messages);
 	const conversationIdRef = useRef<string | null>(conversationId);
 	const currentModelRef = useRef<string>(
 		options.model || "mistral-large-latest"
 	);
+	const systemPromptRef = useRef(options.systemPrompt ?? "");
 
 	messagesRef.current = messages;
 	conversationIdRef.current = conversationId;
+	systemPromptRef.current = options.systemPrompt ?? "";
 
 	// Store callbacks in refs to avoid dependency issues
 	const onConversationCreatedRef = useRef(options.onConversationCreated);
@@ -140,7 +269,9 @@ export function useChat(options: UseChatOptions = {}): UseChatReturn {
 					promptTokens: msg.promptTokens ?? undefined,
 					completionTokens: msg.completionTokens ?? undefined,
 					isError: msg.isError ?? undefined,
-					createdAt: msg.createdAt ? new Date(msg.createdAt) : undefined,
+					createdAt: msg.createdAt
+						? new Date(msg.createdAt)
+						: undefined,
 				}))
 			);
 		} catch (err) {
@@ -163,7 +294,7 @@ export function useChat(options: UseChatOptions = {}): UseChatReturn {
 			parentMessageId?: string | null,
 			history?: MessageHistoryEntry[]
 		): Promise<SendMessageResult> => {
-			if (!content.trim() || isStreaming) {
+			if (!content.trim() || inFlightSendRef.current || isStreaming) {
 				return {
 					conversationId: conversationIdRef.current,
 					userMessageId: null,
@@ -172,9 +303,12 @@ export function useChat(options: UseChatOptions = {}): UseChatReturn {
 				};
 			}
 
+			inFlightSendRef.current = true;
+
 			const selectedModel = model || currentModelRef.current;
 			const requestHistory =
-				history ?? buildLocalHistorySnapshot(messagesRef.current, parentMessageId);
+				history ??
+				buildLocalHistorySnapshot(messagesRef.current, parentMessageId);
 			currentModelRef.current = selectedModel;
 
 			// Create optimistic user message
@@ -222,15 +356,20 @@ export function useChat(options: UseChatOptions = {}): UseChatReturn {
 						conversationId: conversationIdRef.current,
 						parentMessageId: parentMessageId,
 						history: requestHistory,
+						systemPrompt: systemPromptRef.current,
 					}),
 					signal: abortControllerRef.current.signal,
 				});
 
 				if (!response.ok) {
-					const errorData = await response.json();
-					throw new Error(
-						errorData.error || "Failed to send message"
-					);
+					let errorData: unknown = null;
+					try {
+						errorData = await response.json();
+					} catch {
+						errorData = null;
+					}
+
+					throw new Error(buildHttpErrorMessage(response, errorData));
 				}
 
 				const reader = response.body?.getReader();
@@ -247,14 +386,18 @@ export function useChat(options: UseChatOptions = {}): UseChatReturn {
 
 						switch (data.type) {
 							case "conversation":
-								if (typeof data.conversationId !== "string") return;
+								if (typeof data.conversationId !== "string")
+									return;
 								setConversationId(data.conversationId);
 								conversationIdRef.current = data.conversationId;
-								onConversationCreatedRef.current?.(data.conversationId);
+								onConversationCreatedRef.current?.(
+									data.conversationId
+								);
 								break;
 
 							case "messageId":
-								if (typeof data.userMessageId !== "string") return;
+								if (typeof data.userMessageId !== "string")
+									return;
 								realUserMessageId = data.userMessageId;
 								setMessages((prev) =>
 									prev.map((msg) => {
@@ -266,11 +409,13 @@ export function useChat(options: UseChatOptions = {}): UseChatReturn {
 										}
 										if (
 											msg.id === tempAssistantMessageId &&
-											msg.parentMessageId === tempUserMessageId
+											msg.parentMessageId ===
+												tempUserMessageId
 										) {
 											return {
 												...msg,
-												parentMessageId: data.userMessageId,
+												parentMessageId:
+													data.userMessageId,
 											};
 										}
 										return msg;
@@ -300,7 +445,8 @@ export function useChat(options: UseChatOptions = {}): UseChatReturn {
 										? data.assistantMessageId
 										: null;
 								if (nextAssistantMessageId) {
-									realAssistantMessageId = nextAssistantMessageId;
+									realAssistantMessageId =
+										nextAssistantMessageId;
 								}
 								setMessages((prev) => {
 									const updatedMessages = prev.map((msg) =>
@@ -308,17 +454,23 @@ export function useChat(options: UseChatOptions = {}): UseChatReturn {
 										msg.id === realAssistantMessageId
 											? {
 													...msg,
-													id: nextAssistantMessageId ?? msg.id,
+													id:
+														nextAssistantMessageId ??
+														msg.id,
 													content: accumulatedContent,
 													isStreaming: false,
-													promptTokens: data.usage?.promptTokens,
+													promptTokens:
+														data.usage
+															?.promptTokens,
 													completionTokens:
-														data.usage?.completionTokens,
+														data.usage
+															?.completionTokens,
 												}
 											: msg
 									);
 
-									const currentConversationId = conversationIdRef.current;
+									const currentConversationId =
+										conversationIdRef.current;
 									if (
 										updatedMessages.length === 4 &&
 										currentConversationId
@@ -335,7 +487,9 @@ export function useChat(options: UseChatOptions = {}): UseChatReturn {
 
 							case "error":
 								finalStatus = "error";
-								setError(data.error);
+								const streamErrorMessage =
+									buildStreamErrorMessage(data);
+								setError(streamErrorMessage);
 								setMessages((prev) =>
 									prev.map((msg) =>
 										msg.id === tempAssistantMessageId ||
@@ -344,7 +498,7 @@ export function useChat(options: UseChatOptions = {}): UseChatReturn {
 													...msg,
 													content:
 														accumulatedContent ||
-														"An error occurred. Please try again.",
+														streamErrorMessage,
 													isStreaming: false,
 													isError: true,
 												}
@@ -361,7 +515,10 @@ export function useChat(options: UseChatOptions = {}): UseChatReturn {
 				const flushCompleteEvents = () => {
 					while (true) {
 						const separatorMatch = buffer.match(/\r?\n\r?\n/);
-						if (!separatorMatch || separatorMatch.index === undefined) {
+						if (
+							!separatorMatch ||
+							separatorMatch.index === undefined
+						) {
 							return;
 						}
 
@@ -433,6 +590,7 @@ export function useChat(options: UseChatOptions = {}): UseChatReturn {
 				}
 			} finally {
 				setIsStreaming(false);
+				inFlightSendRef.current = false;
 				abortControllerRef.current = null;
 			}
 
@@ -490,6 +648,7 @@ export function useChat(options: UseChatOptions = {}): UseChatReturn {
 			abortControllerRef.current.abort();
 			abortControllerRef.current = null;
 		}
+		inFlightSendRef.current = false;
 		// Mark streaming message as complete
 		setMessages((prev) =>
 			prev.map((msg) =>
@@ -520,40 +679,41 @@ export function useChat(options: UseChatOptions = {}): UseChatReturn {
 				modelToUse = messages[messageIndex + 1].model || modelToUse;
 			}
 
-		// Create a sibling branch instead of deleting messages (non-destructive edit)
-		// This preserves the original message and all subsequent messages in the tree
-		await sendMessage(
-			newContent.trim(),
-			modelToUse,
-			targetMessage.parentMessageId,
-			buildLocalHistorySnapshot(
-				messagesRef.current,
-				targetMessage.parentMessageId
-			)
-		);
-	},
-	[messages, sendMessage, isStreaming]
-);
+			// Create a sibling branch instead of deleting messages (non-destructive edit)
+			// This preserves the original message and all subsequent messages in the tree
+			await sendMessage(
+				newContent.trim(),
+				modelToUse,
+				targetMessage.parentMessageId,
+				buildLocalHistorySnapshot(
+					messagesRef.current,
+					targetMessage.parentMessageId
+				)
+			);
+		},
+		[messages, sendMessage, isStreaming]
+	);
 
-// Clear all messages
-const clearMessages = useCallback(() => {
-	setMessages([]);
-	setConversationId(null);
-	setError(null);
-	setIsStreaming(false);
-}, []);
+	// Clear all messages
+	const clearMessages = useCallback(() => {
+		setMessages([]);
+		setConversationId(null);
+		setError(null);
+		setIsStreaming(false);
+		inFlightSendRef.current = false;
+	}, []);
 
-return {
-	messages,
-	setMessages,
-	isStreaming,
-	error,
-	conversationId,
-	sendMessage,
-	regenerate,
-	editAndRegenerate,
-	stopGeneration,
-	clearMessages,
-	loadConversation,
-};
+	return {
+		messages,
+		setMessages,
+		isStreaming,
+		error,
+		conversationId,
+		sendMessage,
+		regenerate,
+		editAndRegenerate,
+		stopGeneration,
+		clearMessages,
+		loadConversation,
+	};
 }

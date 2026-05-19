@@ -43,6 +43,14 @@ function sanitizeUrl(url: string | undefined): string | undefined {
 	return url.trim()
 }
 
+function isExternalHttpUrl(url: string): boolean {
+	const normalizedUrl = url.trim().toLowerCase()
+
+	return (
+		normalizedUrl.startsWith('http://') || normalizedUrl.startsWith('https://')
+	)
+}
+
 // Code block component with copy functionality
 function CodeBlock({
 	language,
@@ -138,7 +146,13 @@ function InlineCode({ children }: { children: React.ReactNode }) {
 }
 
 // YouTube video component
-function YouTubeEmbed({ url, compact = false }: { url: string; compact?: boolean }) {
+function YouTubeEmbed({
+	url,
+	compact = false,
+}: {
+	url: string
+	compact?: boolean
+}) {
 	// Security: Extract video ID only from official YouTube domains
 	const getVideoId = (url: string): string | null => {
 		try {
@@ -338,8 +352,12 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({
 						return (
 							<a
 								href={sanitizedHref}
-								target="_blank"
-								rel="noopener noreferrer"
+								target={isExternalHttpUrl(sanitizedHref) ? '_blank' : undefined}
+								rel={
+									isExternalHttpUrl(sanitizedHref)
+										? 'noopener noreferrer nofollow'
+										: undefined
+								}
 								className="break-all text-[#57FCFF] hover:underline"
 							>
 								{children}
@@ -445,7 +463,12 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({
 					},
 					li({ children }) {
 						return (
-							<li className={cn('leading-relaxed', compact && '[overflow-wrap:anywhere]')}>
+							<li
+								className={cn(
+									'leading-relaxed',
+									compact && '[overflow-wrap:anywhere]'
+								)}
+							>
 								{children}
 							</li>
 						)
@@ -470,7 +493,12 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({
 					// Tables
 					table({ children }) {
 						return (
-							<div className={cn('max-w-full overflow-x-auto', compact ? 'my-2' : 'my-4')}>
+							<div
+								className={cn(
+									'max-w-full overflow-x-auto',
+									compact ? 'my-2' : 'my-4'
+								)}
+							>
 								<table className="min-w-full border-collapse border border-border/50 rounded-lg overflow-hidden">
 									{children}
 								</table>
@@ -497,7 +525,11 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({
 
 					// Horizontal rule
 					hr() {
-						return <hr className={cn('border-border/50', compact ? 'my-4' : 'my-6')} />
+						return (
+							<hr
+								className={cn('border-border/50', compact ? 'my-4' : 'my-6')}
+							/>
+						)
 					},
 
 					// Strong/Bold
