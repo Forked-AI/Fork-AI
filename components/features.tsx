@@ -384,7 +384,7 @@ export function Features() {
 	return (
 		<section id="features" ref={containerRef} className="relative">
 			{/* ── Part A: Offline-style section opener ────────────────────────────── */}
-			<div className="py-20 px-4">
+			<div className="px-4 py-16 sm:py-20 lg:py-24">
 				<div className="max-w-6xl mx-auto">
 					{/* Horizontal service tags — offground "Web Dev · Design · Automation · Consulting" */}
 					<div className="features-tag-row flex flex-wrap items-center gap-x-8 gap-y-3 mb-10">
@@ -398,24 +398,318 @@ export function Features() {
 						))}
 					</div>
 
-					{/* Clipping-mask headline reveal — offground "We specialize in customer happiness" */}
-					<div className="features-main-headline overflow-hidden mb-6">
-						<div className="overflow-hidden">
-							<h2
-								className={cn(
-									'clip-line text-4xl md:text-[56px] md:leading-[1.1] font-bold tracking-tight text-white',
-									geist.className
-								)}
+					<div className="grid gap-10 lg:grid-cols-[minmax(0,0.98fr)_minmax(320px,0.62fr)] lg:items-center">
+						<div className="max-w-2xl">
+							{/* Clipping-mask headline reveal — offground "We specialize in customer happiness" */}
+							<div className="features-main-headline overflow-hidden mb-6">
+								<div className="overflow-hidden">
+									<h2
+										className={cn(
+											'clip-line text-4xl md:text-[56px] md:leading-[1.1] font-bold tracking-tight text-white',
+											geist.className
+										)}
+									>
+										What is Fork AI?
+									</h2>
+								</div>
+							</div>
+
+							<div className="features-subtext space-y-5">
+								<p className="text-lg leading-relaxed text-white/60">
+									Fork AI is a multi-AI chat platform and AI workspace for
+									people who need more than one linear conversation. It keeps
+									ChatGPT, Claude, Gemini, and other models in one focused place
+									so your context stays intact.
+								</p>
+								<p className="max-w-xl text-base leading-7 text-white/45">
+									Branching conversations let you explore alternatives without
+									overwriting the original path, compare AI models on the same
+									prompt, and share selected context with privacy-first
+									controls.
+								</p>
+							</div>
+						</div>
+
+						<div className="relative min-h-[260px] overflow-hidden rounded-3xl border border-white/10 bg-white/[0.035] p-6 shadow-[0_22px_80px_rgba(0,0,0,0.24)] backdrop-blur-md">
+							<div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(203,213,225,0.11),transparent_34%)]" />
+							<div
+								className="relative min-h-[340px]"
+								role="img"
+								aria-label="Fork AI workspace illustration showing one prompt branching into research and compare paths, then creating a shareable branch"
 							>
-								What is Fork AI?
-							</h2>
+								<svg
+									viewBox="0 0 420 340"
+									className="pointer-events-none absolute inset-0 z-0 hidden h-full w-full sm:block"
+									aria-hidden="true"
+								>
+									<defs>
+										<pattern
+											id="fork-ai-workflow-grid"
+											width="24"
+											height="24"
+											patternUnits="userSpaceOnUse"
+										>
+											<path
+												d="M24 0H0V24"
+												fill="none"
+												stroke="rgba(255,255,255,0.035)"
+												strokeWidth="1"
+											/>
+										</pattern>
+									</defs>
+									<rect
+										width="420"
+										height="340"
+										fill="url(#fork-ai-workflow-grid)"
+									/>
+								</svg>
+
+								<div className="pointer-events-none absolute inset-0 z-0 bg-[radial-gradient(circle_at_50%_44%,rgba(125,211,252,0.12),transparent_35%)]" />
+
+								<div className="relative mx-auto flex min-h-[340px] max-w-[420px] flex-col">
+									<div className="relative z-20 flex justify-center">
+										<div className="w-full max-w-[250px] rounded-2xl border border-white/10 bg-slate-950/75 p-3.5 shadow-[0_16px_40px_rgba(0,0,0,0.22)]">
+											<div className="mb-3 flex items-center gap-1.5">
+												<span className="h-2 w-2 rounded-full bg-white/25" />
+												<span className="h-2 w-2 rounded-full bg-white/15" />
+												<span className="h-2 w-2 rounded-full bg-white/10" />
+											</div>
+											<div className="flex items-center gap-3">
+												<div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-white/10 text-xs font-semibold text-white/70">
+													AI
+												</div>
+												<div className="min-w-0 flex-1">
+													<div className="mb-1 text-xs font-semibold uppercase tracking-[0.16em] text-white/45">
+														Ask once
+													</div>
+													<p className="text-sm font-medium text-white/82">
+														Plan launch strategy
+													</p>
+												</div>
+											</div>
+										</div>
+									</div>
+
+									<div className="relative z-10 flex h-5 justify-center">
+										<svg
+											viewBox="0 0 80 20"
+											className="hidden h-full w-20 sm:block"
+											aria-hidden="true"
+										>
+											<defs>
+												<linearGradient
+													id="fork-ai-prompt-curve"
+													x1="40"
+													x2="40"
+													y1="0"
+													y2="20"
+													gradientUnits="userSpaceOnUse"
+												>
+													<stop
+														offset="0%"
+														stopColor="rgba(203,213,225,0.44)"
+													/>
+													<stop
+														offset="100%"
+														stopColor="rgba(125,211,252,0.22)"
+													/>
+												</linearGradient>
+											</defs>
+											<path
+												d="M40 1C40 8 40 13 40 19"
+												fill="none"
+												stroke="url(#fork-ai-prompt-curve)"
+												strokeLinecap="round"
+												strokeWidth="1.5"
+											/>
+										</svg>
+										<div className="h-full w-px bg-gradient-to-b from-[#cbd5e1]/45 to-[#cbd5e1]/18 sm:hidden" />
+									</div>
+
+									<div className="relative z-20 flex justify-center">
+										<div className="relative flex flex-col items-center gap-1">
+											<div className="relative grid h-14 w-14 place-items-center rounded-full border border-[#cbd5e1]/30 bg-slate-950/90 shadow-[0_0_34px_rgba(125,211,252,0.22)]">
+												<div className="absolute inset-[-7px] rounded-full border border-[#cbd5e1]/10" />
+												<GitBranch className="h-6 w-6 text-[#cbd5e1]" />
+											</div>
+											<span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/35">
+												Fork
+											</span>
+										</div>
+									</div>
+
+									<div className="relative z-10 h-9">
+										<svg
+											viewBox="0 0 420 36"
+											className="hidden h-full w-full sm:block"
+											aria-hidden="true"
+										>
+											<defs>
+												<linearGradient
+													id="fork-ai-split-curve"
+													x1="96"
+													x2="324"
+													y1="0"
+													y2="36"
+													gradientUnits="userSpaceOnUse"
+												>
+													<stop
+														offset="0%"
+														stopColor="rgba(125,211,252,0.28)"
+													/>
+													<stop
+														offset="50%"
+														stopColor="rgba(203,213,225,0.34)"
+													/>
+													<stop
+														offset="100%"
+														stopColor="rgba(125,211,252,0.28)"
+													/>
+												</linearGradient>
+											</defs>
+											<g
+												fill="none"
+												stroke="url(#fork-ai-split-curve)"
+												strokeLinecap="round"
+												strokeWidth="1.75"
+											>
+												<path d="M210 1C178 14 142 20 96 35" />
+												<path d="M210 1C242 14 278 20 324 35" />
+											</g>
+										</svg>
+										<div className="mx-auto h-full w-px bg-[#cbd5e1]/18 sm:hidden" />
+									</div>
+
+									<div className="relative z-20 grid w-full gap-5 sm:grid-cols-2">
+										<div className="min-h-[118px] min-w-0 rounded-2xl border border-cyan-200/15 bg-slate-950/75 p-3.5 shadow-[0_14px_36px_rgba(8,47,73,0.18)]">
+											<div className="mb-3 flex items-center justify-between">
+												<div className="flex min-w-0 items-center gap-2">
+													<Sparkles className="h-4 w-4 shrink-0 text-cyan-100/75" />
+													<span className="text-sm font-semibold text-white/84">
+														Research
+													</span>
+												</div>
+												<span className="rounded-full border border-cyan-100/15 px-2 py-0.5 text-[10px] font-medium text-cyan-100/65">
+													3 notes
+												</span>
+											</div>
+											<p className="mb-3 text-xs text-white/50">Gather notes</p>
+											<div className="mb-3 flex flex-wrap gap-1.5">
+												<span className="rounded-md bg-white/8 px-2 py-1 text-[10px] font-medium text-white/52">
+													Docs
+												</span>
+												<span className="rounded-md bg-white/8 px-2 py-1 text-[10px] font-medium text-white/52">
+													Market
+												</span>
+											</div>
+											<div className="space-y-1.5">
+												<div className="h-2 rounded-full bg-white/18" />
+												<div className="h-2 w-4/5 rounded-full bg-white/10" />
+												<div className="h-2 w-3/5 rounded-full bg-cyan-100/16" />
+											</div>
+										</div>
+
+										<div className="min-h-[118px] min-w-0 rounded-2xl border border-sky-200/15 bg-slate-950/75 p-3.5 shadow-[0_14px_36px_rgba(8,47,73,0.16)]">
+											<div className="mb-3 flex items-center justify-between">
+												<div className="flex min-w-0 items-center gap-2">
+													<ArrowLeftRight className="h-4 w-4 shrink-0 text-sky-100/75" />
+													<span className="text-sm font-semibold text-white/84">
+														Compare
+													</span>
+												</div>
+												<span className="rounded-full border border-sky-100/15 px-2 py-0.5 text-[10px] font-medium text-sky-100/65">
+													models
+												</span>
+											</div>
+											<p className="mb-3 text-xs text-white/50">Test models</p>
+											<div className="mb-3 grid grid-cols-3 gap-1.5 text-center text-[10px] font-semibold">
+												<span className="rounded-lg bg-emerald-300/10 px-1.5 py-1.5 text-emerald-100/70">
+													GPT
+												</span>
+												<span className="rounded-lg bg-amber-300/10 px-1.5 py-1.5 text-amber-100/70">
+													Claude
+												</span>
+												<span className="rounded-lg bg-sky-300/10 px-1.5 py-1.5 text-sky-100/70">
+													Gemini
+												</span>
+											</div>
+											<div className="space-y-1.5">
+												<div className="h-2 rounded-full bg-white/12" />
+												<div className="h-2 w-5/6 rounded-full bg-sky-100/16" />
+											</div>
+										</div>
+									</div>
+
+									<div className="relative z-10 h-9">
+										<svg
+											viewBox="0 0 420 36"
+											className="hidden h-full w-full sm:block"
+											aria-hidden="true"
+										>
+											<defs>
+												<linearGradient
+													id="fork-ai-merge-curve"
+													x1="96"
+													x2="324"
+													y1="0"
+													y2="36"
+													gradientUnits="userSpaceOnUse"
+												>
+													<stop
+														offset="0%"
+														stopColor="rgba(125,211,252,0.16)"
+													/>
+													<stop
+														offset="50%"
+														stopColor="rgba(16,185,129,0.34)"
+													/>
+													<stop
+														offset="100%"
+														stopColor="rgba(125,211,252,0.16)"
+													/>
+												</linearGradient>
+											</defs>
+											<g
+												fill="none"
+												stroke="url(#fork-ai-merge-curve)"
+												strokeLinecap="round"
+												strokeWidth="1.75"
+											>
+												<path d="M96 1C132 18 176 22 210 35" />
+												<path d="M324 1C288 18 244 22 210 35" />
+											</g>
+										</svg>
+										<div className="mx-auto h-full w-px bg-gradient-to-b from-emerald-200/18 to-emerald-200/28 sm:hidden" />
+									</div>
+
+									<div className="relative z-20 flex justify-center">
+										<div className="w-full max-w-[310px] rounded-2xl border border-emerald-200/18 bg-emerald-300/10 p-3.5 shadow-[0_16px_40px_rgba(6,78,59,0.16)]">
+											<div className="mb-3 flex items-center gap-2">
+												<div className="grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-emerald-200/12 text-emerald-100">
+													<Share2 className="h-4 w-4" />
+												</div>
+												<div className="min-w-0">
+													<div className="text-sm font-semibold text-emerald-100/82">
+														Share selected branch
+													</div>
+													<div className="text-[11px] text-emerald-100/48">
+														Private context stays hidden
+													</div>
+												</div>
+											</div>
+											<div className="flex items-center gap-2 rounded-xl border border-white/10 bg-slate-950/65 px-3 py-2">
+												<span className="h-2 w-12 rounded-full bg-emerald-200/25" />
+												<span className="h-2 flex-1 rounded-full bg-white/10" />
+												<span className="rounded-md bg-white/8 px-1.5 py-0.5 text-[10px] font-semibold text-white/45">
+													masked
+												</span>
+											</div>
+										</div>
+									</div>
+								</div>
+							</div>
 						</div>
 					</div>
-
-					<p className="features-subtext text-white/55 text-lg leading-relaxed max-w-xl">
-						A Multi-AI Chat Platform & AI Workspace — work with multiple models
-						in one place without restarting conversations or losing context.
-					</p>
 				</div>
 			</div>
 
