@@ -3,37 +3,42 @@
 import { ChatModalShell } from '@/components/chat/chat-modal-shell'
 import { Button } from '@/components/ui/button'
 import {
-	Field,
-	FieldContent,
-	FieldDescription,
-	FieldLabel,
+    Field,
+    FieldContent,
+    FieldDescription,
+    FieldLabel,
 } from '@/components/ui/field'
 import { Label } from '@/components/ui/label'
 import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
 } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { useSettings } from '@/hooks/use-settings'
 import {
-	resolveEffectiveTheme,
-	resolveThemePalette,
+    resolveEffectiveTheme,
+    resolveThemePalette,
 } from '@/lib/theme-engine'
 import {
-	Check,
-	ChevronRight,
-	Keyboard,
-	MessageSquare,
-	Moon,
-	Palette,
-	PanelLeft,
-	RotateCcw,
-	Settings as SettingsIcon,
-	Sparkles,
-	Zap,
+    Check,
+    ChevronRight,
+    CreditCard,
+    Download,
+    Keyboard,
+    Link2Off,
+    MessageSquare,
+    Moon,
+    Palette,
+    PanelLeft,
+    RotateCcw,
+    Settings as SettingsIcon,
+    Shield,
+    Sparkles,
+    Trash2,
+    Zap,
 } from 'lucide-react'
 import { useTheme } from 'next-themes'
 import { useState } from 'react'
@@ -98,6 +103,8 @@ export function SettingsModal({
 	const [showSaved, setShowSaved] = useState(false)
 	const [themeModalOpen, setThemeModalOpen] = useState(false)
 	const [chatBehaviorModalOpen, setChatBehaviorModalOpen] = useState(false)
+	const [privacyActionBusy, setPrivacyActionBusy] = useState<string | null>(null)
+	const [privacyActionStatus, setPrivacyActionStatus] = useState<string | null>(null)
 	const previewTheme =
 		resolveEffectiveTheme(settings.theme, resolvedTheme) ?? 'dark'
 	const previewPalette = resolveThemePalette(settings, previewTheme)
@@ -140,6 +147,91 @@ export function SettingsModal({
 		if (confirm('Reset all settings to defaults? This cannot be undone.')) {
 			resetToDefaults()
 			showSavedIndicator()
+		}
+	}
+
+	const downloadAccountExport = async (format: 'json' | 'markdown') => {
+		setPrivacyActionBusy(`export-${format}`)
+		setPrivacyActionStatus(null)
+		try {
+			const response = await fetch(`/api/account/export?format=${format}`)
+			if (!response.ok) {
+				throw new Error('Export failed')
+			}
+
+			const blob = await response.blob()
+			const contentDisposition = response.headers.get('Content-Disposition') ?? ''
+			const filenameMatch = /filename="([^"]+)"/.exec(contentDisposition)
+			const filename =
+				filenameMatch?.[1] ??
+				`fork-ai-account-export.${format === 'markdown' ? 'md' : 'json'}`
+			const url = URL.createObjectURL(blob)
+			const anchor = document.createElement('a')
+			anchor.href = url
+			anchor.download = filename
+			document.body.appendChild(anchor)
+			anchor.click()
+			anchor.remove()
+			URL.revokeObjectURL(url)
+			setPrivacyActionStatus('Account export downloaded.')
+		} catch {
+			setPrivacyActionStatus('Unable to export account data right now.')
+		} finally {
+			setPrivacyActionBusy(null)
+		}
+	}
+
+	const revokeAllShares = async () => {
+		if (!confirm('Revoke all active share links? Existing links will stop working.')) {
+			return
+		}
+
+		setPrivacyActionBusy('revoke-shares')
+		setPrivacyActionStatus(null)
+		try {
+			const response = await fetch('/api/account/shares/revoke', {
+				method: 'POST',
+			})
+			const payload = await response.json().catch(() => null)
+			if (!response.ok) {
+				throw new Error('Revoke failed')
+			}
+
+			setPrivacyActionStatus(
+				`Revoked ${payload?.revokedCount ?? 0} active share link${
+					payload?.revokedCount === 1 ? '' : 's'
+				}.`
+			)
+		} catch {
+			setPrivacyActionStatus('Unable to revoke share links right now.')
+		} finally {
+			setPrivacyActionBusy(null)
+		}
+	}
+
+	const deleteAccount = async () => {
+		const confirmation = prompt('Type DELETE to permanently delete your account.')
+		if (confirmation !== 'DELETE') {
+			return
+		}
+
+		setPrivacyActionBusy('delete-account')
+		setPrivacyActionStatus(null)
+		try {
+			const response = await fetch('/api/account/delete', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ confirmation }),
+			})
+			if (!response.ok) {
+				throw new Error('Delete failed')
+			}
+
+			localStorage.clear()
+			window.location.href = '/'
+		} catch {
+			setPrivacyActionStatus('Unable to delete account right now.')
+			setPrivacyActionBusy(null)
 		}
 	}
 
@@ -466,6 +558,96 @@ export function SettingsModal({
 									</SelectContent>
 								</Select>
 							</div>
+						</div>
+					</div>
+
+					<div className="space-y-4">
+						<div className="flex items-center gap-2 border-b border-border/50 pb-2">
+							<CreditCard className="h-4 w-4 text-muted-foreground" />
+							<h3 className="text-sm font-semibold uppercase tracking-wider text-foreground">
+								Billing
+							</h3>
+						</div>
+
+						<div className="space-y-3 pl-6">
+							<button
+								onClick={() => {
+									onOpenChange(false)
+									window.location.href = '/chat/billing'
+								}}
+								className="group flex w-full items-center justify-between rounded-lg border border-border/50 p-3 text-left transition-all hover:border-primary/50 hover:bg-primary/5"
+							>
+								<div className="flex-1">
+									<p className="mb-1 text-sm font-medium">Plan & usage</p>
+									<p className="text-xs text-muted-foreground">
+										Manage subscription and view usage status
+									</p>
+								</div>
+								<ChevronRight className="h-4 w-4 text-muted-foreground transition-colors group-hover:text-primary" />
+							</button>
+						</div>
+					</div>
+
+					<div className="space-y-4">
+						<div className="flex items-center gap-2 border-b border-border/50 pb-2">
+							<Shield className="h-4 w-4 text-muted-foreground" />
+							<h3 className="text-sm font-semibold uppercase tracking-wider text-foreground">
+								Data & Privacy
+							</h3>
+						</div>
+
+						<div className="space-y-3 pl-6">
+							<div className="grid gap-2 sm:grid-cols-2">
+								<Button
+									type="button"
+									variant="outline"
+									size="sm"
+									onClick={() => downloadAccountExport('json')}
+									disabled={privacyActionBusy !== null}
+									className="justify-start"
+								>
+									<Download className="h-4 w-4" />
+									Export JSON
+								</Button>
+								<Button
+									type="button"
+									variant="outline"
+									size="sm"
+									onClick={() => downloadAccountExport('markdown')}
+									disabled={privacyActionBusy !== null}
+									className="justify-start"
+								>
+									<Download className="h-4 w-4" />
+									Export Markdown
+								</Button>
+								<Button
+									type="button"
+									variant="outline"
+									size="sm"
+									onClick={revokeAllShares}
+									disabled={privacyActionBusy !== null}
+									className="justify-start"
+								>
+									<Link2Off className="h-4 w-4" />
+									Revoke Shares
+								</Button>
+								<Button
+									type="button"
+									variant="destructive"
+									size="sm"
+									onClick={deleteAccount}
+									disabled={privacyActionBusy !== null}
+									className="justify-start"
+								>
+									<Trash2 className="h-4 w-4" />
+									Delete Account
+								</Button>
+							</div>
+							{privacyActionStatus ? (
+								<p className="text-xs text-muted-foreground">
+									{privacyActionStatus}
+								</p>
+							) : null}
 						</div>
 					</div>
 
