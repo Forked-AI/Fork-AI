@@ -1,5 +1,6 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { logServerError } from "@/lib/server-safe-log";
 import { NextRequest, NextResponse } from "next/server";
 
 /**
@@ -102,7 +103,7 @@ export async function PATCH(
 			parentMessageId: updated.parentMessageId,
 		});
 	} catch (error) {
-		console.error("Error attaching message:", error);
+		logServerError("messages/attach", "attach_failed", error);
 		return NextResponse.json(
 			{ error: "Failed to attach message" },
 			{ status: 500 }

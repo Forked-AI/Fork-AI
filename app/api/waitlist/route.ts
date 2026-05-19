@@ -1,5 +1,8 @@
+import { checkRequestRateLimit } from "@/lib/api-rate-limit";
+import { RATE_LIMIT_CONSTANTS } from "@/lib/constants";
 import { sendWelcomeEmail } from "@/lib/email";
 import { prisma } from "@/lib/prisma";
+import { logServerError } from "@/lib/server-safe-log";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -9,6 +12,18 @@ const emailSchema = z.object({
 
 export async function POST(request: Request) {
 	try {
+		const rateLimit = await checkRequestRateLimit(request, {
+			bucket: "waitlist-signup",
+			maxRequests: RATE_LIMIT_CONSTANTS.MAX_WAITLIST_REQUESTS_PER_HOUR,
+			windowSeconds: 3600,
+			error: "Too many waitlist requests. Please try again later.",
+			errorCode: "WAITLIST_RATE_LIMIT_EXCEEDED",
+			scope: "waitlist",
+		});
+		if (!rateLimit.allowed) {
+			return rateLimit.response;
+		}
+
 		const body = await request.json();
 
 		// Validate email
@@ -41,7 +56,7 @@ export async function POST(request: Request) {
 
 		// Send welcome email (don't fail the request if email fails)
 		sendWelcomeEmail(email).catch((error) => {
-			console.error("Failed to send welcome email:", error);
+			logServerError("waitlist", "welcome_email_failed", error);
 		});
 
 		return NextResponse.json(
@@ -49,7 +64,7 @@ export async function POST(request: Request) {
 			{ status: 201 }
 		);
 	} catch (error) {
-		console.error("Waitlist signup error:", error);
+		logServerError("waitlist", "signup_failed", error);
 		return NextResponse.json(
 			{ error: "Something went wrong. Please try again later." },
 			{ status: 500 }

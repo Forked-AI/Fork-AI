@@ -1,5 +1,6 @@
 import { isAdminAuthenticated } from "@/lib/admin-auth";
 import { prisma } from "@/lib/prisma";
+import { logServerError } from "@/lib/server-safe-log";
 import { NextResponse } from "next/server";
 
 export async function GET(request: Request) {
@@ -80,7 +81,7 @@ export async function GET(request: Request) {
 			chartData,
 		});
 	} catch (error) {
-		console.error("Admin stats error:", error);
+		logServerError("admin/stats", "fetch_failed", error);
 		return NextResponse.json(
 			{ error: "Failed to fetch stats" },
 			{ status: 500 }

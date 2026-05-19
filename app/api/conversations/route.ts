@@ -1,5 +1,6 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { logServerError } from "@/lib/server-safe-log";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { z } from "zod";
@@ -154,7 +155,7 @@ export async function GET(request: Request) {
 			},
 		});
 	} catch (error) {
-		console.error("Error listing conversations:", error);
+		logServerError("conversations", "list_failed", error);
 		return NextResponse.json(
 			{ error: "Failed to list conversations" },
 			{ status: 500 }
@@ -217,7 +218,7 @@ export async function POST(request: Request) {
 
 		return NextResponse.json({ conversation }, { status: 201 });
 	} catch (error) {
-		console.error("Error creating conversation:", error);
+		logServerError("conversations", "create_failed", error);
 		return NextResponse.json(
 			{ error: "Failed to create conversation" },
 			{ status: 500 }

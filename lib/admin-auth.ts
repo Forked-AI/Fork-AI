@@ -2,12 +2,13 @@
  * Simple admin authentication utility
  * Uses ADMIN_PASSWORD environment variable
  */
+import { logServerWarning } from "@/lib/server-safe-log";
 
 export function verifyAdminPassword(password: string): boolean {
 	const adminPassword = process.env.ADMIN_PASSWORD;
 
 	if (!adminPassword) {
-		console.warn("ADMIN_PASSWORD not set in environment variables");
+		logServerWarning("admin-auth", "missing_admin_password");
 		return false;
 	}
 

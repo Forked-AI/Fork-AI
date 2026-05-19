@@ -1,5 +1,6 @@
 import { isAdminAuthenticated } from "@/lib/admin-auth";
 import { prisma } from "@/lib/prisma";
+import { logServerError } from "@/lib/server-safe-log";
 import { NextResponse } from "next/server";
 
 export async function GET(request: Request) {
@@ -36,7 +37,7 @@ export async function GET(request: Request) {
 			},
 		});
 	} catch (error) {
-		console.error("Admin export error:", error);
+		logServerError("admin/waitlist", "export_failed", error);
 		return NextResponse.json(
 			{ error: "Failed to export waitlist" },
 			{ status: 500 }

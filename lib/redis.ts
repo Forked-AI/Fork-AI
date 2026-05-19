@@ -1,4 +1,9 @@
 import { createClient } from "redis";
+import {
+	logServerError,
+	logServerInfo,
+	logServerWarning,
+} from "./server-safe-log";
 
 // Use global to persist across module re-evaluations (Next.js hot reload)
 declare global {
@@ -32,31 +37,27 @@ if (global.__redisClient) {
 
 	// Only set up event listeners once
 	redisClient.on("error", (err: Error) => {
-		// eslint-disable-next-line no-console
-		console.error("Redis Client Error", err);
+		logServerError("redis", "client_error", err);
 	});
 
 	// Suppress connection messages after first connection (using global flags)
 	redisClient.on("connect", () => {
 		if (!global.__redisHasLoggedConnect) {
-			// eslint-disable-next-line no-console
-			console.log("Redis connected successfully");
+			logServerInfo("redis", "connected");
 			global.__redisHasLoggedConnect = true;
 		}
 	});
 
 	redisClient.on("ready", () => {
 		if (!global.__redisHasLoggedReady) {
-			// eslint-disable-next-line no-console
-			console.log("Redis client ready");
+			logServerInfo("redis", "ready");
 			global.__redisHasLoggedReady = true;
 		}
 	});
 
 	// Connect with better error handling
 	redisClient.connect().catch((err: Error) => {
-		// eslint-disable-next-line no-console
-		console.error("Failed to connect to Redis:", err);
+		logServerError("redis", "connect_failed", err);
 		global.__redisInitialized = false; // Allow retry on failure
 		global.__redisClient = null; // Clear on failure
 	});
@@ -69,8 +70,7 @@ if (global.__redisClient) {
 ) {
 	// Only log once if Redis is not configured
 	if (!global.__redisInitialized && process.env.NODE_ENV === "development") {
-		// eslint-disable-next-line no-console
-		console.log("Redis not configured - using memory-only session storage");
+		logServerWarning("redis", "not_configured");
 		global.__redisInitialized = true;
 	}
 }

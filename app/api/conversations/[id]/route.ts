@@ -1,5 +1,6 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { logServerError } from "@/lib/server-safe-log";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { z } from "zod";
@@ -73,7 +74,7 @@ export async function GET(
 
 		return NextResponse.json({ conversation });
 	} catch (error) {
-		console.error("Error fetching conversation:", error);
+		logServerError("conversations", "fetch_failed", error);
 		return NextResponse.json(
 			{ error: "Failed to fetch conversation" },
 			{ status: 500 }
@@ -181,7 +182,7 @@ export async function PATCH(
 
 		return NextResponse.json({ conversation });
 	} catch (error) {
-		console.error("Error moving conversation:", error);
+		logServerError("conversations", "update_failed", error);
 		return NextResponse.json(
 			{ error: "Failed to move conversation" },
 			{ status: 500 }
@@ -228,7 +229,7 @@ export async function DELETE(
 
 		return NextResponse.json({ success: true });
 	} catch (error) {
-		console.error("Error deleting conversation:", error);
+		logServerError("conversations", "delete_failed", error);
 		return NextResponse.json(
 			{ error: "Failed to delete conversation" },
 			{ status: 500 }

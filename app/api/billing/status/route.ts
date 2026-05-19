@@ -1,4 +1,5 @@
 import { auth } from "@/lib/auth";
+import { logServerError } from "@/lib/server-safe-log";
 import { getTokenBudgetStatus } from "@/lib/token-budget";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
@@ -37,7 +38,7 @@ export async function GET() {
 			},
 		});
 	} catch (error) {
-		console.error("[GET /api/billing/status] Error:", error);
+		logServerError("billing/status", "fetch_failed", error);
 		return NextResponse.json({ error: "Internal server error" }, { status: 500 });
 	}
 }

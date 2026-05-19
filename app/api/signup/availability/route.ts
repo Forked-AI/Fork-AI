@@ -1,4 +1,7 @@
+import { checkRequestRateLimit } from '@/lib/api-rate-limit'
+import { RATE_LIMIT_CONSTANTS } from '@/lib/constants'
 import { prisma } from '@/lib/prisma'
+import { logServerError } from '@/lib/server-safe-log'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 
@@ -8,6 +11,18 @@ const emailSchema = z.object({
 
 export async function POST(request: Request) {
 	try {
+		const rateLimit = await checkRequestRateLimit(request, {
+			bucket: 'signup-availability',
+			maxRequests: RATE_LIMIT_CONSTANTS.MAX_SIGNUP_AVAILABILITY_PER_MINUTE,
+			windowSeconds: 60,
+			error: 'Too many availability checks. Please try again later.',
+			errorCode: 'SIGNUP_AVAILABILITY_RATE_LIMIT_EXCEEDED',
+			scope: 'signup/availability',
+		})
+		if (!rateLimit.allowed) {
+			return rateLimit.response
+		}
+
 		const body = await request.json()
 		const result = emailSchema.safeParse(body)
 
@@ -41,7 +56,7 @@ export async function POST(request: Request) {
 
 		return NextResponse.json({ available: true }, { status: 200 })
 	} catch (error) {
-		console.error('Signup availability check failed:', error)
+		logServerError('signup/availability', 'check_failed', error)
 		return NextResponse.json(
 			{ available: false, error: "Couldn't verify email right now." },
 			{ status: 500 }

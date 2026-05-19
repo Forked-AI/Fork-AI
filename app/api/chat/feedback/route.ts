@@ -1,5 +1,6 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { logServerError } from "@/lib/server-safe-log";
 import { headers } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
 
@@ -39,7 +40,7 @@ export async function POST(request: NextRequest) {
 
 		return NextResponse.json({ success: true });
 	} catch (error) {
-		console.error("Feedback API error:", error);
+		logServerError("chat/feedback", "save_failed", error);
 		return NextResponse.json(
 			{ error: "Failed to save feedback" },
 			{ status: 500 }

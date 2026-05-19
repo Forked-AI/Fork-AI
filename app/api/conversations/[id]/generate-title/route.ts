@@ -1,6 +1,7 @@
 import { auth } from "@/lib/auth";
 import { mistralClient } from "@/lib/models";
 import { prisma } from "@/lib/prisma";
+import { logServerError } from "@/lib/server-safe-log";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 
@@ -106,7 +107,7 @@ Title:`;
 			conversationId,
 		});
 	} catch (error) {
-		console.error("Error generating title:", error);
+		logServerError("conversations/generate-title", "generate_failed", error);
 		return NextResponse.json(
 			{ error: "Failed to generate title" },
 			{ status: 500 }

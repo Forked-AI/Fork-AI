@@ -1,15 +1,17 @@
 import { redisClient } from "./redis";
+import { logServerError } from "./server-safe-log";
 
-interface RateLimitResult {
+export interface RateLimitResult {
 	allowed: boolean;
 	remaining: number;
 	resetAt: Date;
 	retryAfterSeconds?: number;
 }
 
-interface RateLimitConfig {
+export interface RateLimitConfig {
 	maxRequests: number;
 	windowSeconds: number;
+	bucket?: string;
 }
 
 // Default: 100 messages per hour
@@ -27,6 +29,7 @@ export async function checkChatRateLimit(
 	config: RateLimitConfig = DEFAULT_CONFIG
 ): Promise<RateLimitResult> {
 	const { maxRequests, windowSeconds } = config;
+	const bucket = config.bucket ?? "messages";
 	const now = Date.now();
 	const windowMs = windowSeconds * 1000;
 	const windowStart = now - windowMs;
@@ -41,7 +44,7 @@ export async function checkChatRateLimit(
 		};
 	}
 
-	const key = `chat:rate:${userId}`;
+	const key = `chat:rate:${bucket}:${userId}`;
 
 	try {
 		// Use Redis sorted set for sliding window
@@ -103,7 +106,10 @@ export async function checkChatRateLimit(
 		};
 	} catch (error) {
 		// Log error but allow request (fail open for better UX)
-		console.error("Rate limit check failed:", error);
+		logServerError("rate-limit", "check_failed", error, {
+			bucket,
+			windowSeconds,
+		});
 		return {
 			allowed: true,
 			remaining: maxRequests,
@@ -120,6 +126,7 @@ export async function getChatRateLimitStatus(
 	config: RateLimitConfig = DEFAULT_CONFIG
 ): Promise<RateLimitResult> {
 	const { maxRequests, windowSeconds } = config;
+	const bucket = config.bucket ?? "messages";
 	const now = Date.now();
 	const windowMs = windowSeconds * 1000;
 	const windowStart = now - windowMs;
@@ -133,7 +140,7 @@ export async function getChatRateLimitStatus(
 		};
 	}
 
-	const key = `chat:rate:${userId}`;
+	const key = `chat:rate:${bucket}:${userId}`;
 
 	try {
 		// Clean old entries and count
@@ -146,7 +153,10 @@ export async function getChatRateLimitStatus(
 			resetAt,
 		};
 	} catch (error) {
-		console.error("Rate limit status check failed:", error);
+		logServerError("rate-limit", "status_check_failed", error, {
+			bucket,
+			windowSeconds,
+		});
 		return {
 			allowed: true,
 			remaining: maxRequests,

@@ -2,6 +2,7 @@ import { auth } from '@/lib/auth'
 import { checkChatRateLimit } from '@/lib/chat-rate-limit'
 import { prisma } from '@/lib/prisma'
 import { buildSharePreview } from '@/lib/share/service'
+import { logServerError } from '@/lib/server-safe-log'
 import { headers } from 'next/headers'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
@@ -132,7 +133,7 @@ export async function POST(request: Request) {
 
 		return NextResponse.json(preview)
 	} catch (error) {
-		console.error('[POST /api/chat/share/preview] Error:', error)
+		logServerError('chat/share/preview', 'preview_failed', error)
 		return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
 	}
 }

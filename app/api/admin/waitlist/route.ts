@@ -1,5 +1,6 @@
 import { isAdminAuthenticated } from "@/lib/admin-auth";
 import { prisma } from "@/lib/prisma";
+import { logServerError } from "@/lib/server-safe-log";
 import { NextResponse } from "next/server";
 
 export async function GET(request: Request) {
@@ -42,7 +43,7 @@ export async function GET(request: Request) {
 			},
 		});
 	} catch (error) {
-		console.error("Admin waitlist fetch error:", error);
+		logServerError("admin/waitlist", "fetch_failed", error);
 		return NextResponse.json(
 			{ error: "Failed to fetch waitlist entries" },
 			{ status: 500 }

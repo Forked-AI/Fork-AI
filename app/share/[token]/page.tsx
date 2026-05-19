@@ -1,7 +1,10 @@
 import { OpenInForkAICta } from '@/components/share/open-in-fork-ai-cta'
 import { MarkdownRenderer } from '@/components/chat/markdown-renderer'
+import { checkRequestRateLimit } from '@/lib/api-rate-limit'
 import { auth } from '@/lib/auth'
+import { RATE_LIMIT_CONSTANTS } from '@/lib/constants'
 import { prisma } from '@/lib/prisma'
+import { logServerError } from '@/lib/server-safe-log'
 import type { MessageSnapshot, ShareSummaryData } from '@/lib/share/types'
 import type { Metadata } from 'next'
 import { headers } from 'next/headers'
@@ -25,10 +28,17 @@ export async function generateMetadata({
 		return { title: 'Shared Conversation — Fork AI' }
 	}
 
-	const snapshots: MessageSnapshot[] = JSON.parse(share.snapshotData)
-	const summary: ShareSummaryData | null = share.summaryData
-		? JSON.parse(share.summaryData)
-		: null
+	let snapshots: MessageSnapshot[]
+	let summary: ShareSummaryData | null
+	try {
+		snapshots = JSON.parse(share.snapshotData) as MessageSnapshot[]
+		summary = share.summaryData
+			? (JSON.parse(share.summaryData) as ShareSummaryData)
+			: null
+	} catch (error) {
+		logServerError('share/page', 'metadata_parse_failed', error)
+		return { title: 'Shared Conversation — Fork AI' }
+	}
 	const description =
 		summary?.overview ||
 		`${snapshots.length} message${snapshots.length !== 1 ? 's' : ''} shared via Fork AI`
@@ -61,6 +71,22 @@ export default async function SharePage({
 }) {
 	const { token } = await params
 	const resolvedSearchParams = (await searchParams) ?? {}
+	const requestHeaders = await headers()
+	const rateLimit = await checkRequestRateLimit(
+		new Request('http://localhost/share', { headers: new Headers(requestHeaders) }),
+		{
+			bucket: 'share-page-read',
+			maxRequests: RATE_LIMIT_CONSTANTS.MAX_PUBLIC_SHARE_READS_PER_MINUTE,
+			windowSeconds: 60,
+			identityParts: [token],
+			error: 'Too many share requests. Please try again later.',
+			errorCode: 'SHARE_RATE_LIMIT_EXCEEDED',
+			scope: 'share/page',
+		}
+	)
+	if (!rateLimit.allowed) {
+		return <ShareErrorPage message="Too many share requests. Please try again later." />
+	}
 
 	const share = await prisma.sharedConversation.findUnique({
 		where: { shareToken: token },
@@ -84,11 +110,18 @@ export default async function SharePage({
 		})
 		.catch(() => {})
 
-	const snapshots: MessageSnapshot[] = JSON.parse(share.snapshotData)
-	const summary: ShareSummaryData | null = share.summaryData
-		? JSON.parse(share.summaryData)
-		: null
-	const session = await auth.api.getSession({ headers: await headers() })
+	let snapshots: MessageSnapshot[]
+	let summary: ShareSummaryData | null
+	try {
+		snapshots = JSON.parse(share.snapshotData) as MessageSnapshot[]
+		summary = share.summaryData
+			? (JSON.parse(share.summaryData) as ShareSummaryData)
+			: null
+	} catch (error) {
+		logServerError('share/page', 'snapshot_parse_failed', error)
+		return <ShareErrorPage message="This shared conversation is temporarily unavailable." />
+	}
+	const session = await auth.api.getSession({ headers: requestHeaders })
 	const viewerUserId = session?.user?.id ?? null
 	const openInChatValue = resolvedSearchParams.openInChat
 	const normalizedOpenInChatValue = Array.isArray(openInChatValue)

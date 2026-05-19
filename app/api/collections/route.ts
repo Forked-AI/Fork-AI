@@ -1,5 +1,6 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { logServerError } from "@/lib/server-safe-log";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { z } from "zod";
@@ -69,7 +70,7 @@ export async function GET() {
 
 		return NextResponse.json({ collections });
 	} catch (error) {
-		console.error("Error fetching collections:", error);
+		logServerError("collections", "list_failed", error);
 		return NextResponse.json(
 			{ error: "Failed to fetch collections" },
 			{ status: 500 }
@@ -119,7 +120,7 @@ export async function POST(request: Request) {
 
 		return NextResponse.json({ collection }, { status: 201 });
 	} catch (error) {
-		console.error("Error creating collection:", error);
+		logServerError("collections", "create_failed", error);
 		return NextResponse.json(
 			{ error: "Failed to create collection" },
 			{ status: 500 }

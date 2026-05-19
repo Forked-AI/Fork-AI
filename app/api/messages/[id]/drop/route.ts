@@ -1,5 +1,6 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { logServerError } from "@/lib/server-safe-log";
 import { NextRequest, NextResponse } from "next/server";
 
 /**
@@ -120,7 +121,7 @@ export async function PATCH(
 			positionY: updated.positionY,
 		});
 	} catch (error) {
-		console.error("Error dropping message:", error);
+		logServerError("messages/drop", "drop_failed", error);
 		return NextResponse.json(
 			{ error: "Failed to drop message" },
 			{ status: 500 }

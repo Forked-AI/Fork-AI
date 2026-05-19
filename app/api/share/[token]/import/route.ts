@@ -1,6 +1,9 @@
 import { auth } from '@/lib/auth'
+import { checkRequestRateLimit } from '@/lib/api-rate-limit'
+import { RATE_LIMIT_CONSTANTS } from '@/lib/constants'
 import { prisma } from '@/lib/prisma'
 import type { MessageSnapshot } from '@/lib/share/types'
+import { logServerError } from '@/lib/server-safe-log'
 import { headers } from 'next/headers'
 import { NextResponse } from 'next/server'
 
@@ -20,16 +23,29 @@ function getSnapshotCreatedAt(value: string) {
 }
 
 export async function POST(
-	_request: Request,
+	request: Request,
 	{ params }: { params: Promise<{ token: string }> }
 ) {
 	try {
+		const { token } = await params
+		const rateLimit = await checkRequestRateLimit(request, {
+			bucket: 'share-public-import',
+			maxRequests: RATE_LIMIT_CONSTANTS.MAX_PUBLIC_SHARE_IMPORTS_PER_HOUR,
+			windowSeconds: 3600,
+			identityParts: [token],
+			error: 'Too many share import requests. Please try again later.',
+			errorCode: 'SHARE_IMPORT_RATE_LIMIT_EXCEEDED',
+			scope: 'share/import',
+		})
+		if (!rateLimit.allowed) {
+			return rateLimit.response
+		}
+
 		const session = await auth.api.getSession({ headers: await headers() })
 		if (!session?.user?.id) {
 			return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 		}
 
-		const { token } = await params
 		const share = await prisma.sharedConversation.findUnique({
 			where: { shareToken: token },
 		})
@@ -55,7 +71,16 @@ export async function POST(
 			})
 		}
 
-		const snapshots = sortSnapshots(JSON.parse(share.snapshotData) as MessageSnapshot[])
+		let snapshots: MessageSnapshot[]
+		try {
+			snapshots = sortSnapshots(JSON.parse(share.snapshotData) as MessageSnapshot[])
+		} catch (error) {
+			logServerError('share/import', 'snapshot_parse_failed', error)
+			return NextResponse.json(
+				{ error: 'Shared conversation data is unavailable' },
+				{ status: 500 }
+			)
+		}
 
 		const conversationId = await prisma.$transaction(async (tx) => {
 			const conversation = await tx.conversation.create({
@@ -91,7 +116,7 @@ export async function POST(
 			imported: true,
 		})
 	} catch (error) {
-		console.error('[POST /api/share/token/import] Error:', error)
+		logServerError('share/import', 'import_failed', error)
 		return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
 	}
 }

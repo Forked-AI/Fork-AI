@@ -1,4 +1,5 @@
 import { prisma } from "./prisma";
+import { logServerError } from "./server-safe-log";
 
 export type BillingTier = "free" | "trial" | "pro";
 
@@ -105,10 +106,9 @@ async function hasActiveProSubscription(userId: string): Promise<boolean> {
 	} catch (error) {
 		if (!hasLoggedSubscriptionTableWarning) {
 			hasLoggedSubscriptionTableWarning = true;
-			console.warn(
-				"[Subscription] Unable to query Stripe subscription table. Falling back to signup-trial/free tiers.",
-				error
-			);
+			logServerError("subscription", "stripe_subscription_query_failed", error, {
+				fallback: "signup-trial/free",
+			});
 		}
 		return false;
 	}

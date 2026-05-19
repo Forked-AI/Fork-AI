@@ -1,5 +1,6 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { logServerError } from "@/lib/server-safe-log";
 import { buildChildMap } from "@/lib/tree";
 import { NextRequest, NextResponse } from "next/server";
 
@@ -80,7 +81,7 @@ export async function GET(
 			tree: treeObject,
 		});
 	} catch (error) {
-		console.error("Error fetching conversation tree:", error);
+		logServerError("conversations/tree", "fetch_failed", error);
 		return NextResponse.json(
 			{ error: "Failed to fetch conversation tree" },
 			{ status: 500 }

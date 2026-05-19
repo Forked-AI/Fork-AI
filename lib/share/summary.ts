@@ -1,4 +1,5 @@
 import { mistralClient } from '@/lib/models'
+import { logServerError } from '@/lib/server-safe-log'
 import type { ShareSummaryData } from '@/lib/share/types'
 
 interface SummaryResult {
@@ -114,7 +115,7 @@ export async function generateShareSummary(options: {
 			warning: null,
 		}
 	} catch (error) {
-		console.error('[share/summary] Failed to generate summary:', error)
+		logServerError('share/summary', 'generate_failed', error)
 		return {
 			summary: null,
 			warning: 'Summary generation failed. You can still share the selected messages.',

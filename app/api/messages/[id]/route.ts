@@ -1,5 +1,6 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { logServerError } from "@/lib/server-safe-log";
 import { NextRequest, NextResponse } from "next/server";
 
 /**
@@ -102,7 +103,7 @@ export async function DELETE(
 			});
 		}
 	} catch (error) {
-		console.error("Error deleting message:", error);
+		logServerError("messages", "delete_failed", error);
 		return NextResponse.json(
 			{ error: "Failed to delete message" },
 			{ status: 500 }

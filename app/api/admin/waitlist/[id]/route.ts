@@ -1,5 +1,6 @@
 import { isAdminAuthenticated } from "@/lib/admin-auth";
 import { prisma } from "@/lib/prisma";
+import { logServerError } from "@/lib/server-safe-log";
 import { NextResponse } from "next/server";
 
 export async function DELETE(
@@ -35,7 +36,7 @@ export async function DELETE(
 			message: "Entry deleted successfully",
 		});
 	} catch (error) {
-		console.error("Admin delete error:", error);
+		logServerError("admin/waitlist", "delete_failed", error);
 		return NextResponse.json(
 			{ error: "Failed to delete entry" },
 			{ status: 500 }

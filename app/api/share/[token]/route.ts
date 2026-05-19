@@ -1,5 +1,8 @@
 import { auth } from '@/lib/auth'
+import { checkRequestRateLimit } from '@/lib/api-rate-limit'
+import { RATE_LIMIT_CONSTANTS } from '@/lib/constants'
 import { prisma } from '@/lib/prisma'
+import { logServerError, logServerInfo } from '@/lib/server-safe-log'
 import { headers } from 'next/headers'
 import { NextResponse } from 'next/server'
 import type { MessageSnapshot, ShareSummaryData } from '@/lib/share/types'
@@ -7,11 +10,23 @@ import type { MessageSnapshot, ShareSummaryData } from '@/lib/share/types'
 // --- GET /api/share/[token] — public read of a shared conversation ---
 
 export async function GET(
-	_request: Request,
+	request: Request,
 	{ params }: { params: Promise<{ token: string }> }
 ) {
 	try {
 		const { token } = await params
+		const rateLimit = await checkRequestRateLimit(request, {
+			bucket: 'share-public-read',
+			maxRequests: RATE_LIMIT_CONSTANTS.MAX_PUBLIC_SHARE_READS_PER_MINUTE,
+			windowSeconds: 60,
+			identityParts: [token],
+			error: 'Too many share requests. Please try again later.',
+			errorCode: 'SHARE_RATE_LIMIT_EXCEEDED',
+			scope: 'share/public',
+		})
+		if (!rateLimit.allowed) {
+			return rateLimit.response
+		}
 
 		const share = await prisma.sharedConversation.findUnique({
 			where: { shareToken: token },
@@ -40,10 +55,25 @@ export async function GET(
 			})
 			.catch(() => {}) // ignore errors on counter update
 
-		const snapshots: MessageSnapshot[] = JSON.parse(share.snapshotData)
-		const summary: ShareSummaryData | null = share.summaryData
-			? JSON.parse(share.summaryData)
-			: null
+		let snapshots: MessageSnapshot[]
+		let summary: ShareSummaryData | null
+		try {
+			snapshots = JSON.parse(share.snapshotData) as MessageSnapshot[]
+			summary = share.summaryData
+				? (JSON.parse(share.summaryData) as ShareSummaryData)
+				: null
+		} catch (error) {
+			logServerError('share/public', 'snapshot_parse_failed', error)
+			return NextResponse.json(
+				{ error: 'Shared conversation data is unavailable' },
+				{ status: 500 }
+			)
+		}
+
+		logServerInfo('share/public', 'accessed', {
+			messageCount: snapshots.length,
+			hasSummary: !!summary,
+		})
 
 		return NextResponse.json({
 			shareToken: share.shareToken,
@@ -59,7 +89,7 @@ export async function GET(
 			expiresAt: share.expiresAt?.toISOString() ?? null,
 		})
 	} catch (error) {
-		console.error('[GET /api/share/token] Error:', error)
+		logServerError('share/public', 'get_failed', error)
 		return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
 	}
 }
@@ -101,7 +131,7 @@ export async function DELETE(
 
 		return NextResponse.json({ success: true, revokedAt: new Date().toISOString() })
 	} catch (error) {
-		console.error('[DELETE /api/share/token] Error:', error)
+		logServerError('share/public', 'delete_failed', error)
 		return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
 	}
 }

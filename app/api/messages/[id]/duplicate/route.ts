@@ -1,5 +1,6 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { logServerError } from "@/lib/server-safe-log";
 import { NextRequest, NextResponse } from "next/server";
 
 /**
@@ -67,7 +68,7 @@ export async function POST(
 			createdAt: duplicate.createdAt.getTime(),
 		});
 	} catch (error) {
-		console.error("Error duplicating message:", error);
+		logServerError("messages/duplicate", "duplicate_failed", error);
 		return NextResponse.json(
 			{ error: "Failed to duplicate message" },
 			{ status: 500 }

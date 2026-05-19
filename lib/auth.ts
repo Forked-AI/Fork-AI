@@ -9,6 +9,7 @@ import {
     recordOTPAttemptByType,
 } from "./otp-rate-limit";
 import { prisma } from "./prisma";
+import { logServerError, logServerWarning } from "./server-safe-log";
 
 // Error codes for account status issues
 export const AUTH_ERROR_CODES = {
@@ -60,18 +61,16 @@ if (stripeSecretKey && stripeWebhookSecret && stripeProMonthlyPriceId) {
 		},
 	});
 } else if (stripeSecretKey || stripeWebhookSecret || stripeProMonthlyPriceId) {
-	console.warn(
-		"[Auth] Stripe plugin disabled: set STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET, and STRIPE_PRO_MONTHLY_PRICE_ID to enable subscriptions."
-	);
+	logServerWarning("auth", "stripe_plugin_disabled");
 	/*missing log */
 	if (!stripeSecretKey) {
-		console.warn("[Auth] Missing STRIPE_SECRET_KEY");
+		logServerWarning("auth", "missing_stripe_secret_key");
 	}
 	if (!stripeWebhookSecret) {
-		console.warn("[Auth] Missing STRIPE_WEBHOOK_SECRET");
+		logServerWarning("auth", "missing_stripe_webhook_secret");
 	}
 	if (!stripeProMonthlyPriceId) {
-		console.warn("[Auth] Missing STRIPE_PRO_MONTHLY_PRICE_ID");
+		logServerWarning("auth", "missing_stripe_price_id");
 	}
 }
 
@@ -107,9 +106,10 @@ async function checkAccountStatus(email: string): Promise<{
 					day: "numeric",
 				}
 			);
-			console.warn(
-				`[Auth] Blocked password reset attempt for temporarily banned account: ${email} (expires: ${banExpiryDate})`
-			);
+			logServerWarning("auth", "blocked_password_reset", {
+				reason: "temporary_ban",
+				userId: user.id,
+			});
 			return {
 				isBlocked: true,
 				errorCode: AUTH_ERROR_CODES.ACCOUNT_BANNED_TEMPORARY,
@@ -120,9 +120,10 @@ async function checkAccountStatus(email: string): Promise<{
 			return { isBlocked: false };
 		} else {
 			// Permanent ban (no expiry date)
-			console.warn(
-				`[Auth] Blocked password reset attempt for permanently banned account: ${email}`
-			);
+			logServerWarning("auth", "blocked_password_reset", {
+				reason: "permanent_ban",
+				userId: user.id,
+			});
 			return {
 				isBlocked: true,
 				errorCode: AUTH_ERROR_CODES.ACCOUNT_BANNED,
@@ -325,8 +326,7 @@ async function sendEmail(to: string, url: string, token: string) {
 		// Verification email sent
 	} catch (error) {
 		// Log error for monitoring
-		// eslint-disable-next-line no-console
-		console.error("Error sending verification email:", error);
+		logServerError("auth", "verification_email_failed", error);
 		throw new Error("Failed to send email");
 	}
 }

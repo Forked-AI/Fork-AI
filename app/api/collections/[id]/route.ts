@@ -1,5 +1,6 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { logServerError } from "@/lib/server-safe-log";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { z } from "zod";
@@ -94,7 +95,7 @@ export async function PUT(
 
 		return NextResponse.json({ collection });
 	} catch (error) {
-		console.error("Error updating collection:", error);
+		logServerError("collections", "update_failed", error);
 		return NextResponse.json(
 			{ error: "Failed to update collection" },
 			{ status: 500 }
@@ -148,7 +149,7 @@ export async function DELETE(
 
 		return NextResponse.json({ success: true });
 	} catch (error) {
-		console.error("Error deleting collection:", error);
+		logServerError("collections", "delete_failed", error);
 		return NextResponse.json(
 			{ error: "Failed to delete collection" },
 			{ status: 500 }

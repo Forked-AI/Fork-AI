@@ -1,5 +1,6 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { logServerError } from "@/lib/server-safe-log";
 import { NextRequest, NextResponse } from "next/server";
 
 /**
@@ -103,7 +104,7 @@ export async function PATCH(request: NextRequest) {
 			})),
 		});
 	} catch (error) {
-		console.error("Error batch updating positions:", error);
+		logServerError("messages/position", "batch_update_failed", error);
 		return NextResponse.json(
 			{ error: "Failed to batch update positions" },
 			{ status: 500 }

@@ -1,4 +1,5 @@
 import WaitlistWelcomeEmail from "@/emails/waitlist-welcome";
+import { logServerError, logServerInfo } from "@/lib/server-safe-log";
 import { Resend } from "resend";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
@@ -13,14 +14,16 @@ export async function sendWelcomeEmail(email: string) {
 		});
 
 		if (error) {
-			console.error("Failed to send welcome email:", error);
+			logServerError("email", "welcome_send_failed", error);
 			return { success: false, error };
 		}
 
-		console.log("Welcome email sent:", data?.id);
+		logServerInfo("email", "welcome_sent", {
+			providerMessageId: data?.id ?? null,
+		});
 		return { success: true, data };
 	} catch (error) {
-		console.error("Error sending welcome email:", error);
+		logServerError("email", "welcome_send_failed", error);
 		return { success: false, error };
 	}
 }

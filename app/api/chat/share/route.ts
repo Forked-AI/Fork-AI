@@ -1,7 +1,9 @@
 import { auth } from '@/lib/auth'
+import { checkRequestRateLimit } from '@/lib/api-rate-limit'
 import { prisma } from '@/lib/prisma'
 import { buildSharePersistencePayload } from '@/lib/share/service'
 import type { ShareMessageSelectionInput, ShareSummaryData } from '@/lib/share/types'
+import { logServerError } from '@/lib/server-safe-log'
 import { headers } from 'next/headers'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
@@ -60,6 +62,58 @@ function sortMessagesBySelection<T extends { id: string }>(
 
 function totalContentLength(messages: Array<{ content: string }>) {
 	return messages.reduce((sum, message) => sum + message.content.length, 0)
+}
+
+function isUniqueConstraintError(error: unknown) {
+	return (
+		!!error &&
+		typeof error === 'object' &&
+		'code' in error &&
+		(error as { code?: unknown }).code === 'P2002'
+	)
+}
+
+async function createShareWithUniqueToken(data: {
+	conversationId: string
+	createdBy: string
+	selectedMessageIds: string
+	snapshotData: string
+	summaryData: string | null
+	maskingData: string
+	title: string
+	expiresAt: Date | null
+	allowDownload: boolean
+	showTimestamps: boolean
+	showModel: boolean
+}) {
+	for (let attempt = 0; attempt < 5; attempt += 1) {
+		const shareToken = generateToken()
+		const existingShare = await prisma.sharedConversation.findUnique({
+			where: { shareToken },
+			select: { id: true },
+		})
+
+		if (existingShare) {
+			continue
+		}
+
+		try {
+			return await prisma.sharedConversation.create({
+				data: {
+					...data,
+					shareToken,
+				},
+			})
+		} catch (error) {
+			if (isUniqueConstraintError(error)) {
+				continue
+			}
+
+			throw error
+		}
+	}
+
+	throw new Error('Unable to generate a unique share token')
 }
 
 export async function POST(request: Request) {
@@ -163,11 +217,8 @@ export async function POST(request: Request) {
 			? new Date(Date.now() + expiresIn * 24 * 60 * 60 * 1000)
 			: null
 
-		const shareToken = generateToken()
-		const share = await prisma.sharedConversation.create({
-			data: {
+		const share = await createShareWithUniqueToken({
 				conversationId,
-				shareToken,
 				createdBy: userId,
 				selectedMessageIds: JSON.stringify(payload.selectedMessageIds),
 				snapshotData: JSON.stringify(payload.snapshots),
@@ -178,7 +229,6 @@ export async function POST(request: Request) {
 				allowDownload,
 				showTimestamps,
 				showModel,
-			},
 		})
 
 		const origin = process.env.NEXT_PUBLIC_BASE_URL ?? 'http://localhost:3000'
@@ -190,13 +240,25 @@ export async function POST(request: Request) {
 			hasSummary: !!payload.summary,
 		})
 	} catch (error) {
-		console.error('[POST /api/chat/share] Error:', error)
+		logServerError('chat/share', 'create_failed', error)
 		return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
 	}
 }
 
-export async function GET() {
+export async function GET(request: Request) {
 	try {
+		const rateLimit = await checkRequestRateLimit(request, {
+			bucket: 'share-list',
+			maxRequests: 60,
+			windowSeconds: 60,
+			error: 'Too many share requests. Please try again later.',
+			errorCode: 'SHARE_RATE_LIMIT_EXCEEDED',
+			scope: 'chat/share',
+		})
+		if (!rateLimit.allowed) {
+			return rateLimit.response
+		}
+
 		const session = await auth.api.getSession({ headers: await headers() })
 		if (!session?.user?.id) {
 			return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -231,7 +293,7 @@ export async function GET() {
 			})),
 		})
 	} catch (error) {
-		console.error('[GET /api/chat/share] Error:', error)
+		logServerError('chat/share', 'list_failed', error)
 		return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
 	}
 }
