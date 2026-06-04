@@ -1,3 +1,8 @@
+import {
+	selectModelProvider,
+	getSupportedModelAliases,
+} from "@/lib/ai/orchestrator";
+import { buildChatStreamReplayResponse } from "@/lib/ai/stream-events";
 import { auth } from "@/lib/auth";
 import { checkRequestRateLimit } from "@/lib/api-rate-limit";
 import {
@@ -5,26 +10,22 @@ import {
 	type RateLimitResult,
 } from "@/lib/chat-rate-limit";
 import {
-	buildProviderMessages,
-	type ConversationMessage,
+	createChatStreamResponse,
+	type ChatRateLimitState,
+} from "@/lib/chat/chat-service";
+import {
 	getForkAiSystemPrompt,
 	MissingChatSystemPromptError,
-	type ProviderMessage,
-	toConversationMessages,
 } from "@/lib/chat-system-prompt";
 import { RATE_LIMIT_CONSTANTS } from "@/lib/constants";
 import {
-	getModelAccessError,
-	isModelIncludedInPlan,
-} from "@/lib/model-entitlements";
-import { mistralClient } from "@/lib/models";
-import { prisma } from "@/lib/prisma";
-import {
-	logServerError,
-	logServerInfo,
-	logServerWarning,
-} from "@/lib/server-safe-log";
-import { checkTokenBudgetBeforeRequest } from "@/lib/token-budget";
+	beginIdempotency,
+	getRequestIdempotencyActorKey,
+	getUserIdempotencyActorKey,
+	type ActiveIdempotencyRecord,
+	type JsonValue,
+} from "@/lib/idempotency";
+import { logServerError, logServerWarning } from "@/lib/server-safe-log";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { z } from "zod";
@@ -39,7 +40,6 @@ const clientHistoryEntrySchema = z.object({
 		.max(32000, "History message too long"),
 });
 
-// Input validation schema
 const sendMessageSchema = z.object({
 	message: z
 		.string()
@@ -62,34 +62,16 @@ const sendMessageSchema = z.object({
 		.optional(),
 });
 
-// Supported models mapping
-const SUPPORTED_MODELS: Record<string, string> = {
-	"mistral-large": "mistral-large-latest",
-	"mistral-large-latest": "mistral-large-latest",
-	"mistral-small": "mistral-small-latest",
-	"mistral-small-latest": "mistral-small-latest",
-	codestral: "codestral-latest",
-	"codestral-latest": "codestral-latest",
-	"ministral-8b": "ministral-8b-latest",
-	"ministral-8b-latest": "ministral-8b-latest",
-	"ministral-3b": "ministral-3b-latest",
-	"ministral-3b-latest": "ministral-3b-latest",
-	"pixtral-large": "pixtral-large-latest",
-	"pixtral-large-latest": "pixtral-large-latest",
-	"open-mistral-nemo": "open-mistral-nemo",
-};
-
-interface NormalizedStreamError {
-	message: string;
-	errorCode: string;
-	providerStatusCode?: number;
-	retryAfterSeconds?: number;
-	providerRequestId?: string;
-}
-
-interface ChatRateLimitState {
-	remaining: number;
-	resetAt: Date;
+async function completeResponseIdempotency(
+	record: ActiveIdempotencyRecord,
+	response: Response
+) {
+	const body = (await response
+		.clone()
+		.json()
+		.catch(() => ({ error: "Request failed" }))) as JsonValue;
+	await record.complete(body, { status: response.status });
+	return response;
 }
 
 function getRetryAfterSeconds(rateLimit: RateLimitResult): number {
@@ -172,119 +154,16 @@ async function checkAuthenticatedChatRateLimits(
 	};
 }
 
-function getHeaderValue(headers: unknown, headerName: string): string | null {
-	if (!headers) {
-		return null;
-	}
-
-	if (headers instanceof Headers) {
-		return headers.get(headerName);
-	}
-
-	if (typeof headers !== "object") {
-		return null;
-	}
-
-	const lowerHeaderName = headerName.toLowerCase();
-	for (const [key, value] of Object.entries(
-		headers as Record<string, unknown>
-	)) {
-		if (key.toLowerCase() !== lowerHeaderName) {
-			continue;
-		}
-
-		if (typeof value === "string") {
-			return value;
-		}
-
-		if (Array.isArray(value) && value.length > 0) {
-			return String(value[0]);
-		}
-
-		if (value != null) {
-			return String(value);
-		}
-	}
-
-	return null;
-}
-
-function parseRetryAfterSeconds(value: string | null): number | undefined {
-	if (!value) {
-		return undefined;
-	}
-
-	const asNumber = Number(value);
-	if (Number.isFinite(asNumber) && asNumber >= 0) {
-		return Math.ceil(asNumber);
-	}
-
-	const asDateMs = Date.parse(value);
-	if (Number.isNaN(asDateMs)) {
-		return undefined;
-	}
-
-	return Math.max(0, Math.ceil((asDateMs - Date.now()) / 1000));
-}
-
-function normalizeStreamError(error: unknown): NormalizedStreamError {
-	const providerError = error as {
-		statusCode?: number;
-		status?: number;
-		headers?: unknown;
-		rawResponse?: {
-			status?: number;
-			headers?: unknown;
-		};
-	};
-
-	const providerStatusCode =
-		providerError.statusCode ??
-		providerError.status ??
-		providerError.rawResponse?.status;
-	const providerHeaders =
-		providerError.headers ?? providerError.rawResponse?.headers;
-	const retryAfterSeconds =
-		parseRetryAfterSeconds(
-			getHeaderValue(providerHeaders, "retry-after")
-		) ??
-		parseRetryAfterSeconds(
-			getHeaderValue(providerHeaders, "x-ratelimit-reset")
-		);
-	const providerRequestId =
-		getHeaderValue(providerHeaders, "mistral-correlation-id") ??
-		getHeaderValue(providerHeaders, "x-kong-request-id") ??
-		undefined;
-
-	if (providerStatusCode === 429) {
-		return {
-			message: "Model rate limit reached. Please retry in a moment.",
-			errorCode: "PROVIDER_RATE_LIMITED",
-			providerStatusCode,
-			retryAfterSeconds,
-			providerRequestId,
-		};
-	}
-
-	return {
-		message: "Stream interrupted. You can retry this message.",
-		errorCode: "STREAM_INTERRUPTED",
-		providerStatusCode,
-		providerRequestId,
-	};
-}
-
 export async function POST(request: Request) {
+	let activeIdempotency: ActiveIdempotencyRecord | null = null;
+
 	try {
-		// 1. Authenticate user (optional for guest mode)
 		const session = await auth.api.getSession({
 			headers: await headers(),
 		});
-
 		const userId = session?.user?.id || null;
 		const isGuest = !userId;
 
-		// 2. Parse and validate input
 		const body = await request.json();
 		const parseResult = sendMessageSchema.safeParse(body);
 
@@ -322,19 +201,40 @@ export async function POST(request: Request) {
 			throw error;
 		}
 
-		// 3. Validate model
-		const mistralModel = SUPPORTED_MODELS[model];
-		if (!mistralModel) {
+		const modelSelection = selectModelProvider(model);
+		if (!modelSelection) {
 			return NextResponse.json(
 				{
 					error: "Unsupported model",
-					supportedModels: Object.keys(SUPPORTED_MODELS),
+					supportedModels: getSupportedModelAliases(),
 				},
 				{ status: 400 }
 			);
 		}
 
-		// 4. Check rate limits
+		const idempotency = await beginIdempotency(request, {
+			scope: "chat:stream",
+			actorKey: userId
+				? getUserIdempotencyActorKey(userId)
+				: getRequestIdempotencyActorKey(request, "guest-chat"),
+			requestInput: {
+				message,
+				model: modelSelection.model,
+				conversationId,
+				parentMessageId,
+				history: history ?? [],
+				systemPrompt: userCustomInstructions,
+			},
+			lockSeconds: 10 * 60,
+			replayResponse: (record) =>
+				buildChatStreamReplayResponse(record.responseBody),
+		});
+		if (!idempotency.started) {
+			return idempotency.response;
+		}
+		const streamIdempotency = idempotency.record;
+		activeIdempotency = streamIdempotency;
+
 		let rateLimit: ChatRateLimitState | null = null;
 		if (isGuest) {
 			const minuteRateLimit = await checkRequestRateLimit(request, {
@@ -346,7 +246,10 @@ export async function POST(request: Request) {
 				scope: "chat/stream",
 			});
 			if (!minuteRateLimit.allowed) {
-				return minuteRateLimit.response;
+				return completeResponseIdempotency(
+					streamIdempotency,
+					minuteRateLimit.response
+				);
 			}
 
 			const hourRateLimit = await checkRequestRateLimit(request, {
@@ -358,7 +261,10 @@ export async function POST(request: Request) {
 				scope: "chat/stream",
 			});
 			if (!hourRateLimit.allowed) {
-				return hourRateLimit.response;
+				return completeResponseIdempotency(
+					streamIdempotency,
+					hourRateLimit.response
+				);
 			}
 
 			rateLimit = {
@@ -367,7 +273,8 @@ export async function POST(request: Request) {
 					hourRateLimit.state.remaining
 				),
 				resetAt:
-					minuteRateLimit.state.remaining <= hourRateLimit.state.remaining
+					minuteRateLimit.state.remaining <=
+					hourRateLimit.state.remaining
 						? minuteRateLimit.state.resetAt
 						: hourRateLimit.state.resetAt,
 			};
@@ -376,359 +283,40 @@ export async function POST(request: Request) {
 				userId!
 			);
 			if (!rateLimitResult.allowed) {
-				return rateLimitResult.response;
+				return completeResponseIdempotency(
+					streamIdempotency,
+					rateLimitResult.response
+				);
 			}
 			rateLimit = rateLimitResult.state;
 		}
 
-		// 5. Get or create conversation (skip for guests)
-		let conversation: any = null;
-		let isNewConversation = false;
-		let userMessage: any = null;
-		let messageHistory: ConversationMessage[] = [];
-		let providerMessages: ProviderMessage[] = [];
-		let tokenBudgetCheck: Awaited<
-			ReturnType<typeof checkTokenBudgetBeforeRequest>
-		> | null = null;
-
-		const buildMessageHistory = async (
-			conversationIdToUse: string,
-			branchParentId?: string | null
-		): Promise<ConversationMessage[]> => {
-			// Normal linear path: full ordered history
-			if (!branchParentId) {
-				const linearMessages = await prisma.message.findMany({
-					where: { conversationId: conversationIdToUse },
-					orderBy: { createdAt: "asc" },
-					select: { role: true, content: true },
-				});
-
-				return toConversationMessages(linearMessages);
-			}
-
-			// Branch path: walk ancestors from selected parent back to root
-			const ancestorPath: Array<{
-				role: string;
-				content: string;
-			}> = [];
-			let currentId: string | null = branchParentId;
-
-			while (currentId) {
-				const messageNode: {
-					role: string;
-					content: string;
-					parentMessageId: string | null;
-				} | null = await prisma.message.findFirst({
-					where: {
-						id: currentId,
-						conversationId: conversationIdToUse,
-					},
-					select: {
-						role: true,
-						content: true,
-						parentMessageId: true,
-					},
-				});
-
-				if (!messageNode) break;
-
-				ancestorPath.unshift({
-					role: messageNode.role,
-					content: messageNode.content,
-				});
-
-				currentId = messageNode.parentMessageId ?? null;
-			}
-
-			return toConversationMessages(ancestorPath);
-		};
-
-		if (!isGuest) {
-			if (conversationId) {
-				// Verify ownership
-				conversation = await prisma.conversation.findFirst({
-					where: {
-						id: conversationId,
-						userId: userId!,
-					},
-					include: {
-						messages: {
-							orderBy: { createdAt: "asc" },
-							select: {
-								role: true,
-								content: true,
-							},
-						},
-					},
-				});
-
-				if (!conversation) {
-					return NextResponse.json(
-						{ error: "Conversation not found" },
-						{ status: 404 }
-					);
-				}
-			} else {
-				// Create new conversation with first message as title
-				const title =
-					message.slice(0, 100) + (message.length > 100 ? "..." : "");
-				conversation = await prisma.conversation.create({
-					data: {
-						title,
-						userId: userId!,
-					},
-					include: {
-						messages: true,
-					},
-				});
-				isNewConversation = true;
-			}
-
-			// 6. Build message history for Mistral
-			messageHistory = await buildMessageHistory(
-				conversation.id,
-				parentMessageId
-			);
-
-			const requestHistory: ConversationMessage[] = [
-				...messageHistory,
-				{ role: "user", content: message },
-			];
-			const requestProviderMessages = buildProviderMessages(
-				appSystemPrompt,
-				userCustomInstructions,
-				requestHistory
-			);
-
-			tokenBudgetCheck = await checkTokenBudgetBeforeRequest(
-				userId!,
-				requestProviderMessages
-			);
-
-			if (!tokenBudgetCheck.allowed) {
-				logServerInfo("chat/stream", "token_budget_blocked", {
-					planTier: tokenBudgetCheck.tier,
-					usageBand: tokenBudgetCheck.usageBand,
-					usagePercent: tokenBudgetCheck.usagePercent,
-				});
-				return NextResponse.json(
-					{
-						error: "You have reached your current plan usage limit.",
-						errorCode: "PLAN_USAGE_LIMIT_REACHED",
-						plan: {
-							tier: tokenBudgetCheck.tier,
-							usageBand: tokenBudgetCheck.usageBand,
-							usagePercent: tokenBudgetCheck.usagePercent,
-							trialEndsAt:
-								tokenBudgetCheck.trialEndsAt?.toISOString() ??
-								null,
-						},
-					},
-					{ status: 429 }
-				);
-			}
-
-			if (!isModelIncludedInPlan(tokenBudgetCheck.tier, mistralModel)) {
-				logServerWarning("chat/stream", "model_entitlement_blocked", {
-					planTier: tokenBudgetCheck.tier,
-					model: mistralModel,
-				});
-				return NextResponse.json(
-					getModelAccessError(tokenBudgetCheck.tier, mistralModel),
-					{ status: 403 }
-				);
-			}
-
-			// 7. Save user message to database
-			userMessage = await prisma.message.create({
-				data: {
-					role: "user",
-					content: message,
-					conversationId: conversation.id,
-					parentMessageId: parentMessageId || null,
-				},
-			});
-
-			// 8. Append current prompt as newest user turn
-			messageHistory = requestHistory;
-			providerMessages = requestProviderMessages;
-		} else {
-			if (!isModelIncludedInPlan("guest", mistralModel)) {
-				logServerWarning("chat/stream", "model_entitlement_blocked", {
-					planTier: "guest",
-					model: mistralModel,
-				});
-				return NextResponse.json(
-					getModelAccessError("guest", mistralModel),
-					{ status: 403 }
-				);
-			}
-
-			// For guest users, reuse the current in-memory path when provided.
-			messageHistory = [
-				...(history ?? []),
-				{ role: "user", content: message },
-			];
-			providerMessages = buildProviderMessages(
-				appSystemPrompt,
-				userCustomInstructions,
-				messageHistory
-			);
-		}
-
-		// 8. Create streaming response
-		const encoder = new TextEncoder();
-		let fullResponse = "";
-		let promptTokens = 0;
-		let completionTokens = 0;
-
-		const readableStream = new ReadableStream({
-			async start(controller) {
-				try {
-					const stream = await mistralClient.chat.stream({
-						model: mistralModel,
-						messages: providerMessages,
-					});
-
-					if (!isGuest && isNewConversation && conversation) {
-						controller.enqueue(
-							encoder.encode(
-								`data: ${JSON.stringify({
-									type: "conversation",
-									conversationId: conversation.id,
-								})}\n\n`
-							)
-						);
-					}
-
-					if (!isGuest && userMessage) {
-						controller.enqueue(
-							encoder.encode(
-								`data: ${JSON.stringify({
-									type: "messageId",
-									userMessageId: userMessage.id,
-								})}\n\n`
-							)
-						);
-					}
-
-					for await (const event of stream) {
-						const content = event.data?.choices[0]?.delta.content;
-						if (content) {
-							fullResponse += content;
-							controller.enqueue(
-								encoder.encode(
-									`data: ${JSON.stringify({ type: "content", content })}\n\n`
-								)
-							);
-						}
-
-						if (event.data?.usage) {
-							promptTokens = event.data.usage.promptTokens || 0;
-							completionTokens =
-								event.data.usage.completionTokens || 0;
-						}
-					}
-
-					if (!isGuest && conversation) {
-						const assistantMessage = await prisma.message.create({
-							data: {
-								role: "assistant",
-								content: fullResponse,
-								model: mistralModel,
-								promptTokens,
-								completionTokens,
-								conversationId: conversation.id,
-								parentMessageId: userMessage.id,
-								isError: false,
-							},
-						});
-
-						await prisma.conversation.update({
-							where: { id: conversation.id },
-							data: { updatedAt: new Date() },
-						});
-
-						controller.enqueue(
-							encoder.encode(
-								`data: ${JSON.stringify({
-									type: "done",
-									assistantMessageId: assistantMessage.id,
-									usage: { promptTokens, completionTokens },
-								})}\n\n`
-							)
-						);
-					} else {
-						controller.enqueue(
-							encoder.encode(
-								`data: ${JSON.stringify({
-									type: "done",
-									usage: { promptTokens, completionTokens },
-								})}\n\n`
-							)
-						);
-					}
-				} catch (error) {
-					logServerError("chat/stream", "stream_error", error, {
-						isGuest,
-						model: mistralModel,
-					});
-
-					if (!isGuest && conversation) {
-						await prisma.message.create({
-							data: {
-								role: "assistant",
-								content: fullResponse,
-								model: mistralModel,
-								conversationId: conversation.id,
-								parentMessageId: userMessage?.id ?? null,
-								isError: true,
-							},
-						});
-					}
-
-					const streamError = normalizeStreamError(error);
-					controller.enqueue(
-						encoder.encode(
-							`data: ${JSON.stringify({
-								type: "error",
-								error: streamError.message,
-								errorCode: streamError.errorCode,
-								providerStatusCode:
-									streamError.providerStatusCode,
-								retryAfterSeconds:
-									streamError.retryAfterSeconds,
-								providerRequestId:
-									streamError.providerRequestId,
-								partialContent: fullResponse.length > 0,
-							})}\n\n`
-						)
-					);
-				} finally {
-					controller.close();
-				}
-			},
-		});
-
-		return new Response(readableStream, {
-			headers: {
-				"Content-Type": "text/event-stream",
-				"Cache-Control": "no-cache, no-transform",
-				Connection: "keep-alive",
-				"X-Plan-Tier": tokenBudgetCheck?.tier ?? "guest",
-				"X-Plan-Usage": tokenBudgetCheck?.usageBand ?? "unknown",
-				"X-RateLimit-Remaining": String(
-					rateLimit?.remaining || 0
-				),
-				"X-RateLimit-Reset": isGuest
-					? rateLimit?.resetAt?.toISOString() ||
-						new Date().toISOString()
-					: rateLimit?.resetAt?.toISOString() ||
-						new Date().toISOString(),
-			},
+		return createChatStreamResponse({
+			userId,
+			isGuest,
+			message,
+			model: modelSelection.model,
+			providerName: modelSelection.providerName,
+			provider: modelSelection.provider,
+			conversationId,
+			parentMessageId,
+			history,
+			appSystemPrompt,
+			userCustomInstructions,
+			streamIdempotency,
+			rateLimit,
 		});
 	} catch (error) {
 		logServerError("chat/stream", "request_error", error);
+		if (activeIdempotency) {
+			await activeIdempotency.fail(
+				{
+					error: "Internal server error",
+					errorCode: "CHAT_STREAM_REQUEST_FAILED",
+				},
+				{ status: 500 }
+			);
+		}
 		return NextResponse.json(
 			{ error: "Internal server error" },
 			{ status: 500 }

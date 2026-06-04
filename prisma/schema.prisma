@@ -13,6 +13,24 @@ datasource db {
   provider = "postgresql"
 }
 
+enum MessageStatus {
+  pending
+  streaming
+  completed
+  failed
+  cancelled
+  moderated
+}
+
+enum GenerationStatus {
+  pending
+  streaming
+  completed
+  failed
+  cancelled
+  moderated
+}
+
 model WaitlistEntry {
   id        String   @id @default(cuid())
   email     String   @unique
@@ -33,6 +51,7 @@ model User {
   collections         Collection[]
   conversations       Conversation[]
   sharedConversations SharedConversation[]
+  generations         Generation[]
 
   banned     Boolean?  @default(false)
   banReason  String?
@@ -119,6 +138,7 @@ model Conversation {
   isPinned            Boolean              @default(false)
   pinnedAt            DateTime?
   messages            Message[]
+  generations         Generation[]
   sharedConversations SharedConversation[]
   activeMessageIds    String?              @db.Text // JSON array of message IDs representing the active branch path
   createdAt           DateTime             @default(now())
@@ -131,32 +151,74 @@ model Conversation {
 }
 
 model Message {
-  id               String            @id @default(cuid())
-  role             String // "user" | "assistant" | "system"
-  content          String            @db.Text
-  model            String? // e.g., "mistral-large-latest"
-  promptTokens     Int?
-  completionTokens Int?
-  isError          Boolean           @default(false) // For failed stream recovery
-  conversationId   String
-  conversation     Conversation      @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  feedback         MessageFeedback[]
+  id                           String            @id @default(cuid())
+  role                         String // "user" | "assistant" | "system"
+  content                      String            @db.Text
+  model                        String? // e.g., "mistral-large-latest"
+  promptTokens                 Int?
+  completionTokens             Int?
+  isError                      Boolean           @default(false) // For failed stream recovery
+  status                       MessageStatus     @default(completed)
+  errorCode                    String?
+  providerStatusCode           Int?
+  providerRequestId            String?
+  startedAt                    DateTime?
+  completedAt                  DateTime?
+  cancelledAt                  DateTime?
+  lastChunkAt                  DateTime?
+  conversationId               String
+  conversation                 Conversation      @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  feedback                     MessageFeedback[]
+  generationAsUserMessage      Generation[]      @relation("GenerationUserMessage")
+  generationAsAssistantMessage Generation?       @relation("GenerationAssistantMessage")
   // Tree structure for branching
-  parentMessageId  String?           @map("parent_message_id")
-  parentMessage    Message?          @relation("MessageTree", fields: [parentMessageId], references: [id], onDelete: SetNull)
-  childMessages    Message[]         @relation("MessageTree")
+  parentMessageId              String?           @map("parent_message_id")
+  parentMessage                Message?          @relation("MessageTree", fields: [parentMessageId], references: [id], onDelete: SetNull)
+  childMessages                Message[]         @relation("MessageTree")
   // Graph visualization
-  positionX        Float?
-  positionY        Float?
+  positionX                    Float?
+  positionY                    Float?
   // Root nodes for branching history
-  isRootNode       Boolean           @default(false)
-  rootNodeName     String?
-  createdAt        DateTime          @default(now())
+  isRootNode                   Boolean           @default(false)
+  rootNodeName                 String?
+  createdAt                    DateTime          @default(now())
 
   @@index([conversationId])
   @@index([parentMessageId])
   @@index([isRootNode])
   @@map("message")
+}
+
+model Generation {
+  id                 String           @id @default(cuid())
+  userId             String
+  user               User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  conversationId     String
+  conversation       Conversation     @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  userMessageId      String
+  userMessage        Message          @relation("GenerationUserMessage", fields: [userMessageId], references: [id], onDelete: Cascade)
+  assistantMessageId String           @unique
+  assistantMessage   Message          @relation("GenerationAssistantMessage", fields: [assistantMessageId], references: [id], onDelete: Cascade)
+  provider           String
+  model              String
+  status             GenerationStatus @default(pending)
+  promptTokens       Int?
+  completionTokens   Int?
+  providerRequestId  String?
+  errorCode          String?
+  providerStatusCode Int?
+  startedAt          DateTime?
+  completedAt        DateTime?
+  cancelledAt        DateTime?
+  lastChunkAt        DateTime?
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+
+  @@index([userId])
+  @@index([conversationId])
+  @@index([userMessageId])
+  @@index([status, lastChunkAt])
+  @@map("generation")
 }
 
 model MessageFeedback {
@@ -223,4 +285,26 @@ model Subscription {
   stripeScheduleId     String?
 
   @@map("subscription")
+}
+
+model IdempotencyRecord {
+  id             String    @id @default(cuid())
+  scope          String
+  actorKey       String
+  key            String
+  requestHash    String
+  status         String    @default("processing")
+  responseStatus Int?
+  responseBody   Json?
+  resourceType   String?
+  resourceId     String?
+  lockedUntil    DateTime?
+  expiresAt      DateTime
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@unique([scope, actorKey, key])
+  @@index([expiresAt])
+  @@index([status, lockedUntil])
+  @@map("idempotency_record")
 }
