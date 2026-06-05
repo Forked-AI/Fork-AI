@@ -1,4 +1,12 @@
-import { fetchConversationDetail } from "@/lib/conversation-api";
+import {
+	cacheConversationDetail,
+	clearCachedConversationDetail,
+	conversationDetailQueryKey,
+	fetchConversationDetail,
+	type ConversationDetailPayload,
+} from "@/lib/conversation-api";
+import { createIdempotencyHeaders } from "@/lib/idempotency-client";
+import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useRef, useState } from "react";
 
 export interface Message {
@@ -10,6 +18,22 @@ export interface Message {
 	completionTokens?: number;
 	isError?: boolean;
 	isStopped?: boolean;
+	status?:
+		| "pending"
+		| "streaming"
+		| "completed"
+		| "failed"
+		| "cancelled"
+		| "moderated"
+		| null;
+	errorCode?: string | null;
+	providerStatusCode?: number | null;
+	providerRequestId?: string | null;
+	startedAt?: Date | null;
+	completedAt?: Date | null;
+	cancelledAt?: Date | null;
+	lastChunkAt?: Date | null;
+	generationId?: string | null;
 	createdAt?: Date;
 	isStreaming?: boolean;
 	parentMessageId?: string | null;
@@ -27,6 +51,41 @@ function mapMessagesToHistory(messages: Message[]): MessageHistoryEntry[] {
 				message.role === "user" || message.role === "assistant"
 		)
 		.map(({ role, content }) => ({ role, content }));
+}
+
+function mapConversationDetailMessages(
+	conversation: ConversationDetailPayload
+): Message[] {
+	return conversation.messages.map((msg) => ({
+		...msg,
+		model: msg.model ?? undefined,
+		promptTokens: msg.promptTokens ?? undefined,
+		completionTokens: msg.completionTokens ?? undefined,
+		status: msg.status ?? undefined,
+		isError:
+			msg.status === "failed" || msg.status === "moderated"
+				? true
+				: msg.isError ?? undefined,
+		isStopped: msg.status === "cancelled" ? true : undefined,
+		isStreaming:
+			msg.status === "pending" || msg.status === "streaming"
+				? true
+				: undefined,
+		errorCode: msg.errorCode ?? undefined,
+		providerStatusCode: msg.providerStatusCode ?? undefined,
+		providerRequestId: msg.providerRequestId ?? undefined,
+		startedAt: msg.startedAt ? new Date(msg.startedAt) : undefined,
+		completedAt: msg.completedAt
+			? new Date(msg.completedAt)
+			: undefined,
+		cancelledAt: msg.cancelledAt
+			? new Date(msg.cancelledAt)
+			: undefined,
+		lastChunkAt: msg.lastChunkAt
+			? new Date(msg.lastChunkAt)
+			: undefined,
+		createdAt: msg.createdAt ? new Date(msg.createdAt) : undefined,
+	}));
 }
 
 export function buildLocalHistorySnapshot(
@@ -225,6 +284,7 @@ export interface UseChatReturn {
 }
 
 export function useChat(options: UseChatOptions = {}): UseChatReturn {
+	const queryClient = useQueryClient();
 	const [messages, setMessages] = useState<Message[]>([]);
 	const [isStreaming, setIsStreaming] = useState(false);
 	const [error, setError] = useState<string | null>(null);
@@ -234,6 +294,8 @@ export function useChat(options: UseChatOptions = {}): UseChatReturn {
 
 	const abortControllerRef = useRef<AbortController | null>(null);
 	const inFlightSendRef = useRef(false);
+	const activeAssistantMessageIdRef = useRef<string | null>(null);
+	const activeGenerationIdRef = useRef<string | null>(null);
 	const messagesRef = useRef<Message[]>(messages);
 	const conversationIdRef = useRef<string | null>(conversationId);
 	const currentModelRef = useRef<string>(
@@ -255,36 +317,50 @@ export function useChat(options: UseChatOptions = {}): UseChatReturn {
 	onTitleGenerationNeededRef.current = options.onTitleGenerationNeeded;
 	onErrorRef.current = options.onError;
 
-	// Load an existing conversation
-	const loadConversation = useCallback(async (convId: string) => {
-		try {
-			setError(null);
-			const conversation = await fetchConversationDetail(convId);
+	const clearConversationCaches = useCallback(
+		(nextConversationId: string | null) => {
+			if (!nextConversationId) return;
+			clearCachedConversationDetail(nextConversationId);
+			queryClient.removeQueries({
+				queryKey: conversationDetailQueryKey(nextConversationId),
+				exact: true,
+			});
+		},
+		[queryClient]
+	);
 
-			setConversationId(convId);
-			setMessages(
-				conversation.messages.map((msg) => ({
-					...msg,
-					model: msg.model ?? undefined,
-					promptTokens: msg.promptTokens ?? undefined,
-					completionTokens: msg.completionTokens ?? undefined,
-					isError: msg.isError ?? undefined,
-					createdAt: msg.createdAt
-						? new Date(msg.createdAt)
-						: undefined,
-				}))
-			);
-		} catch (err) {
-			const errorMessage =
-				err instanceof Error
-					? err.message
-					: "Failed to load conversation";
-			setError(errorMessage);
-			onErrorRef.current?.(
-				err instanceof Error ? err : new Error(errorMessage)
-			);
-		}
-	}, []);
+	// Load an existing conversation
+	const loadConversation = useCallback(
+		async (convId: string) => {
+			try {
+				setError(null);
+				const queryKey = conversationDetailQueryKey(convId);
+				let conversation =
+					queryClient.getQueryData<ConversationDetailPayload>(
+						queryKey
+					);
+
+				if (!conversation) {
+					conversation = await fetchConversationDetail(convId);
+				}
+
+				cacheConversationDetail(conversation);
+				queryClient.setQueryData(queryKey, conversation);
+				setConversationId(convId);
+				setMessages(mapConversationDetailMessages(conversation));
+			} catch (err) {
+				const errorMessage =
+					err instanceof Error
+						? err.message
+						: "Failed to load conversation";
+				setError(errorMessage);
+				onErrorRef.current?.(
+					err instanceof Error ? err : new Error(errorMessage)
+				);
+			}
+		},
+		[queryClient]
+	);
 
 	// Send a new message
 	const sendMessage = useCallback(
@@ -304,6 +380,8 @@ export function useChat(options: UseChatOptions = {}): UseChatReturn {
 			}
 
 			inFlightSendRef.current = true;
+
+			clearConversationCaches(conversationIdRef.current);
 
 			const selectedModel = model || currentModelRef.current;
 			const requestHistory =
@@ -329,6 +407,7 @@ export function useChat(options: UseChatOptions = {}): UseChatReturn {
 				content: "",
 				model: selectedModel,
 				isStreaming: true,
+				status: "streaming",
 				createdAt: new Date(),
 				parentMessageId: tempUserMessageId, // Link to user message
 			};
@@ -344,12 +423,18 @@ export function useChat(options: UseChatOptions = {}): UseChatReturn {
 			let accumulatedContent = "";
 			let realUserMessageId = tempUserMessageId;
 			let realAssistantMessageId = tempAssistantMessageId;
+			let realGenerationId: string | null = null;
 			let finalStatus: SendMessageResult["status"] = "done";
+			activeAssistantMessageIdRef.current = realAssistantMessageId;
+			activeGenerationIdRef.current = null;
 
 			try {
 				const response = await fetch("/api/chat/stream", {
 					method: "POST",
-					headers: { "Content-Type": "application/json" },
+					headers: {
+						"Content-Type": "application/json",
+						...createIdempotencyHeaders("chat"),
+					},
 					body: JSON.stringify({
 						message: content.trim(),
 						model: selectedModel,
@@ -390,6 +475,7 @@ export function useChat(options: UseChatOptions = {}): UseChatReturn {
 									return;
 								setConversationId(data.conversationId);
 								conversationIdRef.current = data.conversationId;
+								clearConversationCaches(data.conversationId);
 								onConversationCreatedRef.current?.(
 									data.conversationId
 								);
@@ -399,6 +485,22 @@ export function useChat(options: UseChatOptions = {}): UseChatReturn {
 								if (typeof data.userMessageId !== "string")
 									return;
 								realUserMessageId = data.userMessageId;
+								if (
+									typeof data.assistantMessageId ===
+									"string"
+								) {
+									realAssistantMessageId =
+										data.assistantMessageId;
+									activeAssistantMessageIdRef.current =
+										data.assistantMessageId;
+								}
+								if (
+									typeof data.generationId === "string"
+								) {
+									realGenerationId = data.generationId;
+									activeGenerationIdRef.current =
+										data.generationId;
+								}
 								setMessages((prev) =>
 									prev.map((msg) => {
 										if (msg.id === tempUserMessageId) {
@@ -414,8 +516,11 @@ export function useChat(options: UseChatOptions = {}): UseChatReturn {
 										) {
 											return {
 												...msg,
+												id: realAssistantMessageId,
 												parentMessageId:
 													data.userMessageId,
+												generationId:
+													realGenerationId,
 											};
 										}
 										return msg;
@@ -433,6 +538,7 @@ export function useChat(options: UseChatOptions = {}): UseChatReturn {
 											? {
 													...msg,
 													content: accumulatedContent,
+													status: "streaming",
 												}
 											: msg
 									)
@@ -449,7 +555,7 @@ export function useChat(options: UseChatOptions = {}): UseChatReturn {
 										nextAssistantMessageId;
 								}
 								setMessages((prev) => {
-									const updatedMessages = prev.map((msg) =>
+									const updatedMessages: Message[] = prev.map((msg) =>
 										msg.id === tempAssistantMessageId ||
 										msg.id === realAssistantMessageId
 											? {
@@ -459,6 +565,7 @@ export function useChat(options: UseChatOptions = {}): UseChatReturn {
 														msg.id,
 													content: accumulatedContent,
 													isStreaming: false,
+													status: "completed",
 													promptTokens:
 														data.usage
 															?.promptTokens,
@@ -501,6 +608,12 @@ export function useChat(options: UseChatOptions = {}): UseChatReturn {
 														streamErrorMessage,
 													isStreaming: false,
 													isError: true,
+													status: "failed",
+													errorCode:
+														typeof data.errorCode ===
+														"string"
+															? data.errorCode
+															: undefined,
 												}
 											: msg
 									)
@@ -561,6 +674,7 @@ export function useChat(options: UseChatOptions = {}): UseChatReturn {
 											accumulatedContent || msg.content,
 										isStreaming: false,
 										isStopped: true,
+										status: "cancelled",
 									}
 								: msg
 						)
@@ -577,21 +691,25 @@ export function useChat(options: UseChatOptions = {}): UseChatReturn {
 							msg.id === tempAssistantMessageId
 								? {
 										...msg,
-										content: errorMessage,
-										isStreaming: false,
-										isError: true,
-									}
-								: msg
-						)
+								content: errorMessage,
+								isStreaming: false,
+								isError: true,
+								status: "failed",
+							}
+						: msg
+				)
 					);
 					onErrorRef.current?.(
 						err instanceof Error ? err : new Error(errorMessage)
 					);
 				}
 			} finally {
+				clearConversationCaches(conversationIdRef.current);
 				setIsStreaming(false);
 				inFlightSendRef.current = false;
 				abortControllerRef.current = null;
+				activeAssistantMessageIdRef.current = null;
+				activeGenerationIdRef.current = null;
 			}
 
 			return {
@@ -601,7 +719,7 @@ export function useChat(options: UseChatOptions = {}): UseChatReturn {
 				status: finalStatus,
 			};
 		},
-		[isStreaming]
+		[isStreaming, clearConversationCaches]
 	);
 
 	// Regenerate a failed or errored message by creating a branch
@@ -613,46 +731,333 @@ export function useChat(options: UseChatOptions = {}): UseChatReturn {
 
 			const targetMessage = messages[messageIndex];
 
-			// If it's an assistant message, find the preceding user message
-			if (targetMessage.role === "assistant") {
-				// Find the last user message before this assistant message
-				let userMessage: Message | null = null;
-				for (let i = messageIndex - 1; i >= 0; i--) {
-					if (messages[i].role === "user") {
-						userMessage = messages[i];
-						break;
+			if (
+				targetMessage.role !== "assistant" ||
+				inFlightSendRef.current ||
+				isStreaming
+			) {
+				return;
+			}
+
+			inFlightSendRef.current = true;
+			clearConversationCaches(conversationIdRef.current);
+
+			const selectedModel =
+				targetMessage.model || currentModelRef.current;
+			const tempAssistantMessageId = `temp-assistant-${Date.now()}`;
+			const retryMessage: Message = {
+				id: tempAssistantMessageId,
+				role: "assistant",
+				content: "",
+				model: selectedModel,
+				isStreaming: true,
+				status: "streaming",
+				createdAt: new Date(),
+				parentMessageId: targetMessage.parentMessageId ?? null,
+			};
+
+			setMessages((prev) => [...prev, retryMessage]);
+			setIsStreaming(true);
+			setError(null);
+
+			abortControllerRef.current = new AbortController();
+			let accumulatedContent = "";
+			let realAssistantMessageId = tempAssistantMessageId;
+			let realGenerationId: string | null = null;
+			activeAssistantMessageIdRef.current = realAssistantMessageId;
+			activeGenerationIdRef.current = null;
+
+			try {
+				const response = await fetch(
+					`/api/messages/${targetMessage.id}/retry`,
+					{
+						method: "POST",
+						headers: {
+							"Content-Type": "application/json",
+							...createIdempotencyHeaders(
+								"retry-generation"
+							),
+						},
+						body: JSON.stringify({
+							model: selectedModel,
+							systemPrompt: systemPromptRef.current,
+						}),
+						signal: abortControllerRef.current.signal,
 					}
+				);
+
+				if (!response.ok) {
+					let errorData: unknown = null;
+					try {
+						errorData = await response.json();
+					} catch {
+						errorData = null;
+					}
+
+					throw new Error(buildHttpErrorMessage(response, errorData));
 				}
 
-				if (!userMessage) return;
+				const reader = response.body?.getReader();
+				if (!reader) throw new Error("No response body");
 
-				// Create a sibling assistant message by using the same parent as the original
-				// This makes the new response a sibling of the current one
-				await sendMessage(
-					userMessage.content,
-					targetMessage.model,
-					targetMessage.parentMessageId,
-					buildLocalHistorySnapshot(
-						messagesRef.current,
-						targetMessage.parentMessageId
-					)
-				);
+				const decoder = new TextDecoder();
+				let buffer = "";
+
+				const handleStreamEvent = (jsonStr: string) => {
+					if (!jsonStr || jsonStr === "[DONE]") return;
+
+					try {
+						const data = JSON.parse(jsonStr);
+
+						switch (data.type) {
+							case "messageId":
+								if (
+									typeof data.assistantMessageId ===
+									"string"
+								) {
+									realAssistantMessageId =
+										data.assistantMessageId;
+									activeAssistantMessageIdRef.current =
+										data.assistantMessageId;
+								}
+								if (
+									typeof data.generationId === "string"
+								) {
+									realGenerationId = data.generationId;
+									activeGenerationIdRef.current =
+										data.generationId;
+								}
+								setMessages((prev) =>
+									prev.map((msg) =>
+										msg.id === tempAssistantMessageId ||
+										msg.id === realAssistantMessageId
+											? {
+													...msg,
+													id: realAssistantMessageId,
+													parentMessageId:
+														typeof data.userMessageId ===
+														"string"
+															? data.userMessageId
+															: msg.parentMessageId,
+													generationId:
+														realGenerationId,
+												}
+											: msg
+									)
+								);
+								break;
+
+							case "content":
+								if (typeof data.content !== "string") return;
+								accumulatedContent += data.content;
+								setMessages((prev) =>
+									prev.map((msg) =>
+										msg.id === tempAssistantMessageId ||
+										msg.id === realAssistantMessageId
+											? {
+													...msg,
+													content:
+														accumulatedContent,
+													status: "streaming",
+												}
+											: msg
+									)
+								);
+								break;
+
+							case "done":
+								if (
+									typeof data.assistantMessageId ===
+									"string"
+								) {
+									realAssistantMessageId =
+										data.assistantMessageId;
+								}
+								setMessages((prev) =>
+									prev.map((msg) =>
+										msg.id === tempAssistantMessageId ||
+										msg.id === realAssistantMessageId
+											? {
+													...msg,
+													id:
+														typeof data.assistantMessageId ===
+														"string"
+															? data.assistantMessageId
+															: msg.id,
+													content:
+														accumulatedContent,
+													isStreaming: false,
+													status: "completed",
+													promptTokens:
+														data.usage
+															?.promptTokens,
+													completionTokens:
+														data.usage
+															?.completionTokens,
+												}
+											: msg
+									)
+								);
+								break;
+
+							case "error": {
+								const streamErrorMessage =
+									buildStreamErrorMessage(data);
+								setError(streamErrorMessage);
+								setMessages((prev) =>
+									prev.map((msg) =>
+										msg.id === tempAssistantMessageId ||
+										msg.id === realAssistantMessageId
+											? {
+													...msg,
+													content:
+														accumulatedContent ||
+														streamErrorMessage,
+													isStreaming: false,
+													isError: true,
+													status:
+														data.errorCode ===
+														"GENERATION_CANCELLED"
+															? "cancelled"
+															: "failed",
+													errorCode:
+														typeof data.errorCode ===
+														"string"
+															? data.errorCode
+															: undefined,
+												}
+											: msg
+									)
+								);
+								break;
+							}
+						}
+					} catch {
+						// Ignore partial JSON events until a complete SSE block arrives.
+					}
+				};
+
+				const flushCompleteEvents = () => {
+					while (true) {
+						const separatorMatch = buffer.match(/\r?\n\r?\n/);
+						if (
+							!separatorMatch ||
+							separatorMatch.index === undefined
+						) {
+							return;
+						}
+
+						const rawEvent = buffer.slice(0, separatorMatch.index);
+						buffer = buffer.slice(
+							separatorMatch.index + separatorMatch[0].length
+						);
+
+						const payload = extractSsePayload(rawEvent);
+						if (payload) {
+							handleStreamEvent(payload);
+						}
+					}
+				};
+
+				while (true) {
+					const { done, value } = await reader.read();
+					buffer += decoder.decode(value ?? new Uint8Array(), {
+						stream: !done,
+					});
+					flushCompleteEvents();
+					if (done) break;
+				}
+
+				buffer += decoder.decode();
+				const finalPayload = extractSsePayload(buffer);
+				if (finalPayload) {
+					handleStreamEvent(finalPayload);
+				}
+			} catch (err) {
+				if (err instanceof Error && err.name === "AbortError") {
+					setMessages((prev) =>
+						prev.map((msg) =>
+							msg.id === tempAssistantMessageId ||
+							msg.id === realAssistantMessageId
+								? {
+										...msg,
+										content:
+											accumulatedContent || msg.content,
+										isStreaming: false,
+										isStopped: true,
+										status: "cancelled",
+									}
+								: msg
+						)
+					);
+				} else {
+					const errorMessage =
+						err instanceof Error
+							? err.message
+							: "Failed to retry message";
+					setError(errorMessage);
+					setMessages((prev) =>
+						prev.map((msg) =>
+							msg.id === tempAssistantMessageId ||
+							msg.id === realAssistantMessageId
+								? {
+										...msg,
+										content: errorMessage,
+										isStreaming: false,
+										isError: true,
+										status: "failed",
+									}
+								: msg
+						)
+					);
+					onErrorRef.current?.(
+						err instanceof Error ? err : new Error(errorMessage)
+					);
+				}
+			} finally {
+				clearConversationCaches(conversationIdRef.current);
+				setIsStreaming(false);
+				inFlightSendRef.current = false;
+				abortControllerRef.current = null;
+				activeAssistantMessageIdRef.current = null;
+				activeGenerationIdRef.current = null;
 			}
 		},
-		[messages, sendMessage]
+		[messages, isStreaming, clearConversationCaches]
 	);
 
 	// Stop ongoing generation
 	const stopGeneration = useCallback(() => {
-		if (abortControllerRef.current) {
-			abortControllerRef.current.abort();
-			abortControllerRef.current = null;
+		const abortLocalRequest = () => {
+			if (abortControllerRef.current) {
+				abortControllerRef.current.abort();
+				abortControllerRef.current = null;
+			}
+		};
+		const assistantMessageId = activeAssistantMessageIdRef.current;
+		if (
+			assistantMessageId &&
+			!assistantMessageId.startsWith("temp-assistant-")
+		) {
+			void fetch(`/api/messages/${assistantMessageId}/cancel`, {
+				method: "POST",
+				headers: createIdempotencyHeaders("cancel-generation"),
+			}).finally(abortLocalRequest);
+		} else {
+			abortLocalRequest();
 		}
 		inFlightSendRef.current = false;
 		// Mark streaming message as complete
 		setMessages((prev) =>
 			prev.map((msg) =>
-				msg.isStreaming ? { ...msg, isStreaming: false } : msg
+				msg.isStreaming
+					? {
+							...msg,
+							isStreaming: false,
+							isStopped: true,
+							status: "cancelled",
+						}
+					: msg
 			)
 		);
 		setIsStreaming(false);
@@ -696,12 +1101,19 @@ export function useChat(options: UseChatOptions = {}): UseChatReturn {
 
 	// Clear all messages
 	const clearMessages = useCallback(() => {
+		if (conversationIdRef.current) {
+			clearCachedConversationDetail(conversationIdRef.current);
+			queryClient.removeQueries({
+				queryKey: conversationDetailQueryKey(conversationIdRef.current),
+				exact: true,
+			});
+		}
 		setMessages([]);
 		setConversationId(null);
 		setError(null);
 		setIsStreaming(false);
 		inFlightSendRef.current = false;
-	}, []);
+	}, [queryClient]);
 
 	return {
 		messages,

@@ -1,4 +1,5 @@
 import { auth } from "@/lib/auth";
+import { markStaleGenerationsFailed } from "@/lib/chat/generation-service";
 import { prisma } from "@/lib/prisma";
 import { logServerError } from "@/lib/server-safe-log";
 import { NextRequest, NextResponse } from "next/server";
@@ -24,6 +25,10 @@ export async function GET(
 		}
 
 		const { id } = await params;
+		await markStaleGenerationsFailed({
+			userId: session.user.id,
+			conversationId: id,
+		});
 
 		// Verify conversation belongs to user
 		const conversation = await prisma.conversation.findFirst({
@@ -60,6 +65,14 @@ export async function GET(
 				rootNodeName: true,
 				createdAt: true,
 				isError: true,
+				status: true,
+				errorCode: true,
+				providerStatusCode: true,
+				providerRequestId: true,
+				startedAt: true,
+				completedAt: true,
+				cancelledAt: true,
+				lastChunkAt: true,
 			},
 		});
 
@@ -76,6 +89,14 @@ export async function GET(
 			rootNodeName: msg.rootNodeName,
 			model: msg.model,
 			isError: msg.isError,
+			status: msg.status,
+			errorCode: msg.errorCode,
+			providerStatusCode: msg.providerStatusCode,
+			providerRequestId: msg.providerRequestId,
+			startedAt: msg.startedAt?.toISOString() ?? null,
+			completedAt: msg.completedAt?.toISOString() ?? null,
+			cancelledAt: msg.cancelledAt?.toISOString() ?? null,
+			lastChunkAt: msg.lastChunkAt?.toISOString() ?? null,
 		}));
 
 		return NextResponse.json({

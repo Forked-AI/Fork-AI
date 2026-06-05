@@ -1,4 +1,5 @@
 import { auth } from "@/lib/auth";
+import { markStaleGenerationsFailed } from "@/lib/chat/generation-service";
 import { prisma } from "@/lib/prisma";
 import { logServerError } from "@/lib/server-safe-log";
 import { headers } from "next/headers";
@@ -34,6 +35,7 @@ export async function GET(
 
 		const userId = session.user.id;
 		const { id: conversationId } = await params;
+		await markStaleGenerationsFailed({ userId, conversationId });
 
 		const conversation = await prisma.conversation.findFirst({
 			where: {
@@ -51,6 +53,14 @@ export async function GET(
 						promptTokens: true,
 						completionTokens: true,
 						isError: true,
+						status: true,
+						errorCode: true,
+						providerStatusCode: true,
+						providerRequestId: true,
+						startedAt: true,
+						completedAt: true,
+						cancelledAt: true,
+						lastChunkAt: true,
 						createdAt: true,
 						parentMessageId: true,
 					},

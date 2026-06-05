@@ -224,6 +224,22 @@ export function useSidebarConversationActions({
 						promptTokens: message.promptTokens ?? undefined,
 						completionTokens: message.completionTokens ?? undefined,
 						isError: message.isError ?? undefined,
+						status: message.status ?? undefined,
+						errorCode: message.errorCode ?? undefined,
+						providerStatusCode: message.providerStatusCode ?? undefined,
+						providerRequestId: message.providerRequestId ?? undefined,
+						startedAt: message.startedAt
+							? new Date(message.startedAt)
+							: undefined,
+						completedAt: message.completedAt
+							? new Date(message.completedAt)
+							: undefined,
+						cancelledAt: message.cancelledAt
+							? new Date(message.cancelledAt)
+							: undefined,
+						lastChunkAt: message.lastChunkAt
+							? new Date(message.lastChunkAt)
+							: undefined,
 						createdAt: message.createdAt ? new Date(message.createdAt) : undefined,
 					}))
 
