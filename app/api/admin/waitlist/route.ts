@@ -1,13 +1,11 @@
-import { isAdminAuthenticated } from "@/lib/admin-auth";
+import { requireAdminSession } from "@/lib/admin";
 import { prisma } from "@/lib/prisma";
 import { logServerError } from "@/lib/server-safe-log";
 import { NextResponse } from "next/server";
 
 export async function GET(request: Request) {
-	// Check admin authentication
-	if (!isAdminAuthenticated(request)) {
-		return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-	}
+	const admin = await requireAdminSession(request);
+	if (!admin.ok) return admin.response;
 
 	try {
 		const { searchParams } = new URL(request.url);

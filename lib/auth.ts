@@ -5,8 +5,8 @@ import { admin, multiSession } from "better-auth/plugins";
 import nodeMailer from "nodemailer";
 import Stripe from "stripe";
 import {
-    checkOTPRateLimitByType,
-    recordOTPAttemptByType,
+	checkOTPRateLimitByType,
+	recordOTPAttemptByType,
 } from "./otp-rate-limit";
 import { prisma } from "./prisma";
 import { logServerError, logServerWarning } from "./server-safe-log";
@@ -31,7 +31,7 @@ let stripeSubscriptionPlugin: ReturnType<typeof stripe> | null = null;
 
 if (stripeSecretKey && stripeWebhookSecret && stripeProMonthlyPriceId) {
 	const stripeClient = new Stripe(stripeSecretKey, {
-		apiVersion: "2026-03-25.dahlia"
+		apiVersion: "2026-03-25.dahlia",
 	});
 	stripeSubscriptionPlugin = stripe({
 		stripeClient,
@@ -142,6 +142,15 @@ export const auth = betterAuth({
 	emailAndPassword: {
 		enabled: true,
 		requireEmailVerification: true, // Require email verification for sign-up
+		customSyntheticUser: ({ coreFields, additionalFields, id }) => ({
+			...coreFields,
+			role: "user",
+			banned: false,
+			banReason: null,
+			banExpires: null,
+			...additionalFields,
+			id,
+		}),
 		sendResetPassword: async ({
 			user,
 			url,

@@ -1,242 +1,349 @@
 'use client'
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
 import {
-    ChartContainer,
-    ChartTooltip,
-    ChartTooltipContent,
-} from '@/components/ui/chart'
-import { authClient } from '@/lib/auth-client'
-import { Session, User } from 'better-auth'
-import { Calendar, Clock, Loader2, TrendingUp, Users } from 'lucide-react'
+	Activity,
+	AlertTriangle,
+	BarChart3,
+	Database,
+	FileText,
+	Loader2,
+	RefreshCw,
+	ShieldAlert,
+	Users,
+} from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { Area, AreaChart, ResponsiveContainer, XAxis, YAxis } from 'recharts'
 
-export const dynamic = 'force-dynamic'
-
-interface Stats {
-	total: number
-	today: number
-	thisWeek: number
-	thisMonth: number
+interface OverviewPayload {
+	window: { from: string; to: string }
+	summary: {
+		users: number
+		admins: number
+		bannedUsers: number
+		waitlist: number
+		conversations: number
+		usageEvents: number
+		failedUsageEvents: number
+		inputTokens: number
+		outputTokens: number
+		billableUnits: number
+		estimatedCostUsd: string
+		moderationEvents: number
+		abuseSignals: number
+		operationalMetrics: number
+		averageDurationMs: number
+		averageTtftMs: number
+	}
+	files: Array<{ status: string; count: number }>
+	recentMetrics: Array<{
+		id: string
+		kind: string
+		source: string
+		status: string
+		route: string | null
+		job: string | null
+		provider: string | null
+		model: string | null
+		errorCode: string | null
+		providerStatus: number | null
+		createdAt: string
+	}>
+	recentAudit: Array<{
+		id: string
+		action: string
+		targetType: string
+		targetId: string | null
+		createdAt: string
+		actor?: { email?: string | null; name?: string | null } | null
+	}>
 }
 
-interface ChartDataPoint {
-	date: string
-	signups: number
+function fmt(value: number) {
+	return value.toLocaleString()
 }
 
-type ExtendedUser = User & { role?: string | null }
+function dateInput(date: Date) {
+	return date.toISOString().slice(0, 10)
+}
 
-export default function AdminDashboard() {
-	const [session, setSession] = useState<{
-		user: ExtendedUser
-		session: Session
-	} | null>(null)
-	const [sessionLoading, setSessionLoading] = useState(true)
-
-	const [stats, setStats] = useState<Stats | null>(null)
-	const [chartData, setChartData] = useState<ChartDataPoint[]>([])
-	const [isLoading, setIsLoading] = useState(true)
+export default function AdminOverviewPage() {
+	const [data, setData] = useState<OverviewPayload | null>(null)
+	const [from, setFrom] = useState(() => {
+		const date = new Date()
+		date.setUTCDate(date.getUTCDate() - 30)
+		return dateInput(date)
+	})
+	const [to, setTo] = useState(() => dateInput(new Date()))
+	const [loading, setLoading] = useState(true)
 	const [error, setError] = useState('')
 
+	async function loadOverview() {
+		setLoading(true)
+		setError('')
+		try {
+			const params = new URLSearchParams()
+			if (from)
+				params.set('from', new Date(`${from}T00:00:00.000Z`).toISOString())
+			if (to) {
+				const exclusiveTo = new Date(`${to}T00:00:00.000Z`)
+				exclusiveTo.setUTCDate(exclusiveTo.getUTCDate() + 1)
+				params.set('to', exclusiveTo.toISOString())
+			}
+			const response = await fetch(`/api/admin/overview?${params.toString()}`)
+			if (!response.ok) throw new Error('Failed to load overview')
+			setData((await response.json()) as OverviewPayload)
+		} catch (loadError) {
+			setError(
+				loadError instanceof Error
+					? loadError.message
+					: 'Failed to load overview'
+			)
+		} finally {
+			setLoading(false)
+		}
+	}
+
 	useEffect(() => {
-		fetchSession()
+		void loadOverview()
+		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [])
 
-	const fetchSession = async () => {
-		try {
-			const { data } = await authClient.getSession()
-			setSession(data)
-		} catch (error) {
-			setError('Failed to get session')
-		} finally {
-			setSessionLoading(false)
-		}
-	}
-
-	useEffect(() => {
-		if (session) {
-			fetchStats()
-		}
-	}, [session])
-
-	const fetchStats = async () => {
-		try {
-			const password = sessionStorage.getItem('adminPassword')
-			const response = await fetch('/api/admin/stats', {
-				headers: { 'x-admin-password': password || '' },
-			})
-
-			if (!response.ok) throw new Error('Failed to fetch stats')
-
-			const data = await response.json()
-			setStats(data.stats)
-			setChartData(data.chartData)
-		} catch (err) {
-			setError('Failed to load dashboard data')
-		} finally {
-			setIsLoading(false)
-		}
-	}
-
-	if (sessionLoading) {
-		return (
-			<div className="flex items-center justify-center h-full">
-				<Loader2 className="w-8 h-8 animate-spin text-white/60" />
-			</div>
-		)
-	}
-
-	if (!session || session.user.role !== 'admin') {
-		return (
-			<div className="min-h-screen flex items-center justify-center text-white">
-				Unauthorized
-			</div>
-		)
-	}
-
-	if (isLoading) {
-		return (
-			<div className="flex items-center justify-center h-full">
-				<Loader2 className="w-8 h-8 animate-spin text-white/60" />
-			</div>
-		)
-	}
-
-	if (error) {
-		return (
-			<div className="flex items-center justify-center h-full">
-				<p className="text-red-400">{error}</p>
-			</div>
-		)
-	}
-
-	const statCards = [
-		{
-			title: 'Total Signups',
-			value: stats?.total || 0,
-			icon: Users,
-			color: 'text-indigo-400',
-			bgColor: 'bg-indigo-400/10',
-		},
-		{
-			title: 'Today',
-			value: stats?.today || 0,
-			icon: Clock,
-			color: 'text-green-400',
-			bgColor: 'bg-green-400/10',
-		},
-		{
-			title: 'This Week',
-			value: stats?.thisWeek || 0,
-			icon: Calendar,
-			color: 'text-blue-400',
-			bgColor: 'bg-blue-400/10',
-		},
-		{
-			title: 'This Month',
-			value: stats?.thisMonth || 0,
-			icon: TrendingUp,
-			color: 'text-purple-400',
-			bgColor: 'bg-purple-400/10',
-		},
-	]
-
-	const chartConfig = {
-		signups: {
-			label: 'Signups',
-			color: 'hsl(var(--chart-1))',
-		},
-	}
+	const cards = data
+		? [
+				{
+					label: 'Users',
+					value: fmt(data.summary.users),
+					icon: Users,
+					tone: 'text-sky-300',
+				},
+				{
+					label: 'Usage events',
+					value: fmt(data.summary.usageEvents),
+					icon: BarChart3,
+					tone: 'text-indigo-300',
+				},
+				{
+					label: 'Estimated cost',
+					value: `$${data.summary.estimatedCostUsd}`,
+					icon: Database,
+					tone: 'text-emerald-300',
+				},
+				{
+					label: 'Failures',
+					value: fmt(data.summary.failedUsageEvents),
+					icon: AlertTriangle,
+					tone: 'text-amber-300',
+				},
+				{
+					label: 'Moderation',
+					value: fmt(data.summary.moderationEvents),
+					icon: ShieldAlert,
+					tone: 'text-rose-300',
+				},
+				{
+					label: 'Metrics',
+					value: fmt(data.summary.operationalMetrics),
+					icon: Activity,
+					tone: 'text-cyan-300',
+				},
+			]
+		: []
 
 	return (
-		<div className="p-8 pb-16">
-			<div className="mb-8">
-				<h1 className="text-3xl font-bold text-white">Dashboard</h1>
-				<p className="text-white/60 mt-1">
-					Overview of your waitlist performance
-				</p>
-			</div>
-
-			{/* Stats Cards */}
-			<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-				{statCards.map((card) => (
-					<Card
-						key={card.title}
-						className="bg-[#111] border-white/10 hover:border-white/20 transition-colors"
+		<div className="p-4 pb-16 md:p-8">
+			<div className="mb-6 flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+				<div>
+					<h1 className="text-3xl font-bold">Operations Overview</h1>
+					<p className="mt-1 text-sm text-white/60">
+						Metadata-only health, usage, launch, and admin activity.
+					</p>
+				</div>
+				<form
+					className="flex flex-wrap items-center gap-3"
+					onSubmit={(event) => {
+						event.preventDefault()
+						void loadOverview()
+					}}
+				>
+					<input
+						type="date"
+						value={from}
+						onChange={(event) => setFrom(event.target.value)}
+						className="rounded-md border border-white/10 bg-[#111] px-3 py-2 text-sm"
+					/>
+					<input
+						type="date"
+						value={to}
+						onChange={(event) => setTo(event.target.value)}
+						className="rounded-md border border-white/10 bg-[#111] px-3 py-2 text-sm"
+					/>
+					<Button
+						className="bg-indigo-600 hover:bg-indigo-500"
+						disabled={loading}
 					>
-						<CardHeader className="flex flex-row items-center justify-between pb-2">
-							<CardTitle className="text-sm font-medium text-white/60">
-								{card.title}
-							</CardTitle>
-							<div className={`p-2 rounded-lg ${card.bgColor}`}>
-								<card.icon className={`w-4 h-4 ${card.color}`} />
-							</div>
-						</CardHeader>
-						<CardContent>
-							<div className="text-3xl font-bold text-white">{card.value}</div>
-						</CardContent>
-					</Card>
-				))}
+						{loading ? (
+							<Loader2 className="mr-2 h-4 w-4 animate-spin" />
+						) : (
+							<RefreshCw className="mr-2 h-4 w-4" />
+						)}
+						Refresh
+					</Button>
+				</form>
 			</div>
 
-			{/* Chart */}
-			<Card className="bg-[#111] border-white/10">
-				<CardHeader>
-					<CardTitle className="text-white">Signups Over Time</CardTitle>
-					<p className="text-white/60 text-sm">Last 30 days</p>
-				</CardHeader>
-				<CardContent>
-					<ChartContainer config={chartConfig} className="h-[300px] w-full">
-						<ResponsiveContainer width="100%" height="100%">
-							<AreaChart data={chartData}>
-								<defs>
-									<linearGradient
-										id="signupGradient"
-										x1="0"
-										y1="0"
-										x2="0"
-										y2="1"
-									>
-										<stop offset="0%" stopColor="#818cf8" stopOpacity={0.3} />
-										<stop offset="100%" stopColor="#818cf8" stopOpacity={0} />
-									</linearGradient>
-								</defs>
-								<XAxis
-									dataKey="date"
-									stroke="#ffffff40"
-									fontSize={12}
-									tickLine={false}
-									axisLine={false}
-									tickFormatter={(value) => {
-										const date = new Date(value)
-										return `${date.getMonth() + 1}/${date.getDate()}`
-									}}
-								/>
-								<YAxis
-									stroke="#ffffff40"
-									fontSize={12}
-									tickLine={false}
-									axisLine={false}
-									allowDecimals={false}
-								/>
-								<ChartTooltip
-									content={<ChartTooltipContent />}
-									cursor={{ stroke: '#ffffff20' }}
-								/>
-								<Area
-									type="monotone"
-									dataKey="signups"
-									stroke="#818cf8"
-									strokeWidth={2}
-									fill="url(#signupGradient)"
-								/>
-							</AreaChart>
-						</ResponsiveContainer>
-					</ChartContainer>
-				</CardContent>
-			</Card>
+			{error ? <p className="mb-4 text-sm text-red-300">{error}</p> : null}
+			{loading && !data ? (
+				<div className="flex h-64 items-center justify-center">
+					<Loader2 className="h-8 w-8 animate-spin text-white/50" />
+				</div>
+			) : data ? (
+				<div className="space-y-6">
+					<div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
+						{cards.map((card) => (
+							<Card key={card.label} className="border-white/10 bg-[#111]">
+								<CardHeader className="flex flex-row items-center justify-between pb-2">
+									<CardTitle className="text-sm text-white/60">
+										{card.label}
+									</CardTitle>
+									<card.icon className={`h-4 w-4 ${card.tone}`} />
+								</CardHeader>
+								<CardContent>
+									<div className="text-2xl font-semibold">{card.value}</div>
+								</CardContent>
+							</Card>
+						))}
+					</div>
+
+					<div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
+						<Card className="border-white/10 bg-[#111]">
+							<CardHeader>
+								<CardTitle>Operational Signals</CardTitle>
+							</CardHeader>
+							<CardContent className="grid gap-4 md:grid-cols-3">
+								<div>
+									<p className="text-xs uppercase text-white/40">
+										Billable units
+									</p>
+									<p className="mt-1 text-xl font-semibold">
+										{fmt(data.summary.billableUnits)}
+									</p>
+								</div>
+								<div>
+									<p className="text-xs uppercase text-white/40">
+										Avg duration
+									</p>
+									<p className="mt-1 text-xl font-semibold">
+										{fmt(data.summary.averageDurationMs)} ms
+									</p>
+								</div>
+								<div>
+									<p className="text-xs uppercase text-white/40">Avg TTFT</p>
+									<p className="mt-1 text-xl font-semibold">
+										{fmt(data.summary.averageTtftMs)} ms
+									</p>
+								</div>
+							</CardContent>
+						</Card>
+
+						<Card className="border-white/10 bg-[#111]">
+							<CardHeader>
+								<CardTitle>Files</CardTitle>
+							</CardHeader>
+							<CardContent className="space-y-2">
+								{data.files.length ? (
+									data.files.map((file) => (
+										<div
+											key={file.status}
+											className="flex items-center justify-between text-sm"
+										>
+											<span className="flex items-center gap-2 text-white/60">
+												<FileText className="h-4 w-4" />
+												{file.status}
+											</span>
+											<span className="font-mono">{fmt(file.count)}</span>
+										</div>
+									))
+								) : (
+									<p className="text-sm text-white/50">No file records yet.</p>
+								)}
+							</CardContent>
+						</Card>
+					</div>
+
+					<div className="grid gap-6 xl:grid-cols-2">
+						<Card className="border-white/10 bg-[#111]">
+							<CardHeader>
+								<CardTitle>Recent Non-success Metrics</CardTitle>
+							</CardHeader>
+							<CardContent className="space-y-3">
+								{data.recentMetrics.length ? (
+									data.recentMetrics.map((metric) => (
+										<div
+											key={metric.id}
+											className="rounded-lg border border-white/10 bg-white/[0.03] p-3"
+										>
+											<div className="flex items-center justify-between gap-3 text-sm">
+												<span className="font-medium">
+													{metric.kind} / {metric.source}
+												</span>
+												<span className="text-white/50">
+													{new Date(metric.createdAt).toLocaleString()}
+												</span>
+											</div>
+											<p className="mt-1 text-xs text-white/50">
+												{metric.status}{' '}
+												{metric.errorCode ? `- ${metric.errorCode}` : ''}{' '}
+												{metric.providerStatus
+													? `(${metric.providerStatus})`
+													: ''}
+											</p>
+										</div>
+									))
+								) : (
+									<p className="text-sm text-white/50">
+										No non-success metrics in this window.
+									</p>
+								)}
+							</CardContent>
+						</Card>
+
+						<Card className="border-white/10 bg-[#111]">
+							<CardHeader>
+								<CardTitle>Recent Admin Audit</CardTitle>
+							</CardHeader>
+							<CardContent className="space-y-3">
+								{data.recentAudit.length ? (
+									data.recentAudit.map((event) => (
+										<div
+											key={event.id}
+											className="rounded-lg border border-white/10 bg-white/[0.03] p-3"
+										>
+											<div className="flex items-center justify-between gap-3 text-sm">
+												<span className="font-medium">{event.action}</span>
+												<span className="text-white/50">
+													{new Date(event.createdAt).toLocaleString()}
+												</span>
+											</div>
+											<p className="mt-1 text-xs text-white/50">
+												{event.actor?.email ??
+													event.actor?.name ??
+													'Unknown admin'}{' '}
+												-&gt; {event.targetType}
+												{event.targetId ? `:${event.targetId}` : ''}
+											</p>
+										</div>
+									))
+								) : (
+									<p className="text-sm text-white/50">
+										No audit events in this window.
+									</p>
+								)}
+							</CardContent>
+						</Card>
+					</div>
+				</div>
+			) : null}
 		</div>
 	)
 }

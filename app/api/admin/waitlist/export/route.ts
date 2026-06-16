@@ -1,12 +1,24 @@
-import { isAdminAuthenticated } from "@/lib/admin-auth";
+import {
+	getIdempotencyKey,
+	recordAdminAuditEvent,
+	requireAdminSession,
+} from "@/lib/admin";
 import { prisma } from "@/lib/prisma";
 import { logServerError } from "@/lib/server-safe-log";
 import { NextResponse } from "next/server";
 
 export async function GET(request: Request) {
-	// Check admin authentication
-	if (!isAdminAuthenticated(request)) {
-		return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+	const admin = await requireAdminSession(request);
+	if (!admin.ok) return admin.response;
+
+	if (!getIdempotencyKey(request)) {
+		return NextResponse.json(
+			{
+				error: "Idempotency-Key header is required.",
+				errorCode: "IDEMPOTENCY_KEY_REQUIRED",
+			},
+			{ status: 400 }
+		);
 	}
 
 	try {
@@ -25,6 +37,14 @@ export async function GET(request: Request) {
 			.join("\n");
 
 		const csv = csvHeaders + csvRows;
+
+		await recordAdminAuditEvent({
+			actorId: admin.session.user.id,
+			action: "waitlist.export",
+			targetType: "waitlist",
+			request,
+			metadata: { rowCount: entries.length },
+		});
 
 		// Return as downloadable CSV
 		return new NextResponse(csv, {

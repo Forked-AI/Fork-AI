@@ -31,6 +31,7 @@ import {
 	Trash2,
 } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
+import { createIdempotencyHeaders } from '@/lib/idempotency-client'
 
 interface WaitlistEntry {
 	id: string
@@ -58,28 +59,27 @@ export default function WaitlistPage() {
 	const [isExporting, setIsExporting] = useState(false)
 	const [deleteId, setDeleteId] = useState<string | null>(null)
 	const [isDeleting, setIsDeleting] = useState(false)
+	const [error, setError] = useState<string | null>(null)
 
 	const fetchEntries = useCallback(async (page: number, searchTerm: string) => {
 		setIsLoading(true)
+		setError(null)
 		try {
-			const password = sessionStorage.getItem('adminPassword')
 			const params = new URLSearchParams({
 				page: page.toString(),
 				limit: '20',
 				...(searchTerm && { search: searchTerm }),
 			})
 
-			const response = await fetch(`/api/admin/waitlist?${params}`, {
-				headers: { 'x-admin-password': password || '' },
-			})
+			const response = await fetch(`/api/admin/waitlist?${params}`)
 
 			if (!response.ok) throw new Error('Failed to fetch')
 
 			const data = await response.json()
 			setEntries(data.entries)
 			setPagination(data.pagination)
-		} catch (error) {
-			console.error('Failed to fetch entries:', error)
+		} catch {
+			setError('Unable to load waitlist entries.')
 		} finally {
 			setIsLoading(false)
 		}
@@ -96,10 +96,10 @@ export default function WaitlistPage() {
 
 	const handleExport = async () => {
 		setIsExporting(true)
+		setError(null)
 		try {
-			const password = sessionStorage.getItem('adminPassword')
 			const response = await fetch('/api/admin/waitlist/export', {
-				headers: { 'x-admin-password': password || '' },
+				headers: createIdempotencyHeaders('admin-waitlist-export'),
 			})
 
 			if (!response.ok) throw new Error('Export failed')
@@ -115,8 +115,8 @@ export default function WaitlistPage() {
 			a.click()
 			window.URL.revokeObjectURL(url)
 			document.body.removeChild(a)
-		} catch (error) {
-			console.error('Export failed:', error)
+		} catch {
+			setError('Unable to export the waitlist.')
 		} finally {
 			setIsExporting(false)
 		}
@@ -126,19 +126,19 @@ export default function WaitlistPage() {
 		if (!deleteId) return
 
 		setIsDeleting(true)
+		setError(null)
 		try {
-			const password = sessionStorage.getItem('adminPassword')
 			const response = await fetch(`/api/admin/waitlist/${deleteId}`, {
 				method: 'DELETE',
-				headers: { 'x-admin-password': password || '' },
+				headers: createIdempotencyHeaders('admin-waitlist-delete'),
 			})
 
 			if (!response.ok) throw new Error('Delete failed')
 
 			// Refresh the list
 			fetchEntries(pagination.page, search)
-		} catch (error) {
-			console.error('Delete failed:', error)
+		} catch {
+			setError('Unable to delete the waitlist entry.')
 		} finally {
 			setIsDeleting(false)
 			setDeleteId(null)
@@ -201,6 +201,11 @@ export default function WaitlistPage() {
 					</div>
 				</CardHeader>
 				<CardContent>
+					{error ? (
+						<div className="mb-4 rounded-md border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+							{error}
+						</div>
+					) : null}
 					{isLoading ? (
 						<div className="flex items-center justify-center py-12">
 							<Loader2 className="w-8 h-8 animate-spin text-white/60" />
