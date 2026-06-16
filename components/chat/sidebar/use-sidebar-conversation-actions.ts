@@ -1,59 +1,80 @@
-'use client'
+"use client";
 
-import type { MenuAction } from '@/components/chat/menu-action-renderer'
-import type { Message } from '@/hooks/use-chat'
-import type { Collection } from '@/hooks/use-collections'
-import type { ConversationPreview } from '@/hooks/use-conversations'
-import { useToast } from '@/hooks/use-toast'
+import type { MenuAction } from "@/components/chat/menu-action-renderer";
+import type { Message } from "@/hooks/use-chat";
+import type { Collection } from "@/hooks/use-collections";
+import type { ConversationPreview } from "@/hooks/use-conversations";
+import { useToast } from "@/hooks/use-toast";
 import {
-    conversationDetailQueryKey,
-    fetchConversationDetail,
-    type ConversationDetailPayload,
-} from '@/lib/conversation-api'
-import { useQueryClient } from '@tanstack/react-query'
+	conversationDetailQueryKey,
+	fetchConversationDetail,
+	type ConversationDetailPayload,
+	type MessageAttachmentPayload,
+} from "@/lib/conversation-api";
+import { useQueryClient } from "@tanstack/react-query";
 import {
-    Edit2,
-    Folder,
-    FolderOpen,
-    Loader2,
-    MessageSquare,
-    Pin,
-    PinOff,
-    Share2,
-    Trash2,
-} from 'lucide-react'
-import { useCallback, useMemo, useState } from 'react'
+	Edit2,
+	Folder,
+	FolderOpen,
+	Loader2,
+	MessageSquare,
+	Pin,
+	PinOff,
+	Share2,
+	Trash2,
+} from "lucide-react";
+import { useCallback, useMemo, useState } from "react";
 
 export interface ShareDialogState {
-	conversationId: string
-	conversationTitle: string
-	selectedMessageIds: string[]
-	allMessages: Message[]
+	conversationId: string;
+	conversationTitle: string;
+	selectedMessageIds: string[];
+	allMessages: Message[];
 }
 
-export type ConversationMenuSurface = 'dropdown' | 'context'
+export type ConversationMenuSurface = "dropdown" | "context";
 
 function getErrorMessage(error: unknown, fallback: string) {
 	if (error instanceof Error && error.message.trim()) {
-		return error.message
+		return error.message;
 	}
 
-	return fallback
+	return fallback;
+}
+
+function mapMessageAttachment(attachment: MessageAttachmentPayload) {
+	return {
+		id: attachment.id,
+		fileObjectId: attachment.fileObjectId,
+		kind: attachment.kind,
+		promptUse: attachment.promptUse,
+		displayOrder: attachment.displayOrder,
+		filename: attachment.fileObject.filename,
+		mimeType: attachment.fileObject.mimeType,
+		sizeBytes: attachment.fileObject.sizeBytes,
+		status: attachment.fileObject.status,
+		fileKind: attachment.fileObject.kind,
+		purpose: attachment.fileObject.purpose,
+		contentUrl:
+			attachment.kind === "image"
+				? `/api/attachments/${attachment.fileObjectId}/content`
+				: null,
+	};
 }
 
 interface UseSidebarConversationActionsOptions {
-	activeItem: string | null
-	collections: Collection[] | undefined
-	deleteConversation: (conversationId: string) => Promise<unknown>
-	handleChatClick: (conversationId: string) => void
-	handleNewChat: () => void
-	isDeleting: boolean
+	activeItem: string | null;
+	collections: Collection[] | undefined;
+	deleteConversation: (conversationId: string) => Promise<unknown>;
+	handleChatClick: (conversationId: string) => void;
+	handleNewChat: () => void;
+	isDeleting: boolean;
 	updateConversation: (input: {
-		id: string
-		title?: string
-		collectionId?: string | null
-		isPinned?: boolean
-	}) => Promise<unknown>
+		id: string;
+		title?: string;
+		collectionId?: string | null;
+		isPinned?: boolean;
+	}) => Promise<unknown>;
 }
 
 export function useSidebarConversationActions({
@@ -65,115 +86,132 @@ export function useSidebarConversationActions({
 	isDeleting,
 	updateConversation,
 }: UseSidebarConversationActionsOptions) {
-	const { toast } = useToast()
-	const queryClient = useQueryClient()
+	const { toast } = useToast();
+	const queryClient = useQueryClient();
 	const [renameDialog, setRenameDialog] = useState<{
-		id: string
-		title: string
-	} | null>(null)
-	const [renameTitle, setRenameTitle] = useState('')
-	const [shareDialog, setShareDialog] = useState<ShareDialogState | null>(null)
-	const [shareLoadingId, setShareLoadingId] = useState<string | null>(null)
+		id: string;
+		title: string;
+	} | null>(null);
+	const [renameTitle, setRenameTitle] = useState("");
+	const [shareDialog, setShareDialog] = useState<ShareDialogState | null>(
+		null
+	);
+	const [shareLoadingId, setShareLoadingId] = useState<string | null>(null);
 	const [openConversationMenu, setOpenConversationMenu] = useState<{
-		id: string
-		surface: ConversationMenuSurface
-	} | null>(null)
+		id: string;
+		surface: ConversationMenuSurface;
+	} | null>(null);
 
 	const isRenameUnchanged = useMemo(
 		() =>
-			renameDialog ? renameTitle.trim() === renameDialog.title.trim() : false,
+			renameDialog
+				? renameTitle.trim() === renameDialog.title.trim()
+				: false,
 		[renameDialog, renameTitle]
-	)
+	);
 
 	const closeRenameDialog = useCallback(() => {
-		setRenameDialog(null)
-		setRenameTitle('')
-	}, [])
+		setRenameDialog(null);
+		setRenameTitle("");
+	}, []);
 
 	const handleDeleteConversation = useCallback(
 		async (conversationId: string) => {
-			if (isDeleting) return
+			if (isDeleting) return;
 
 			try {
-				await deleteConversation(conversationId)
+				await deleteConversation(conversationId);
 				if (activeItem === conversationId) {
-					handleNewChat()
+					handleNewChat();
 				}
 			} catch (error) {
-				console.error('Failed to delete conversation:', error)
+				console.error("Failed to delete conversation:", error);
 				toast({
-					title: 'Failed to delete chat',
-					description: getErrorMessage(error, 'Please try again.'),
-					variant: 'destructive',
-				})
+					title: "Failed to delete chat",
+					description: getErrorMessage(error, "Please try again."),
+					variant: "destructive",
+				});
 			}
 		},
 		[activeItem, deleteConversation, handleNewChat, isDeleting, toast]
-	)
+	);
 
-	const handleStartRename = useCallback((conversation: ConversationPreview) => {
-		setRenameDialog({ id: conversation.id, title: conversation.title })
-		setRenameTitle(conversation.title)
-	}, [])
+	const handleStartRename = useCallback(
+		(conversation: ConversationPreview) => {
+			setRenameDialog({ id: conversation.id, title: conversation.title });
+			setRenameTitle(conversation.title);
+		},
+		[]
+	);
 
 	const handleSaveRename = useCallback(async () => {
-		if (!renameDialog) return
+		if (!renameDialog) return;
 
-		const title = renameTitle.trim()
-		if (!title || title === renameDialog.title.trim()) return
+		const title = renameTitle.trim();
+		if (!title || title === renameDialog.title.trim()) return;
 
 		try {
-			await updateConversation({ id: renameDialog.id, title })
+			await updateConversation({ id: renameDialog.id, title });
 			toast({
-				title: 'Chat renamed',
+				title: "Chat renamed",
 				description: `Renamed to "${title}".`,
-			})
-			closeRenameDialog()
+			});
+			closeRenameDialog();
 		} catch (error) {
-			console.error('Failed to rename conversation:', error)
+			console.error("Failed to rename conversation:", error);
 			toast({
-				title: 'Failed to rename chat',
-				description: getErrorMessage(error, 'Please try again.'),
-				variant: 'destructive',
-			})
+				title: "Failed to rename chat",
+				description: getErrorMessage(error, "Please try again."),
+				variant: "destructive",
+			});
 		}
-	}, [closeRenameDialog, renameDialog, renameTitle, toast, updateConversation])
+	}, [
+		closeRenameDialog,
+		renameDialog,
+		renameTitle,
+		toast,
+		updateConversation,
+	]);
 
 	const getDestinationName = useCallback(
 		(collectionId: string | null) => {
-			if (collectionId === null) return 'Uncategorized'
+			if (collectionId === null) return "Uncategorized";
 
 			return (
-				collections?.find((collection) => collection.id === collectionId)?.name ??
-				'selected collection'
-			)
+				collections?.find(
+					(collection) => collection.id === collectionId
+				)?.name ?? "selected collection"
+			);
 		},
 		[collections]
-	)
+	);
 
 	const handleMoveConversation = useCallback(
-		async (conversation: ConversationPreview, collectionId: string | null) => {
-			if ((conversation.collection?.id ?? null) === collectionId) return
+		async (
+			conversation: ConversationPreview,
+			collectionId: string | null
+		) => {
+			if ((conversation.collection?.id ?? null) === collectionId) return;
 
-			const destinationName = getDestinationName(collectionId)
+			const destinationName = getDestinationName(collectionId);
 
 			try {
-				await updateConversation({ id: conversation.id, collectionId })
+				await updateConversation({ id: conversation.id, collectionId });
 				toast({
-					title: 'Chat moved',
+					title: "Chat moved",
 					description: `Moved to ${destinationName}.`,
-				})
+				});
 			} catch (error) {
-				console.error('Failed to move conversation:', error)
+				console.error("Failed to move conversation:", error);
 				toast({
-					title: 'Failed to move chat',
-					description: getErrorMessage(error, 'Please try again.'),
-					variant: 'destructive',
-				})
+					title: "Failed to move chat",
+					description: getErrorMessage(error, "Please try again."),
+					variant: "destructive",
+				});
 			}
 		},
 		[getDestinationName, toast, updateConversation]
-	)
+	);
 
 	const handleTogglePin = useCallback(
 		async (conversation: ConversationPreview) => {
@@ -181,42 +219,47 @@ export function useSidebarConversationActions({
 				await updateConversation({
 					id: conversation.id,
 					isPinned: !conversation.isPinned,
-				})
+				});
 				toast({
-					title: conversation.isPinned ? 'Chat unpinned' : 'Chat pinned',
+					title: conversation.isPinned
+						? "Chat unpinned"
+						: "Chat pinned",
 					description: conversation.isPinned
 						? `"${conversation.title}" moved back to Recent.`
 						: `"${conversation.title}" added to Pinned.`,
-				})
+				});
 			} catch (error) {
-				console.error('Failed to update pin state:', error)
+				console.error("Failed to update pin state:", error);
 				toast({
-					title: 'Failed to update pin',
-					description: getErrorMessage(error, 'Please try again.'),
-					variant: 'destructive',
-				})
+					title: "Failed to update pin",
+					description: getErrorMessage(error, "Please try again."),
+					variant: "destructive",
+				});
 			}
 		},
 		[toast, updateConversation]
-	)
+	);
 
 	const handleOpenShareDialog = useCallback(
 		async (conversation: ConversationPreview) => {
-			if (shareLoadingId) return
+			if (shareLoadingId) return;
 
-			setShareLoadingId(conversation.id)
+			setShareLoadingId(conversation.id);
 			try {
-				const cachedConversation = queryClient.getQueryData<
-					ConversationDetailPayload | null
-				>(conversationDetailQueryKey(conversation.id))
+				const cachedConversation =
+					queryClient.getQueryData<ConversationDetailPayload | null>(
+						conversationDetailQueryKey(conversation.id)
+					);
 
 				const conversationDetail =
-					cachedConversation ?? (await fetchConversationDetail(conversation.id))
+					cachedConversation ??
+					(await fetchConversationDetail(conversation.id));
 
 				const shareableMessages: Message[] = conversationDetail.messages
 					.filter(
 						(message: { role: string }) =>
-							message.role === 'user' || message.role === 'assistant'
+							message.role === "user" ||
+							message.role === "assistant"
 					)
 					.map((message) => ({
 						...message,
@@ -226,8 +269,10 @@ export function useSidebarConversationActions({
 						isError: message.isError ?? undefined,
 						status: message.status ?? undefined,
 						errorCode: message.errorCode ?? undefined,
-						providerStatusCode: message.providerStatusCode ?? undefined,
-						providerRequestId: message.providerRequestId ?? undefined,
+						providerStatusCode:
+							message.providerStatusCode ?? undefined,
+						providerRequestId:
+							message.providerRequestId ?? undefined,
 						startedAt: message.startedAt
 							? new Date(message.startedAt)
 							: undefined,
@@ -240,93 +285,106 @@ export function useSidebarConversationActions({
 						lastChunkAt: message.lastChunkAt
 							? new Date(message.lastChunkAt)
 							: undefined,
-						createdAt: message.createdAt ? new Date(message.createdAt) : undefined,
-					}))
+						createdAt: message.createdAt
+							? new Date(message.createdAt)
+							: undefined,
+						attachments:
+							message.attachments?.map(mapMessageAttachment),
+					}));
 
 				if (shareableMessages.length === 0) {
 					toast({
-						title: 'Nothing to share',
-						description: 'This chat does not have shareable messages yet.',
-						variant: 'destructive',
-					})
-					return
+						title: "Nothing to share",
+						description:
+							"This chat does not have shareable messages yet.",
+						variant: "destructive",
+					});
+					return;
 				}
 
 				setShareDialog({
 					conversationId: conversation.id,
-					conversationTitle: conversationDetail.title ?? conversation.title,
-					selectedMessageIds: shareableMessages.map((message) => message.id),
+					conversationTitle:
+						conversationDetail.title ?? conversation.title,
+					selectedMessageIds: shareableMessages.map(
+						(message) => message.id
+					),
 					allMessages: shareableMessages,
-				})
+				});
 			} catch (error) {
-				console.error('Failed to open share dialog:', error)
+				console.error("Failed to open share dialog:", error);
 				toast({
-					title: 'Failed to load share preview',
-					description: getErrorMessage(error, 'Please try again.'),
-					variant: 'destructive',
-				})
+					title: "Failed to load share preview",
+					description: getErrorMessage(error, "Please try again."),
+					variant: "destructive",
+				});
 			} finally {
-				setShareLoadingId(null)
+				setShareLoadingId(null);
 			}
 		},
 		[queryClient, shareLoadingId, toast]
-	)
+	);
 
 	const handleAutoCompleteSharePairs = useCallback((messageIds: string[]) => {
 		setShareDialog((current) => {
-			if (!current) return current
+			if (!current) return current;
 			return {
 				...current,
 				selectedMessageIds: Array.from(
 					new Set([...current.selectedMessageIds, ...messageIds])
 				),
-			}
-		})
-	}, [])
+			};
+		});
+	}, []);
 
 	const getConversationActions = useCallback(
 		(conversation: ConversationPreview): MenuAction[] => [
 			{
-				type: 'item',
-				key: 'open',
-				label: 'Open chat',
+				type: "item",
+				key: "open",
+				label: "Open chat",
 				icon: MessageSquare,
 				onSelect: () => handleChatClick(conversation.id),
 			},
 			{
-				type: 'item',
-				key: 'rename',
-				label: 'Rename',
+				type: "item",
+				key: "rename",
+				label: "Rename",
 				icon: Edit2,
 				onSelect: () => handleStartRename(conversation),
 			},
 			{
-				type: 'item',
-				key: 'share',
+				type: "item",
+				key: "share",
 				label:
-					shareLoadingId === conversation.id ? 'Loading share...' : 'Share',
+					shareLoadingId === conversation.id
+						? "Loading share..."
+						: "Share",
 				icon: shareLoadingId === conversation.id ? Loader2 : Share2,
-				iconClassName: shareLoadingId === conversation.id ? 'animate-spin' : '',
+				iconClassName:
+					shareLoadingId === conversation.id ? "animate-spin" : "",
 				onSelect: () => handleOpenShareDialog(conversation),
-				disabled: conversation.messageCount === 0 || shareLoadingId !== null,
+				disabled:
+					conversation.messageCount === 0 || shareLoadingId !== null,
 			},
 			{
-				type: 'submenu',
-				key: 'move',
-				label: 'Move to...',
+				type: "submenu",
+				key: "move",
+				label: "Move to...",
 				icon: Folder,
 				items: [
 					{
-						type: 'item',
-						key: 'move-uncategorized',
-						label: 'Uncategorized',
+						type: "item",
+						key: "move-uncategorized",
+						label: "Uncategorized",
 						icon: FolderOpen,
-						iconClassName: 'text-gray-500',
-						onSelect: () => handleMoveConversation(conversation, null),
+						iconClassName: "text-gray-500",
+						onSelect: () =>
+							handleMoveConversation(conversation, null),
 						disabled: conversation.collection === null,
 					},
 					...(collections?.map((collection) => ({
-						type: 'item' as const,
+						type: "item" as const,
 						key: `move-${collection.id}`,
 						label: collection.name,
 						icon: Folder,
@@ -338,20 +396,20 @@ export function useSidebarConversationActions({
 				],
 			},
 			{
-				type: 'item',
-				key: 'pin',
-				label: conversation.isPinned ? 'Unpin chat' : 'Pin chat',
+				type: "item",
+				key: "pin",
+				label: conversation.isPinned ? "Unpin chat" : "Pin chat",
 				icon: conversation.isPinned ? PinOff : Pin,
 				onSelect: () => handleTogglePin(conversation),
 			},
-			{ type: 'separator', key: 'separator-delete' },
+			{ type: "separator", key: "separator-delete" },
 			{
-				type: 'item',
-				key: 'delete',
-				label: 'Delete chat',
+				type: "item",
+				key: "delete",
+				label: "Delete chat",
 				icon: Trash2,
 				onSelect: () => handleDeleteConversation(conversation.id),
-				variant: 'destructive',
+				variant: "destructive",
 			},
 		],
 		[
@@ -364,7 +422,7 @@ export function useSidebarConversationActions({
 			handleTogglePin,
 			shareLoadingId,
 		]
-	)
+	);
 
 	const handleConversationMenuOpenChange = useCallback(
 		(
@@ -373,14 +431,15 @@ export function useSidebarConversationActions({
 			open: boolean
 		) => {
 			setOpenConversationMenu((current) => {
-				if (open) return { id: conversationId, surface }
-				return current?.id === conversationId && current.surface === surface
+				if (open) return { id: conversationId, surface };
+				return current?.id === conversationId &&
+					current.surface === surface
 					? null
-					: current
-			})
+					: current;
+			});
 		},
 		[]
-	)
+	);
 
 	return {
 		renameDialog,
@@ -396,5 +455,5 @@ export function useSidebarConversationActions({
 		getConversationActions,
 		handleConversationMenuOpenChange,
 		handleAutoCompleteSharePairs,
-	}
+	};
 }

@@ -1,6 +1,23 @@
 export const conversationDetailQueryKey = (conversationId: string | null) =>
 	["conversation", conversationId] as const;
 
+export interface MessageAttachmentPayload {
+	id: string;
+	fileObjectId: string;
+	kind: "document" | "image";
+	promptUse: "rag" | "vision";
+	displayOrder: number;
+	fileObject: {
+		id: string;
+		filename: string;
+		mimeType: string;
+		sizeBytes: number;
+		status: string;
+		kind: string;
+		purpose: string;
+	};
+}
+
 interface ConversationMessagePayload {
 	id: string;
 	role: "user" | "assistant" | "system";
@@ -26,6 +43,11 @@ interface ConversationMessagePayload {
 	lastChunkAt?: string | Date | null;
 	createdAt?: string | Date;
 	parentMessageId?: string | null;
+	ragContextChunkIds?: string | null;
+	ragCitationData?: string | null;
+	activeSkillTraceJson?: unknown;
+	promptSkillHash?: string | null;
+	attachments?: MessageAttachmentPayload[];
 }
 
 export interface ConversationDetailPayload {

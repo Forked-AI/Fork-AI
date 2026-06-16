@@ -3,9 +3,14 @@ import {
 	clearCachedConversationDetail,
 	conversationDetailQueryKey,
 	fetchConversationDetail,
+	type MessageAttachmentPayload,
 	type ConversationDetailPayload,
 } from "@/lib/conversation-api";
 import { createIdempotencyHeaders } from "@/lib/idempotency-client";
+import type {
+	ActiveSkillTrace,
+	SkillActivationInput,
+} from "@/lib/skills/catalog";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useRef, useState } from "react";
 
@@ -37,11 +42,81 @@ export interface Message {
 	createdAt?: Date;
 	isStreaming?: boolean;
 	parentMessageId?: string | null;
+	citations?: MessageCitation[];
+	attachments?: MessageAttachment[];
+	activeSkillTrace?: ActiveSkillTrace | null;
+	promptSkillHash?: string | null;
+}
+
+export interface ChatAttachmentInput {
+	fileObjectId: string;
+	kind?: "document" | "image";
+	promptUse?: "rag" | "vision";
+	filename?: string;
+	mimeType?: string;
+	sizeBytes?: number;
+	status?: string;
+	fileKind?: string;
+	purpose?: string;
+	contentUrl?: string | null;
+}
+
+export interface MessageAttachment {
+	id: string;
+	fileObjectId: string;
+	kind: "document" | "image";
+	promptUse: "rag" | "vision";
+	displayOrder: number;
+	filename: string;
+	mimeType: string;
+	sizeBytes: number;
+	status: string;
+	fileKind: string;
+	purpose: string;
+	contentUrl?: string | null;
 }
 
 export interface MessageHistoryEntry {
 	role: "user" | "assistant";
 	content: string;
+}
+
+export interface MessageCitation {
+	index: number;
+	chunkId: string;
+	fileId: string;
+	sourceLabel: string;
+	pageNumber: number | null;
+	score: number;
+}
+
+function isMessageCitation(value: unknown): value is MessageCitation {
+	return (
+		typeof value === "object" &&
+		value !== null &&
+		typeof (value as { index?: unknown }).index === "number" &&
+		typeof (value as { chunkId?: unknown }).chunkId === "string" &&
+		typeof (value as { fileId?: unknown }).fileId === "string" &&
+		typeof (value as { sourceLabel?: unknown }).sourceLabel === "string"
+	);
+}
+
+function parseMessageCitations(value: unknown): MessageCitation[] | undefined {
+	if (typeof value !== "string" || value.length === 0) {
+		return undefined;
+	}
+
+	try {
+		const parsed = JSON.parse(value) as unknown;
+		if (!Array.isArray(parsed)) {
+			return undefined;
+		}
+
+		const citations = parsed.filter(isMessageCitation);
+		return citations.length > 0 ? citations : undefined;
+	} catch {
+		return undefined;
+	}
 }
 
 function mapMessagesToHistory(messages: Message[]): MessageHistoryEntry[] {
@@ -51,6 +126,56 @@ function mapMessagesToHistory(messages: Message[]): MessageHistoryEntry[] {
 				message.role === "user" || message.role === "assistant"
 		)
 		.map(({ role, content }) => ({ role, content }));
+}
+
+function mapAttachmentPayload(
+	attachment: MessageAttachmentPayload
+): MessageAttachment {
+	return {
+		id: attachment.id,
+		fileObjectId: attachment.fileObjectId,
+		kind: attachment.kind,
+		promptUse: attachment.promptUse,
+		displayOrder: attachment.displayOrder,
+		filename: attachment.fileObject.filename,
+		mimeType: attachment.fileObject.mimeType,
+		sizeBytes: attachment.fileObject.sizeBytes,
+		status: attachment.fileObject.status,
+		fileKind: attachment.fileObject.kind,
+		purpose: attachment.fileObject.purpose,
+		contentUrl:
+			attachment.kind === "image"
+				? `/api/attachments/${attachment.fileObjectId}/content`
+				: null,
+	};
+}
+
+function mapAttachmentInput(
+	attachment: ChatAttachmentInput,
+	index: number
+): MessageAttachment {
+	const kind = attachment.kind ?? "document";
+	return {
+		id: `temp-attachment-${attachment.fileObjectId}`,
+		fileObjectId: attachment.fileObjectId,
+		kind,
+		promptUse:
+			attachment.promptUse ?? (kind === "image" ? "vision" : "rag"),
+		displayOrder: index,
+		filename: attachment.filename ?? "Attachment",
+		mimeType: attachment.mimeType ?? "application/octet-stream",
+		sizeBytes: attachment.sizeBytes ?? 0,
+		status: attachment.status ?? "ready",
+		fileKind: attachment.fileKind ?? (kind === "image" ? "image" : "text"),
+		purpose:
+			attachment.purpose ??
+			(kind === "image" ? "vision_image" : "rag_document"),
+		contentUrl:
+			attachment.contentUrl ??
+			(kind === "image"
+				? `/api/attachments/${attachment.fileObjectId}/content`
+				: null),
+	};
 }
 
 function mapConversationDetailMessages(
@@ -65,7 +190,7 @@ function mapConversationDetailMessages(
 		isError:
 			msg.status === "failed" || msg.status === "moderated"
 				? true
-				: msg.isError ?? undefined,
+				: (msg.isError ?? undefined),
 		isStopped: msg.status === "cancelled" ? true : undefined,
 		isStreaming:
 			msg.status === "pending" || msg.status === "streaming"
@@ -75,17 +200,26 @@ function mapConversationDetailMessages(
 		providerStatusCode: msg.providerStatusCode ?? undefined,
 		providerRequestId: msg.providerRequestId ?? undefined,
 		startedAt: msg.startedAt ? new Date(msg.startedAt) : undefined,
-		completedAt: msg.completedAt
-			? new Date(msg.completedAt)
-			: undefined,
-		cancelledAt: msg.cancelledAt
-			? new Date(msg.cancelledAt)
-			: undefined,
-		lastChunkAt: msg.lastChunkAt
-			? new Date(msg.lastChunkAt)
-			: undefined,
+		completedAt: msg.completedAt ? new Date(msg.completedAt) : undefined,
+		cancelledAt: msg.cancelledAt ? new Date(msg.cancelledAt) : undefined,
+		lastChunkAt: msg.lastChunkAt ? new Date(msg.lastChunkAt) : undefined,
 		createdAt: msg.createdAt ? new Date(msg.createdAt) : undefined,
+		citations: parseMessageCitations(msg.ragCitationData),
+		attachments: msg.attachments?.map(mapAttachmentPayload),
+		activeSkillTrace: isActiveSkillTrace(msg.activeSkillTraceJson)
+			? msg.activeSkillTraceJson
+			: null,
+		promptSkillHash: msg.promptSkillHash ?? null,
 	}));
+}
+
+function isActiveSkillTrace(value: unknown): value is ActiveSkillTrace {
+	return (
+		typeof value === "object" &&
+		value !== null &&
+		Array.isArray((value as { items?: unknown }).items) &&
+		typeof (value as { renderHash?: unknown }).renderHash === "string"
+	);
 }
 
 export function buildLocalHistorySnapshot(
@@ -252,9 +386,9 @@ export interface UseChatOptions {
 	conversationId?: string;
 	model?: string;
 	systemPrompt?: string;
-	onConversationCreated?: (conversationId: string) => void;
-	onTitleGenerationNeeded?: (conversationId: string) => void;
-	onError?: (error: Error) => void;
+	onConversationCreated?: (_conversationId: string) => void;
+	onTitleGenerationNeeded?: (_conversationId: string) => void;
+	onError?: (_error: Error) => void;
 }
 
 export interface SendMessageResult {
@@ -264,6 +398,8 @@ export interface SendMessageResult {
 	status: "done" | "stopped" | "error";
 }
 
+export type ChatEnabledTool = "web.search";
+
 export interface UseChatReturn {
 	messages: Message[];
 	setMessages: React.Dispatch<React.SetStateAction<Message[]>>;
@@ -271,16 +407,23 @@ export interface UseChatReturn {
 	error: string | null;
 	conversationId: string | null;
 	sendMessage: (
-		content: string,
-		model?: string,
-		parentMessageId?: string | null,
-		history?: MessageHistoryEntry[]
+		_content: string,
+		_model?: string,
+		_parentMessageId?: string | null,
+		_history?: MessageHistoryEntry[],
+		_ragFileIds?: string[],
+		_attachments?: ChatAttachmentInput[],
+		_activeSkills?: SkillActivationInput[],
+		_enabledTools?: ChatEnabledTool[]
 	) => Promise<SendMessageResult>;
-	regenerate: (messageId: string) => Promise<void>;
-	editAndRegenerate: (messageId: string, newContent: string) => Promise<void>;
+	regenerate: (_messageId: string) => Promise<void>;
+	editAndRegenerate: (
+		_messageId: string,
+		_newContent: string
+	) => Promise<void>;
 	stopGeneration: () => void;
 	clearMessages: () => void;
-	loadConversation: (conversationId: string) => Promise<void>;
+	loadConversation: (_conversationId: string) => Promise<void>;
 }
 
 export function useChat(options: UseChatOptions = {}): UseChatReturn {
@@ -368,7 +511,11 @@ export function useChat(options: UseChatOptions = {}): UseChatReturn {
 			content: string,
 			model?: string,
 			parentMessageId?: string | null,
-			history?: MessageHistoryEntry[]
+			history?: MessageHistoryEntry[],
+			ragFileIds?: string[],
+			attachments?: ChatAttachmentInput[],
+			activeSkills?: SkillActivationInput[],
+			enabledTools?: ChatEnabledTool[]
 		): Promise<SendMessageResult> => {
 			if (!content.trim() || inFlightSendRef.current || isStreaming) {
 				return {
@@ -397,6 +544,7 @@ export function useChat(options: UseChatOptions = {}): UseChatReturn {
 				content: content.trim(),
 				createdAt: new Date(),
 				parentMessageId: parentMessageId || null,
+				attachments: attachments?.map(mapAttachmentInput),
 			};
 
 			// Create placeholder assistant message - linked to user message
@@ -440,8 +588,14 @@ export function useChat(options: UseChatOptions = {}): UseChatReturn {
 						model: selectedModel,
 						conversationId: conversationIdRef.current,
 						parentMessageId: parentMessageId,
+						ragFileIds,
+						attachments: attachments?.map((attachment) => ({
+							fileObjectId: attachment.fileObjectId,
+						})),
 						history: requestHistory,
 						systemPrompt: systemPromptRef.current,
+						activeSkills,
+						enabledTools,
 					}),
 					signal: abortControllerRef.current.signal,
 				});
@@ -486,21 +640,23 @@ export function useChat(options: UseChatOptions = {}): UseChatReturn {
 									return;
 								realUserMessageId = data.userMessageId;
 								if (
-									typeof data.assistantMessageId ===
-									"string"
+									typeof data.assistantMessageId === "string"
 								) {
 									realAssistantMessageId =
 										data.assistantMessageId;
 									activeAssistantMessageIdRef.current =
 										data.assistantMessageId;
 								}
-								if (
-									typeof data.generationId === "string"
-								) {
+								if (typeof data.generationId === "string") {
 									realGenerationId = data.generationId;
 									activeGenerationIdRef.current =
 										data.generationId;
 								}
+								const activeSkillTrace = isActiveSkillTrace(
+									data.activeSkillTrace
+								)
+									? data.activeSkillTrace
+									: null;
 								setMessages((prev) =>
 									prev.map((msg) => {
 										if (msg.id === tempUserMessageId) {
@@ -519,8 +675,11 @@ export function useChat(options: UseChatOptions = {}): UseChatReturn {
 												id: realAssistantMessageId,
 												parentMessageId:
 													data.userMessageId,
-												generationId:
-													realGenerationId,
+												generationId: realGenerationId,
+												activeSkillTrace,
+												promptSkillHash:
+													activeSkillTrace?.renderHash ??
+													null,
 											};
 										}
 										return msg;
@@ -545,6 +704,24 @@ export function useChat(options: UseChatOptions = {}): UseChatReturn {
 								);
 								break;
 
+							case "citations": {
+								const citations = Array.isArray(data.citations)
+									? data.citations.filter(isMessageCitation)
+									: [];
+								setMessages((prev) =>
+									prev.map((msg) =>
+										msg.id === tempAssistantMessageId ||
+										msg.id === realAssistantMessageId
+											? {
+													...msg,
+													citations,
+												}
+											: msg
+									)
+								);
+								break;
+							}
+
 							case "done": {
 								const nextAssistantMessageId =
 									typeof data.assistantMessageId === "string"
@@ -555,25 +732,27 @@ export function useChat(options: UseChatOptions = {}): UseChatReturn {
 										nextAssistantMessageId;
 								}
 								setMessages((prev) => {
-									const updatedMessages: Message[] = prev.map((msg) =>
-										msg.id === tempAssistantMessageId ||
-										msg.id === realAssistantMessageId
-											? {
-													...msg,
-													id:
-														nextAssistantMessageId ??
-														msg.id,
-													content: accumulatedContent,
-													isStreaming: false,
-													status: "completed",
-													promptTokens:
-														data.usage
-															?.promptTokens,
-													completionTokens:
-														data.usage
-															?.completionTokens,
-												}
-											: msg
+									const updatedMessages: Message[] = prev.map(
+										(msg) =>
+											msg.id === tempAssistantMessageId ||
+											msg.id === realAssistantMessageId
+												? {
+														...msg,
+														id:
+															nextAssistantMessageId ??
+															msg.id,
+														content:
+															accumulatedContent,
+														isStreaming: false,
+														status: "completed",
+														promptTokens:
+															data.usage
+																?.promptTokens,
+														completionTokens:
+															data.usage
+																?.completionTokens,
+													}
+												: msg
 									);
 
 									const currentConversationId =
@@ -596,6 +775,11 @@ export function useChat(options: UseChatOptions = {}): UseChatReturn {
 								finalStatus = "error";
 								const streamErrorMessage =
 									buildStreamErrorMessage(data);
+								const replacementContent =
+									data.errorCode === "OUTPUT_MODERATED" &&
+									typeof data.replacementContent === "string"
+										? data.replacementContent
+										: null;
 								setError(streamErrorMessage);
 								setMessages((prev) =>
 									prev.map((msg) =>
@@ -604,11 +788,16 @@ export function useChat(options: UseChatOptions = {}): UseChatReturn {
 											? {
 													...msg,
 													content:
+														replacementContent ||
 														accumulatedContent ||
 														streamErrorMessage,
 													isStreaming: false,
 													isError: true,
-													status: "failed",
+													status:
+														data.errorCode ===
+														"OUTPUT_MODERATED"
+															? "moderated"
+															: "failed",
 													errorCode:
 														typeof data.errorCode ===
 														"string"
@@ -691,13 +880,13 @@ export function useChat(options: UseChatOptions = {}): UseChatReturn {
 							msg.id === tempAssistantMessageId
 								? {
 										...msg,
-								content: errorMessage,
-								isStreaming: false,
-								isError: true,
-								status: "failed",
-							}
-						: msg
-				)
+										content: errorMessage,
+										isStreaming: false,
+										isError: true,
+										status: "failed",
+									}
+								: msg
+						)
 					);
 					onErrorRef.current?.(
 						err instanceof Error ? err : new Error(errorMessage)
@@ -774,9 +963,7 @@ export function useChat(options: UseChatOptions = {}): UseChatReturn {
 						method: "POST",
 						headers: {
 							"Content-Type": "application/json",
-							...createIdempotencyHeaders(
-								"retry-generation"
-							),
+							...createIdempotencyHeaders("retry-generation"),
 						},
 						body: JSON.stringify({
 							model: selectedModel,
@@ -812,17 +999,14 @@ export function useChat(options: UseChatOptions = {}): UseChatReturn {
 						switch (data.type) {
 							case "messageId":
 								if (
-									typeof data.assistantMessageId ===
-									"string"
+									typeof data.assistantMessageId === "string"
 								) {
 									realAssistantMessageId =
 										data.assistantMessageId;
 									activeAssistantMessageIdRef.current =
 										data.assistantMessageId;
 								}
-								if (
-									typeof data.generationId === "string"
-								) {
+								if (typeof data.generationId === "string") {
 									realGenerationId = data.generationId;
 									activeGenerationIdRef.current =
 										data.generationId;
@@ -856,8 +1040,7 @@ export function useChat(options: UseChatOptions = {}): UseChatReturn {
 										msg.id === realAssistantMessageId
 											? {
 													...msg,
-													content:
-														accumulatedContent,
+													content: accumulatedContent,
 													status: "streaming",
 												}
 											: msg
@@ -867,8 +1050,7 @@ export function useChat(options: UseChatOptions = {}): UseChatReturn {
 
 							case "done":
 								if (
-									typeof data.assistantMessageId ===
-									"string"
+									typeof data.assistantMessageId === "string"
 								) {
 									realAssistantMessageId =
 										data.assistantMessageId;
@@ -884,8 +1066,7 @@ export function useChat(options: UseChatOptions = {}): UseChatReturn {
 														"string"
 															? data.assistantMessageId
 															: msg.id,
-													content:
-														accumulatedContent,
+													content: accumulatedContent,
 													isStreaming: false,
 													status: "completed",
 													promptTokens:
@@ -903,6 +1084,11 @@ export function useChat(options: UseChatOptions = {}): UseChatReturn {
 							case "error": {
 								const streamErrorMessage =
 									buildStreamErrorMessage(data);
+								const replacementContent =
+									data.errorCode === "OUTPUT_MODERATED" &&
+									typeof data.replacementContent === "string"
+										? data.replacementContent
+										: null;
 								setError(streamErrorMessage);
 								setMessages((prev) =>
 									prev.map((msg) =>
@@ -911,15 +1097,19 @@ export function useChat(options: UseChatOptions = {}): UseChatReturn {
 											? {
 													...msg,
 													content:
+														replacementContent ||
 														accumulatedContent ||
 														streamErrorMessage,
 													isStreaming: false,
 													isError: true,
 													status:
 														data.errorCode ===
-														"GENERATION_CANCELLED"
-															? "cancelled"
-															: "failed",
+														"OUTPUT_MODERATED"
+															? "moderated"
+															: data.errorCode ===
+																  "GENERATION_CANCELLED"
+																? "cancelled"
+																: "failed",
 													errorCode:
 														typeof data.errorCode ===
 														"string"

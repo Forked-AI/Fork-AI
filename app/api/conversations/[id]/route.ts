@@ -61,8 +61,33 @@ export async function GET(
 						completedAt: true,
 						cancelledAt: true,
 						lastChunkAt: true,
+						ragContextChunkIds: true,
+						ragCitationData: true,
+						activeSkillTraceJson: true,
+						promptSkillHash: true,
 						createdAt: true,
 						parentMessageId: true,
+						attachments: {
+							orderBy: { displayOrder: "asc" },
+							select: {
+								id: true,
+								fileObjectId: true,
+								kind: true,
+								promptUse: true,
+								displayOrder: true,
+								fileObject: {
+									select: {
+										id: true,
+										filename: true,
+										mimeType: true,
+										sizeBytes: true,
+										status: true,
+										kind: true,
+										purpose: true,
+									},
+								},
+							},
+						},
 					},
 				},
 				collection: {
@@ -157,7 +182,10 @@ export async function PATCH(
 			updateData.collectionId = collectionId;
 		}
 
-		if (isPinned !== undefined && isPinned !== existingConversation.isPinned) {
+		if (
+			isPinned !== undefined &&
+			isPinned !== existingConversation.isPinned
+		) {
 			updateData.isPinned = isPinned;
 			updateData.pinnedAt = isPinned ? new Date() : null;
 		}

@@ -5,12 +5,14 @@
 // Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
 
 generator client {
-  provider = "prisma-client"
-  output   = "../generated/prisma"
+  provider        = "prisma-client"
+  output          = "../generated/prisma"
+  previewFeatures = ["postgresqlExtensions"]
 }
 
 datasource db {
-  provider = "postgresql"
+  provider   = "postgresql"
+  extensions = [vector]
 }
 
 enum MessageStatus {
@@ -31,6 +33,179 @@ enum GenerationStatus {
   moderated
 }
 
+enum UsageFeature {
+  chat_response
+  conversation_summary
+  conversation_title
+}
+
+enum UsageOutcome {
+  pending
+  completed
+  failed
+  cancelled
+  moderated
+}
+
+enum UsageSource {
+  provider
+  estimate
+  none
+  legacy_unknown
+}
+
+enum QuotaSubjectType {
+  user
+  organization
+  api_key
+}
+
+enum FileObjectStatus {
+  uploading
+  uploaded
+  processing
+  ready
+  failed
+  deleted
+}
+
+enum FileStorageProvider {
+  local
+  r2
+}
+
+enum FileObjectKind {
+  pdf
+  text
+  markdown
+  csv
+  code
+  image
+}
+
+enum FileObjectPurpose {
+  rag_document
+  vision_image
+}
+
+enum ModerationAction {
+  allow
+  block
+  review
+  degrade
+}
+
+enum ModerationCategory {
+  none
+  child_safety
+  violence
+  self_harm
+  sexual_content
+  hate_harassment
+  illegal_activity
+  malware
+  credential_exfiltration
+  prompt_injection
+  privacy_spam
+  file_risk
+  provider_abuse
+  signup_abuse
+  output_risk
+}
+
+enum ModerationSource {
+  chat_message
+  file_upload
+  assistant_output
+  share_snapshot
+  account_export
+  signup
+  rate_limit
+  provider_response
+}
+
+enum ModerationStage {
+  pre_generation
+  file_upload
+  post_generation
+  share_create
+  account_export
+  abuse_signal
+}
+
+enum ModerationSeverity {
+  low
+  medium
+  high
+  critical
+}
+
+enum AbuseSignalType {
+  prompt_flooding
+  token_draining
+  provider_rate_limit
+  high_failure_rate
+  suspicious_signup
+  moderation_block
+  rate_limit_exceeded
+  file_scanner_block
+}
+
+enum ToolRiskLevel {
+  low
+  medium
+  high
+}
+
+enum ToolExecutionStatus {
+  pending_confirmation
+  cancelled
+  running
+  succeeded
+  failed
+  unauthorized
+  invalid_input
+  timed_out
+}
+
+enum SkillBindingScope {
+  turn
+  conversation
+  account_default
+}
+
+enum SkillVisibility {
+  private
+  unlisted
+  public
+  org
+}
+
+enum SkillListingStatus {
+  draft
+  submitted
+  listed
+  limited
+  removed
+  deprecated
+}
+
+enum SkillPackageKind {
+  skill
+  config_pack
+  setup
+}
+
+enum MessageAttachmentKind {
+  document
+  image
+}
+
+enum MessageAttachmentPromptUse {
+  rag
+  vision
+}
+
 model WaitlistEntry {
   id        String   @id @default(cuid())
   email     String   @unique
@@ -38,20 +213,34 @@ model WaitlistEntry {
 }
 
 model User {
-  id                  String               @id
-  name                String
-  email               String
-  emailVerified       Boolean              @default(false)
-  image               String?
-  role                String               @default("user")
-  createdAt           DateTime             @default(now())
-  updatedAt           DateTime             @updatedAt
-  sessions            Session[]
-  accounts            Account[]
-  collections         Collection[]
-  conversations       Conversation[]
-  sharedConversations SharedConversation[]
-  generations         Generation[]
+  id                    String                     @id
+  name                  String
+  email                 String
+  emailVerified         Boolean                    @default(false)
+  image                 String?
+  role                  String                     @default("user")
+  createdAt             DateTime                   @default(now())
+  updatedAt             DateTime                   @updatedAt
+  sessions              Session[]
+  accounts              Account[]
+  collections           Collection[]
+  conversations         Conversation[]
+  conversationSummaries ConversationSummary[]
+  sharedConversations   SharedConversation[]
+  generations           Generation[]
+  usageEvents           UsageEvent[]
+  moderationEvents      ModerationEvent[]
+  abuseSignals          AbuseSignal[]
+  adminAuditEvents      AdminAuditEvent[]
+  fileObjects           FileObject[]
+  documentChunks        DocumentChunk[]
+  messageAttachments    MessageAttachment[]
+  toolExecutions        ToolExecution[]
+  skillTemplates        SkillTemplate[]
+  skillTemplateVersions SkillTemplateVersion[]
+  installedSkills       InstalledSkill[]
+  skillBindings         ConversationSkillBinding[]
+  skillCollections      SkillCollection[]
 
   banned     Boolean?  @default(false)
   banReason  String?
@@ -129,20 +318,27 @@ model Collection {
 }
 
 model Conversation {
-  id                  String               @id @default(cuid())
+  id                  String                     @id @default(cuid())
   title               String
   userId              String
-  user                User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user                User                       @relation(fields: [userId], references: [id], onDelete: Cascade)
   collectionId        String?
-  collection          Collection?          @relation(fields: [collectionId], references: [id], onDelete: SetNull)
-  isPinned            Boolean              @default(false)
+  collection          Collection?                @relation(fields: [collectionId], references: [id], onDelete: SetNull)
+  isPinned            Boolean                    @default(false)
   pinnedAt            DateTime?
   messages            Message[]
   generations         Generation[]
+  usageEvents         UsageEvent[]
+  moderationEvents    ModerationEvent[]
+  abuseSignals        AbuseSignal[]
+  summaries           ConversationSummary[]
+  messageAttachments  MessageAttachment[]
   sharedConversations SharedConversation[]
-  activeMessageIds    String?              @db.Text // JSON array of message IDs representing the active branch path
-  createdAt           DateTime             @default(now())
-  updatedAt           DateTime             @updatedAt
+  toolExecutions      ToolExecution[]
+  skillBindings       ConversationSkillBinding[]
+  activeMessageIds    String?                    @db.Text // JSON array of message IDs representing the active branch path
+  createdAt           DateTime                   @default(now())
+  updatedAt           DateTime                   @updatedAt
 
   @@index([userId])
   @@index([collectionId])
@@ -151,14 +347,14 @@ model Conversation {
 }
 
 model Message {
-  id                           String            @id @default(cuid())
+  id                           String                     @id @default(cuid())
   role                         String // "user" | "assistant" | "system"
-  content                      String            @db.Text
+  content                      String                     @db.Text
   model                        String? // e.g., "mistral-large-latest"
   promptTokens                 Int?
   completionTokens             Int?
-  isError                      Boolean           @default(false) // For failed stream recovery
-  status                       MessageStatus     @default(completed)
+  isError                      Boolean                    @default(false) // For failed stream recovery
+  status                       MessageStatus              @default(completed)
   errorCode                    String?
   providerStatusCode           Int?
   providerRequestId            String?
@@ -166,22 +362,36 @@ model Message {
   completedAt                  DateTime?
   cancelledAt                  DateTime?
   lastChunkAt                  DateTime?
+  promptVersion                String?
+  contextSummaryId             String?
+  contextEstimatedTokens       Int?
+  contextRecentMessageCount    Int?
+  contextTotalMessageCount     Int?
+  ragContextChunkIds           String?                    @db.Text // JSON array of retrieved DocumentChunk IDs
+  ragCitationData              String?                    @db.Text // JSON citation metadata for retrieved files
+  activeSkillTraceJson         Json?
+  promptSkillHash              String?
   conversationId               String
-  conversation                 Conversation      @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  conversation                 Conversation               @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   feedback                     MessageFeedback[]
-  generationAsUserMessage      Generation[]      @relation("GenerationUserMessage")
-  generationAsAssistantMessage Generation?       @relation("GenerationAssistantMessage")
+  attachments                  MessageAttachment[]
+  generationAsUserMessage      Generation[]               @relation("GenerationUserMessage")
+  generationAsAssistantMessage Generation?                @relation("GenerationAssistantMessage")
+  usageEvents                  UsageEvent[]
+  moderationEvents             ModerationEvent[]
+  toolExecutions               ToolExecution[]
+  skillBindings                ConversationSkillBinding[]
   // Tree structure for branching
-  parentMessageId              String?           @map("parent_message_id")
-  parentMessage                Message?          @relation("MessageTree", fields: [parentMessageId], references: [id], onDelete: SetNull)
-  childMessages                Message[]         @relation("MessageTree")
+  parentMessageId              String?                    @map("parent_message_id")
+  parentMessage                Message?                   @relation("MessageTree", fields: [parentMessageId], references: [id], onDelete: SetNull)
+  childMessages                Message[]                  @relation("MessageTree")
   // Graph visualization
   positionX                    Float?
   positionY                    Float?
   // Root nodes for branching history
-  isRootNode                   Boolean           @default(false)
+  isRootNode                   Boolean                    @default(false)
   rootNodeName                 String?
-  createdAt                    DateTime          @default(now())
+  createdAt                    DateTime                   @default(now())
 
   @@index([conversationId])
   @@index([parentMessageId])
@@ -189,36 +399,349 @@ model Message {
   @@map("message")
 }
 
+model ConversationSummary {
+  id                         String       @id @default(cuid())
+  conversationId             String
+  conversation               Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  userId                     String
+  user                       User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  content                    String       @db.Text
+  promptVersion              String
+  provider                   String?
+  model                      String?
+  sourceMessageCount         Int
+  summarizedThroughMessageId String?
+  sourceFingerprint          String
+  createdAt                  DateTime     @default(now())
+  updatedAt                  DateTime     @updatedAt
+
+  @@unique([conversationId, promptVersion, sourceFingerprint])
+  @@index([conversationId, createdAt])
+  @@index([userId])
+  @@map("conversation_summary")
+}
+
 model Generation {
-  id                 String           @id @default(cuid())
-  userId             String
-  user               User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  conversationId     String
-  conversation       Conversation     @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  userMessageId      String
-  userMessage        Message          @relation("GenerationUserMessage", fields: [userMessageId], references: [id], onDelete: Cascade)
-  assistantMessageId String           @unique
-  assistantMessage   Message          @relation("GenerationAssistantMessage", fields: [assistantMessageId], references: [id], onDelete: Cascade)
-  provider           String
-  model              String
-  status             GenerationStatus @default(pending)
-  promptTokens       Int?
-  completionTokens   Int?
-  providerRequestId  String?
-  errorCode          String?
-  providerStatusCode Int?
-  startedAt          DateTime?
-  completedAt        DateTime?
-  cancelledAt        DateTime?
-  lastChunkAt        DateTime?
-  createdAt          DateTime         @default(now())
-  updatedAt          DateTime         @updatedAt
+  id                        String           @id @default(cuid())
+  userId                    String
+  user                      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  conversationId            String
+  conversation              Conversation     @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  userMessageId             String
+  userMessage               Message          @relation("GenerationUserMessage", fields: [userMessageId], references: [id], onDelete: Cascade)
+  assistantMessageId        String           @unique
+  assistantMessage          Message          @relation("GenerationAssistantMessage", fields: [assistantMessageId], references: [id], onDelete: Cascade)
+  provider                  String
+  model                     String
+  status                    GenerationStatus @default(pending)
+  promptTokens              Int?
+  completionTokens          Int?
+  providerRequestId         String?
+  errorCode                 String?
+  providerStatusCode        Int?
+  startedAt                 DateTime?
+  completedAt               DateTime?
+  cancelledAt               DateTime?
+  lastChunkAt               DateTime?
+  promptVersion             String?
+  contextSummaryId          String?
+  contextEstimatedTokens    Int?
+  contextRecentMessageCount Int?
+  contextTotalMessageCount  Int?
+  ragContextChunkIds        String?          @db.Text
+  ragCitationData           String?          @db.Text
+  activeSkillTraceJson      Json?
+  promptSkillHash           String?
+  createdAt                 DateTime         @default(now())
+  updatedAt                 DateTime         @updatedAt
+  usageEvent                UsageEvent?
 
   @@index([userId])
   @@index([conversationId])
   @@index([userMessageId])
   @@index([status, lastChunkAt])
   @@map("generation")
+}
+
+model InstalledSkill {
+  id              String                     @id @default(cuid())
+  userId          String
+  user            User                       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  templateId      String
+  versionId       String
+  alias           String?
+  enabled         Boolean                    @default(true)
+  pinned          Boolean                    @default(false)
+  defaultScope    SkillBindingScope?
+  settingsJson    Json?
+  installedAt     DateTime                   @default(now())
+  lastUsedAt      DateTime?
+  disabledAt      DateTime?
+  skillBindings   ConversationSkillBinding[]
+  collectionItems SkillCollectionItem[]
+
+  @@unique([userId, templateId, versionId])
+  @@index([userId, pinned, installedAt])
+  @@index([templateId, versionId])
+  @@map("installed_skill")
+}
+
+model SkillTemplate {
+  id               String                 @id @default(cuid())
+  slug             String
+  title            String
+  summary          String
+  description      String                 @db.Text
+  ownerId          String
+  owner            User                   @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  kind             SkillPackageKind       @default(skill)
+  visibility       SkillVisibility        @default(private)
+  status           SkillListingStatus     @default(draft)
+  category         String
+  tags             String[]
+  currentVersionId String?
+  riskLevel        ToolRiskLevel          @default(low)
+  installCount     Int                    @default(0)
+  useCount         Int                    @default(0)
+  forkCount        Int                    @default(0)
+  likeCount        Int                    @default(0)
+  reportCount      Int                    @default(0)
+  createdAt        DateTime               @default(now())
+  updatedAt        DateTime               @updatedAt
+  versions         SkillTemplateVersion[]
+
+  @@unique([ownerId, slug])
+  @@index([ownerId, createdAt])
+  @@index([visibility, status, category])
+  @@map("skill_template")
+}
+
+model SkillTemplateVersion {
+  id               String        @id @default(cuid())
+  templateId       String
+  template         SkillTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  version          Int
+  semver           String?
+  manifestJson     Json
+  instructionsHash String
+  changelog        String        @default("") @db.Text
+  requiredTools    String[]
+  riskLevel        ToolRiskLevel @default(low)
+  reviewStatus     String        @default("private")
+  reviewedAt       DateTime?
+  reviewedBy       String?
+  createdBy        String
+  creator          User          @relation(fields: [createdBy], references: [id], onDelete: Cascade)
+  createdAt        DateTime      @default(now())
+
+  @@unique([templateId, version])
+  @@index([templateId, createdAt])
+  @@index([reviewStatus, createdAt])
+  @@map("skill_template_version")
+}
+
+model SkillCollection {
+  id          String                @id @default(cuid())
+  userId      String
+  user        User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name        String
+  description String?
+  isDefault   Boolean               @default(false)
+  createdAt   DateTime              @default(now())
+  updatedAt   DateTime              @updatedAt
+  items       SkillCollectionItem[]
+
+  @@unique([userId, name])
+  @@index([userId, createdAt])
+  @@map("skill_collection")
+}
+
+model SkillCollectionItem {
+  id               String          @id @default(cuid())
+  collectionId     String
+  collection       SkillCollection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  installedSkillId String
+  installedSkill   InstalledSkill  @relation(fields: [installedSkillId], references: [id], onDelete: Cascade)
+  createdAt        DateTime        @default(now())
+
+  @@unique([collectionId, installedSkillId])
+  @@index([installedSkillId])
+  @@map("skill_collection_item")
+}
+
+model ConversationSkillBinding {
+  id               String            @id @default(cuid())
+  userId           String
+  user             User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  conversationId   String?
+  conversation     Conversation?     @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  messageId        String?
+  message          Message?          @relation(fields: [messageId], references: [id], onDelete: SetNull)
+  installedSkillId String
+  installedSkill   InstalledSkill    @relation(fields: [installedSkillId], references: [id], onDelete: Cascade)
+  versionId        String
+  scope            SkillBindingScope
+  renderHash       String?
+  createdAt        DateTime          @default(now())
+  consumedAt       DateTime?
+
+  @@index([userId, conversationId, scope])
+  @@index([messageId])
+  @@index([installedSkillId, createdAt])
+  @@map("conversation_skill_binding")
+}
+
+model UsageEvent {
+  id                 String        @id @default(cuid())
+  deduplicationKey   String        @unique
+  userId             String?
+  user               User?         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organizationId     String?
+  conversationId     String?
+  conversation       Conversation? @relation(fields: [conversationId], references: [id], onDelete: SetNull)
+  messageId          String?
+  message            Message?      @relation(fields: [messageId], references: [id], onDelete: SetNull)
+  generationId       String?       @unique
+  generation         Generation?   @relation(fields: [generationId], references: [id], onDelete: SetNull)
+  feature            UsageFeature
+  outcome            UsageOutcome  @default(pending)
+  provider           String
+  requestedModel     String
+  resolvedModel      String?
+  promptVersion      String?
+  providerRequestId  String?
+  inputTokens        Int?
+  outputTokens       Int?
+  billableUnits      Int           @default(0)
+  usageSource        UsageSource?
+  estimatedCostUsd   Decimal?      @db.Decimal(18, 8)
+  costIsEstimate     Boolean       @default(true)
+  pricingVersion     String?
+  errorCode          String?
+  providerStatusCode Int?
+  startedAt          DateTime      @default(now())
+  finalizedAt        DateTime?
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+
+  @@index([userId, createdAt])
+  @@index([conversationId, createdAt])
+  @@index([feature, outcome, createdAt])
+  @@index([provider, requestedModel, createdAt])
+  @@map("usage_event")
+}
+
+model QuotaLedger {
+  id          String           @id @default(cuid())
+  subjectType QuotaSubjectType
+  subjectId   String
+  windowStart DateTime
+  windowEnd   DateTime
+  usedTokens  Int              @default(0)
+  usedUsd     Decimal          @default(0) @db.Decimal(18, 8)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  @@unique([subjectType, subjectId, windowStart, windowEnd])
+  @@index([subjectType, subjectId, windowEnd])
+  @@map("quota_ledger")
+}
+
+model FileObject {
+  id               String              @id @default(cuid())
+  userId           String
+  user             User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organizationId   String?
+  storageProvider  FileStorageProvider @default(local)
+  storageKey       String              @unique
+  kind             FileObjectKind      @default(text)
+  purpose          FileObjectPurpose   @default(rag_document)
+  filename         String
+  mimeType         String
+  extension        String
+  sizeBytes        Int
+  checksumSha256   String
+  status           FileObjectStatus    @default(uploaded)
+  errorCode        String?
+  errorMessage     String?
+  parsedTextBytes  Int?
+  chunkCount       Int                 @default(0)
+  processedAt      DateTime?
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+  chunks           DocumentChunk[]
+  attachments      MessageAttachment[]
+  moderationEvents ModerationEvent[]
+
+  @@index([userId, status])
+  @@index([userId, purpose, status])
+  @@index([organizationId])
+  @@index([checksumSha256])
+  @@map("file_object")
+}
+
+model MessageAttachment {
+  id             String                     @id @default(cuid())
+  messageId      String
+  message        Message                    @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  conversationId String
+  conversation   Conversation               @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User                       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  fileObjectId   String
+  fileObject     FileObject                 @relation(fields: [fileObjectId], references: [id], onDelete: Cascade)
+  kind           MessageAttachmentKind
+  promptUse      MessageAttachmentPromptUse
+  displayOrder   Int
+  createdAt      DateTime                   @default(now())
+
+  @@unique([messageId, fileObjectId])
+  @@index([messageId, displayOrder])
+  @@index([conversationId, displayOrder])
+  @@index([userId, createdAt])
+  @@index([fileObjectId])
+  @@map("message_attachment")
+}
+
+model DocumentChunk {
+  id              String     @id
+  fileId          String
+  file            FileObject @relation(fields: [fileId], references: [id], onDelete: Cascade)
+  userId          String
+  user            User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organizationId  String?
+  chunkIndex      Int
+  content         String     @db.Text
+  contentHash     String
+  pageNumber      Int?
+  sourceLabel     String
+  permissionScope String     @default("user")
+  createdAt       DateTime   @default(now())
+  embedding       Embedding?
+
+  @@unique([fileId, chunkIndex])
+  @@index([userId, fileId])
+  @@index([organizationId])
+  @@index([contentHash])
+  @@map("document_chunk")
+}
+
+model Embedding {
+  id             String                 @id @default(cuid())
+  chunkId        String                 @unique
+  chunk          DocumentChunk          @relation(fields: [chunkId], references: [id], onDelete: Cascade)
+  userId         String
+  organizationId String?
+  provider       String
+  model          String
+  dimensions     Int
+  vectorJson     String                 @db.Text
+  vectorPg       Unsupported("vector")? @map("vector_pg")
+  createdAt      DateTime               @default(now())
+
+  @@index([userId, provider, model])
+  @@index([organizationId])
+  @@map("embedding")
 }
 
 model MessageFeedback {
@@ -256,13 +779,159 @@ model SharedConversation {
   showTimestamps Boolean @default(true)
   showModel      Boolean @default(true)
 
-  user         User         @relation(fields: [createdBy], references: [id], onDelete: Cascade)
-  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user             User              @relation(fields: [createdBy], references: [id], onDelete: Cascade)
+  conversation     Conversation      @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  moderationEvents ModerationEvent[]
 
   @@index([shareToken])
   @@index([createdBy])
   @@index([conversationId])
   @@map("shared_conversation")
+}
+
+model ModerationEvent {
+  id                   String              @id @default(cuid())
+  userId               String?
+  user                 User?               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organizationId       String?
+  conversationId       String?
+  conversation         Conversation?       @relation(fields: [conversationId], references: [id], onDelete: SetNull)
+  messageId            String?
+  message              Message?            @relation(fields: [messageId], references: [id], onDelete: SetNull)
+  fileObjectId         String?
+  fileObject           FileObject?         @relation(fields: [fileObjectId], references: [id], onDelete: SetNull)
+  sharedConversationId String?
+  sharedConversation   SharedConversation? @relation(fields: [sharedConversationId], references: [id], onDelete: SetNull)
+  source               ModerationSource
+  stage                ModerationStage
+  category             ModerationCategory
+  action               ModerationAction
+  severity             ModerationSeverity
+  policyVersion        String
+  reason               String              @db.Text
+  contentHash          String?
+  contentLength        Int?
+  matchedRuleIds       String?             @db.Text
+  metadataJson         String?             @db.Text
+  createdAt            DateTime            @default(now())
+
+  @@index([userId, createdAt])
+  @@index([conversationId, createdAt])
+  @@index([messageId, createdAt])
+  @@index([fileObjectId, createdAt])
+  @@index([sharedConversationId, createdAt])
+  @@index([source, stage, createdAt])
+  @@index([category, action, createdAt])
+  @@map("moderation_event")
+}
+
+model AbuseSignal {
+  id                 String             @id @default(cuid())
+  userId             String?
+  user               User?              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organizationId     String?
+  conversationId     String?
+  conversation       Conversation?      @relation(fields: [conversationId], references: [id], onDelete: SetNull)
+  signalType         AbuseSignalType
+  severity           ModerationSeverity
+  action             ModerationAction
+  actorHash          String?
+  count              Int                @default(1)
+  windowSeconds      Int?
+  provider           String?
+  model              String?
+  providerStatusCode Int?
+  metadataJson       String?            @db.Text
+  createdAt          DateTime           @default(now())
+
+  @@index([userId, createdAt])
+  @@index([conversationId, createdAt])
+  @@index([signalType, createdAt])
+  @@index([actorHash, createdAt])
+  @@map("abuse_signal")
+}
+
+model ToolExecution {
+  id                   String              @id @default(cuid())
+  userId               String
+  user                 User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organizationId       String?
+  conversationId       String?
+  conversation         Conversation?       @relation(fields: [conversationId], references: [id], onDelete: SetNull)
+  messageId            String?
+  message              Message?            @relation(fields: [messageId], references: [id], onDelete: SetNull)
+  toolName             String
+  status               ToolExecutionStatus
+  riskLevel            ToolRiskLevel
+  requiresConfirmation Boolean             @default(false)
+  confirmedAt          DateTime?
+  inputSummaryJson     Json?
+  resultSummaryJson    Json?
+  auditMetadata        Json?
+  errorCode            String?
+  startedAt            DateTime?
+  completedAt          DateTime?
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
+
+  @@index([userId, createdAt])
+  @@index([conversationId, createdAt])
+  @@index([messageId, createdAt])
+  @@index([toolName, createdAt])
+  @@index([status, createdAt])
+  @@map("tool_execution")
+}
+
+model OperationalMetric {
+  id             String   @id @default(cuid())
+  kind           String
+  source         String
+  status         String
+  route          String?
+  job            String?
+  provider       String?
+  model          String?
+  durationMs     Int?
+  ttftMs         Int?
+  tokensPerSec   Float?
+  totalTokens    Int?
+  costTotal      Float?
+  errorCode      String?
+  providerStatus Int?
+  userId         String?
+  conversationId String?
+  traceId        String?
+  metadataJson   Json?
+  createdAt      DateTime @default(now())
+
+  @@index([kind, source, createdAt])
+  @@index([status, createdAt])
+  @@index([route, createdAt])
+  @@index([job, createdAt])
+  @@index([provider, model, createdAt])
+  @@index([userId, createdAt])
+  @@index([conversationId, createdAt])
+  @@index([traceId])
+  @@map("operational_metric")
+}
+
+model AdminAuditEvent {
+  id             String   @id @default(cuid())
+  actorId        String
+  actor          User     @relation(fields: [actorId], references: [id], onDelete: Cascade)
+  action         String
+  targetType     String
+  targetId       String?
+  requestId      String?
+  idempotencyKey String?
+  metadataJson   Json?
+  createdAt      DateTime @default(now())
+
+  @@index([actorId, createdAt])
+  @@index([action, createdAt])
+  @@index([targetType, targetId, createdAt])
+  @@index([idempotencyKey])
+  @@map("admin_audit_event")
 }
 
 model Subscription {

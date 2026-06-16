@@ -1,6 +1,13 @@
 import type { NormalizedStreamError } from "@/lib/ai/errors";
 import { prisma } from "@/lib/prisma";
 import { abortRegisteredGeneration } from "@/lib/chat/generation-abort-registry";
+import {
+	buildUsageMeasurement,
+	createUsageAttempt,
+	estimateOutputTokens,
+	finalizeUsageEventInTransaction,
+	type UsageMeasurement,
+} from "@/lib/usage/usage-service";
 
 export type DurableMessageStatus =
 	| "pending"
@@ -38,6 +45,17 @@ export interface CreateGenerationAttemptInput {
 	userMessageId: string;
 	provider: string;
 	model: string;
+	promptMetadata?: {
+		promptVersion: string;
+		contextSummaryId: string | null;
+		contextEstimatedTokens: number;
+		contextRecentMessageCount: number;
+		contextTotalMessageCount: number;
+		ragContextChunkIds?: string | null;
+		ragCitationData?: string | null;
+		activeSkillTraceJson?: unknown;
+		promptSkillHash?: string | null;
+	};
 }
 
 export interface GenerationAttempt {
@@ -52,39 +70,87 @@ export async function createGenerationAttempt({
 	userMessageId,
 	provider,
 	model,
+	promptMetadata,
 }: CreateGenerationAttemptInput): Promise<GenerationAttempt> {
 	const now = new Date();
-	const assistantMessage = await prismaClient.message.create({
-		data: {
-			role: "assistant",
-			content: "",
-			model,
-			conversationId,
-			parentMessageId: userMessageId,
-			isError: false,
-			status: "streaming",
-			startedAt: now,
-			lastChunkAt: now,
-		},
-		select: { id: true },
-	});
 
-	const generation = await prismaClient.generation.create({
-		data: {
-			userId,
-			conversationId,
-			userMessageId,
-			assistantMessageId: assistantMessage.id,
-			provider,
-			model,
-			status: "streaming",
-			startedAt: now,
-			lastChunkAt: now,
-		},
-		select: { id: true },
-	});
+	return prismaClient.$transaction(
+		async (transaction: GenerationPrismaClient) => {
+			const assistantMessage = await transaction.message.create({
+				data: {
+					role: "assistant",
+					content: "",
+					model,
+					conversationId,
+					parentMessageId: userMessageId,
+					isError: false,
+					status: "streaming",
+					startedAt: now,
+					lastChunkAt: now,
+					promptVersion: promptMetadata?.promptVersion,
+					contextSummaryId: promptMetadata?.contextSummaryId ?? null,
+					contextEstimatedTokens:
+						promptMetadata?.contextEstimatedTokens,
+					contextRecentMessageCount:
+						promptMetadata?.contextRecentMessageCount,
+					contextTotalMessageCount:
+						promptMetadata?.contextTotalMessageCount,
+					ragContextChunkIds:
+						promptMetadata?.ragContextChunkIds ?? null,
+					ragCitationData: promptMetadata?.ragCitationData ?? null,
+					activeSkillTraceJson:
+						promptMetadata?.activeSkillTraceJson ?? undefined,
+					promptSkillHash: promptMetadata?.promptSkillHash ?? null,
+				},
+				select: { id: true },
+			});
 
-	return { assistantMessage, generation };
+			const generation = await transaction.generation.create({
+				data: {
+					userId,
+					conversationId,
+					userMessageId,
+					assistantMessageId: assistantMessage.id,
+					provider,
+					model,
+					status: "streaming",
+					startedAt: now,
+					lastChunkAt: now,
+					promptVersion: promptMetadata?.promptVersion,
+					contextSummaryId: promptMetadata?.contextSummaryId ?? null,
+					contextEstimatedTokens:
+						promptMetadata?.contextEstimatedTokens,
+					contextRecentMessageCount:
+						promptMetadata?.contextRecentMessageCount,
+					contextTotalMessageCount:
+						promptMetadata?.contextTotalMessageCount,
+					ragContextChunkIds:
+						promptMetadata?.ragContextChunkIds ?? null,
+					ragCitationData: promptMetadata?.ragCitationData ?? null,
+					activeSkillTraceJson:
+						promptMetadata?.activeSkillTraceJson ?? undefined,
+					promptSkillHash: promptMetadata?.promptSkillHash ?? null,
+				},
+				select: { id: true },
+			});
+
+			await createUsageAttempt({
+				prismaClient: transaction,
+				deduplicationKey: `generation:${generation.id}`,
+				userId,
+				conversationId,
+				messageId: assistantMessage.id,
+				generationId: generation.id,
+				feature: "chat_response",
+				provider,
+				requestedModel: model,
+				promptVersion: promptMetadata?.promptVersion,
+				startedAt: now,
+			});
+
+			return { assistantMessage, generation };
+		}
+	);
 }
 
 export async function flushGenerationContent({
@@ -130,59 +196,73 @@ export async function completeGeneration({
 	assistantMessageId,
 	generationId,
 	content,
-	promptTokens,
-	completionTokens,
+	usage,
 	now = new Date(),
 }: {
 	prismaClient?: GenerationPrismaClient;
 	assistantMessageId: string;
 	generationId: string;
 	content: string;
-	promptTokens: number;
-	completionTokens: number;
+	usage: UsageMeasurement;
 	now?: Date;
 }) {
-	const messageResult = await prismaClient.message.updateMany({
-		where: {
-			id: assistantMessageId,
-			status: { in: ACTIVE_STATUSES },
-		},
-		data: {
-			content,
-			status: "completed",
-			isError: false,
-			promptTokens,
-			completionTokens,
-			errorCode: null,
-			providerStatusCode: null,
-			providerRequestId: null,
-			completedAt: now,
-			lastChunkAt: now,
-		},
-	});
+	return prismaClient.$transaction(
+		async (transaction: GenerationPrismaClient) => {
+			const messageResult = await transaction.message.updateMany({
+				where: {
+					id: assistantMessageId,
+					status: { in: ACTIVE_STATUSES },
+				},
+				data: {
+					content,
+					status: "completed",
+					isError: false,
+					promptTokens: usage.inputTokens,
+					completionTokens: usage.outputTokens,
+					errorCode: null,
+					providerStatusCode: null,
+					providerRequestId: usage.providerRequestId,
+					completedAt: now,
+					lastChunkAt: now,
+				},
+			});
 
-	if (messageResult.count !== 1) {
-		return false;
-	}
+			if (messageResult.count !== 1) {
+				return false;
+			}
 
-	await prismaClient.generation.updateMany({
-		where: {
-			id: generationId,
-			status: { in: ACTIVE_STATUSES },
-		},
-		data: {
-			status: "completed",
-			promptTokens,
-			completionTokens,
-			errorCode: null,
-			providerStatusCode: null,
-			providerRequestId: null,
-			completedAt: now,
-			lastChunkAt: now,
-		},
-	});
+			const generationResult = await transaction.generation.updateMany({
+				where: {
+					id: generationId,
+					status: { in: ACTIVE_STATUSES },
+				},
+				data: {
+					status: "completed",
+					promptTokens: usage.inputTokens,
+					completionTokens: usage.outputTokens,
+					errorCode: null,
+					providerStatusCode: null,
+					providerRequestId: usage.providerRequestId,
+					completedAt: now,
+					lastChunkAt: now,
+				},
+			});
 
-	return true;
+			if (generationResult.count !== 1) {
+				throw new Error("Generation state changed during completion");
+			}
+
+			await finalizeUsageEventInTransaction({
+				prismaClient: transaction,
+				deduplicationKey: `generation:${generationId}`,
+				outcome: "completed",
+				measurement: usage,
+				finalizedAt: now,
+			});
+
+			return true;
+		}
+	);
 }
 
 export async function failGeneration({
@@ -191,6 +271,7 @@ export async function failGeneration({
 	generationId,
 	content,
 	error,
+	usage,
 	now = new Date(),
 }: {
 	prismaClient?: GenerationPrismaClient;
@@ -198,43 +279,152 @@ export async function failGeneration({
 	generationId: string;
 	content: string;
 	error: NormalizedStreamError;
+	usage: UsageMeasurement;
 	now?: Date;
 }) {
-	const messageResult = await prismaClient.message.updateMany({
-		where: {
-			id: assistantMessageId,
-			status: { in: ACTIVE_STATUSES },
-		},
-		data: {
-			content,
-			status: "failed",
-			isError: true,
-			errorCode: error.errorCode,
-			providerStatusCode: error.providerStatusCode ?? null,
-			providerRequestId: error.providerRequestId ?? null,
-			lastChunkAt: now,
-		},
-	});
+	return prismaClient.$transaction(
+		async (transaction: GenerationPrismaClient) => {
+			const providerRequestId =
+				error.providerRequestId ?? usage.providerRequestId;
+			const messageResult = await transaction.message.updateMany({
+				where: {
+					id: assistantMessageId,
+					status: { in: ACTIVE_STATUSES },
+				},
+				data: {
+					content,
+					status: "failed",
+					isError: true,
+					errorCode: error.errorCode,
+					providerStatusCode: error.providerStatusCode ?? null,
+					providerRequestId,
+					promptTokens: usage.inputTokens,
+					completionTokens: usage.outputTokens,
+					lastChunkAt: now,
+				},
+			});
 
-	if (messageResult.count !== 1) {
-		return false;
-	}
+			if (messageResult.count !== 1) {
+				return false;
+			}
 
-	await prismaClient.generation.updateMany({
-		where: {
-			id: generationId,
-			status: { in: ACTIVE_STATUSES },
-		},
-		data: {
-			status: "failed",
-			errorCode: error.errorCode,
-			providerStatusCode: error.providerStatusCode ?? null,
-			providerRequestId: error.providerRequestId ?? null,
-			lastChunkAt: now,
-		},
-	});
+			const generationResult = await transaction.generation.updateMany({
+				where: {
+					id: generationId,
+					status: { in: ACTIVE_STATUSES },
+				},
+				data: {
+					status: "failed",
+					errorCode: error.errorCode,
+					providerStatusCode: error.providerStatusCode ?? null,
+					providerRequestId,
+					promptTokens: usage.inputTokens,
+					completionTokens: usage.outputTokens,
+					lastChunkAt: now,
+				},
+			});
 
-	return true;
+			if (generationResult.count !== 1) {
+				throw new Error(
+					"Generation state changed during failure persistence"
+				);
+			}
+
+			await finalizeUsageEventInTransaction({
+				prismaClient: transaction,
+				deduplicationKey: `generation:${generationId}`,
+				outcome: "failed",
+				measurement: {
+					...usage,
+					providerRequestId,
+				},
+				errorCode: error.errorCode,
+				providerStatusCode: error.providerStatusCode,
+				finalizedAt: now,
+			});
+
+			return true;
+		}
+	);
+}
+
+export async function moderateGeneration({
+	prismaClient = prisma,
+	assistantMessageId,
+	generationId,
+	content,
+	errorCode,
+	usage,
+	now = new Date(),
+}: {
+	prismaClient?: GenerationPrismaClient;
+	assistantMessageId: string;
+	generationId: string;
+	content: string;
+	errorCode: string;
+	usage: UsageMeasurement;
+	now?: Date;
+}) {
+	return prismaClient.$transaction(
+		async (transaction: GenerationPrismaClient) => {
+			const messageResult = await transaction.message.updateMany({
+				where: {
+					id: assistantMessageId,
+					status: { in: ACTIVE_STATUSES },
+				},
+				data: {
+					content,
+					status: "moderated",
+					isError: true,
+					errorCode,
+					providerStatusCode: null,
+					providerRequestId: usage.providerRequestId,
+					promptTokens: usage.inputTokens,
+					completionTokens: usage.outputTokens,
+					completedAt: now,
+					lastChunkAt: now,
+				},
+			});
+
+			if (messageResult.count !== 1) {
+				return false;
+			}
+
+			const generationResult = await transaction.generation.updateMany({
+				where: {
+					id: generationId,
+					status: { in: ACTIVE_STATUSES },
+				},
+				data: {
+					status: "moderated",
+					errorCode,
+					providerStatusCode: null,
+					providerRequestId: usage.providerRequestId,
+					promptTokens: usage.inputTokens,
+					completionTokens: usage.outputTokens,
+					completedAt: now,
+					lastChunkAt: now,
+				},
+			});
+
+			if (generationResult.count !== 1) {
+				throw new Error(
+					"Generation state changed during moderation persistence"
+				);
+			}
+
+			await finalizeUsageEventInTransaction({
+				prismaClient: transaction,
+				deduplicationKey: `generation:${generationId}`,
+				outcome: "moderated",
+				measurement: usage,
+				errorCode,
+				finalizedAt: now,
+			});
+
+			return true;
+		}
+	);
 }
 
 export async function cancelGenerationByAssistantMessage({
@@ -262,6 +452,9 @@ export async function cancelGenerationByAssistantMessage({
 				select: {
 					id: true,
 					status: true,
+					provider: true,
+					model: true,
+					contextEstimatedTokens: true,
 				},
 			},
 		},
@@ -282,63 +475,98 @@ export async function cancelGenerationByAssistantMessage({
 		};
 	}
 
-	const updatedMessage = await prismaClient.message.updateMany({
-		where: {
-			id: assistantMessageId,
-			status: { in: ACTIVE_STATUSES },
-		},
-		data: {
-			status: "cancelled",
-			isError: false,
-			cancelledAt: now,
-			lastChunkAt: now,
-		},
-	});
+	const measurement = generation
+		? buildUsageMeasurement({
+				requestedModel: generation.model,
+				estimatedInputTokens: generation.contextEstimatedTokens,
+				estimatedOutputTokens: estimateOutputTokens({
+					content: message.content,
+					provider: generation.provider,
+					model: generation.model,
+				}),
+				outcome: "cancelled",
+				hasPartialOutput: Boolean(message.content),
+			})
+		: null;
+	const updated = await prismaClient.$transaction(
+		async (transaction: GenerationPrismaClient) => {
+			const updatedMessage = await transaction.message.updateMany({
+				where: {
+					id: assistantMessageId,
+					status: { in: ACTIVE_STATUSES },
+				},
+				data: {
+					status: "cancelled",
+					isError: false,
+					promptTokens: measurement?.inputTokens,
+					completionTokens: measurement?.outputTokens,
+					cancelledAt: now,
+					lastChunkAt: now,
+				},
+			});
 
-	if (updatedMessage.count !== 1) {
-		const current = await prismaClient.message.findUnique({
-			where: { id: assistantMessageId },
-			select: {
-				id: true,
-				content: true,
-				status: true,
-			},
-		});
+			if (updatedMessage.count !== 1) {
+				const current = await transaction.message.findUnique({
+					where: { id: assistantMessageId },
+					select: {
+						id: true,
+						content: true,
+						status: true,
+					},
+				});
 
-		return current
-			? {
-					messageId: current.id,
-					generationId: generation?.id ?? null,
-					status: current.status as DurableMessageStatus,
-					content: current.content,
-					aborted: false,
-				}
-			: null;
+				return current
+					? {
+							messageId: current.id,
+							generationId: generation?.id ?? null,
+							status: current.status as DurableMessageStatus,
+							content: current.content,
+							aborted: false,
+						}
+					: null;
+			}
+
+			if (generation) {
+				await transaction.generation.updateMany({
+					where: {
+						id: generation.id,
+						status: { in: ACTIVE_STATUSES },
+					},
+					data: {
+						status: "cancelled",
+						promptTokens: measurement!.inputTokens,
+						completionTokens: measurement!.outputTokens,
+						cancelledAt: now,
+						lastChunkAt: now,
+					},
+				});
+				await finalizeUsageEventInTransaction({
+					prismaClient: transaction,
+					deduplicationKey: `generation:${generation.id}`,
+					outcome: "cancelled",
+					measurement: measurement!,
+					finalizedAt: now,
+				});
+			}
+
+			return {
+				messageId: message.id,
+				generationId: generation?.id ?? null,
+				status: "cancelled" as DurableMessageStatus,
+				content: message.content,
+				aborted: false,
+			};
+		}
+	);
+
+	if (updated?.status === "cancelled" && generation) {
+		return {
+			...updated,
+			aborted: abortRegisteredGeneration(generation.id),
+		};
 	}
 
-	let aborted = false;
-	if (generation) {
-		await prismaClient.generation.updateMany({
-			where: {
-				id: generation.id,
-				status: { in: ACTIVE_STATUSES },
-			},
-			data: {
-				status: "cancelled",
-				cancelledAt: now,
-				lastChunkAt: now,
-			},
-		});
-		aborted = abortRegisteredGeneration(generation.id);
-	}
-
-	return {
-		messageId: message.id,
-		generationId: generation?.id ?? null,
-		status: "cancelled" as DurableMessageStatus,
-		content: message.content,
-		aborted,
-	};
+	return updated;
 }
 
 export async function markStaleGenerationsFailed({
@@ -358,6 +586,10 @@ export async function markStaleGenerationsFailed({
 	const staleGenerations: Array<{
 		id: string;
 		assistantMessageId: string;
+		provider: string;
+		model: string;
+		contextEstimatedTokens: number | null;
+		assistantMessage: { content: string };
 	}> = await prismaClient.generation.findMany({
 		where: {
 			status: { in: ACTIVE_STATUSES },
@@ -371,37 +603,71 @@ export async function markStaleGenerationsFailed({
 		select: {
 			id: true,
 			assistantMessageId: true,
+			provider: true,
+			model: true,
+			contextEstimatedTokens: true,
+			assistantMessage: { select: { content: true } },
 		},
 	});
 
 	await Promise.all(
-		staleGenerations.map((generation) =>
-			Promise.all([
-				prismaClient.message.updateMany({
-					where: {
-						id: generation.assistantMessageId,
-						status: { in: ACTIVE_STATUSES },
-					},
-					data: {
-						status: "failed",
-						isError: true,
-						errorCode: "STREAM_TIMEOUT",
-						lastChunkAt: now,
-					},
+		staleGenerations.map((generation) => {
+			const measurement = buildUsageMeasurement({
+				requestedModel: generation.model,
+				estimatedInputTokens: generation.contextEstimatedTokens,
+				estimatedOutputTokens: estimateOutputTokens({
+					content: generation.assistantMessage.content,
+					provider: generation.provider,
+					model: generation.model,
 				}),
-				prismaClient.generation.updateMany({
-					where: {
-						id: generation.id,
-						status: { in: ACTIVE_STATUSES },
-					},
-					data: {
-						status: "failed",
-						errorCode: "STREAM_TIMEOUT",
-						lastChunkAt: now,
-					},
-				}),
-			])
-		)
+				outcome: "failed",
+				hasPartialOutput: Boolean(generation.assistantMessage.content),
+			});
+
+			return prismaClient.$transaction(
+				async (transaction: GenerationPrismaClient) => {
+					await transaction.message.updateMany({
+						where: {
+							id: generation.assistantMessageId,
+							status: { in: ACTIVE_STATUSES },
+						},
+						data: {
+							status: "failed",
+							isError: true,
+							errorCode: "STREAM_TIMEOUT",
+							promptTokens: measurement.inputTokens,
+							completionTokens: measurement.outputTokens,
+							lastChunkAt: now,
+						},
+					});
+					const generationResult =
+						await transaction.generation.updateMany({
+							where: {
+								id: generation.id,
+								status: { in: ACTIVE_STATUSES },
+							},
+							data: {
+								status: "failed",
+								errorCode: "STREAM_TIMEOUT",
+								promptTokens: measurement.inputTokens,
+								completionTokens: measurement.outputTokens,
+								lastChunkAt: now,
+							},
+						});
+
+					if (generationResult.count === 1) {
+						await finalizeUsageEventInTransaction({
+							prismaClient: transaction,
+							deduplicationKey: `generation:${generation.id}`,
+							outcome: "failed",
+							measurement,
+							errorCode: "STREAM_TIMEOUT",
+							finalizedAt: now,
+						});
+					}
+				}
+			);
+		})
 	);
 
 	return { count: staleGenerations.length };

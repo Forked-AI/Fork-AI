@@ -4,6 +4,7 @@ import { FeedbackModal } from '@/components/chat/feedback-modal'
 import { MarkdownRenderer } from '@/components/chat/markdown-renderer'
 import { useSettings } from '@/hooks/use-settings'
 import { type Message } from '@/hooks/use-chat'
+import { createIdempotencyHeaders } from '@/lib/idempotency-client'
 import { cn } from '@/lib/utils'
 import {
 	AlertCircle,
@@ -13,9 +14,12 @@ import {
 	ChevronLeft,
 	ChevronRight,
 	Copy,
+	FileText,
+	ImageIcon,
 	Pencil,
 	RefreshCw,
 	Square,
+	Sparkles,
 	ThumbsDown,
 	ThumbsUp,
 	X,
@@ -184,7 +188,10 @@ export function MessageBubble({
 		try {
 			await fetch('/api/chat/feedback', {
 				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
+				headers: {
+					'Content-Type': 'application/json',
+					...createIdempotencyHeaders('feedback'),
+				},
 				body: JSON.stringify({
 					messageId: message.id,
 					type: 'good',
@@ -201,7 +208,10 @@ export function MessageBubble({
 		try {
 			await fetch('/api/chat/feedback', {
 				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
+				headers: {
+					'Content-Type': 'application/json',
+					...createIdempotencyHeaders('feedback'),
+				},
 				body: JSON.stringify({
 					messageId: message.id,
 					type: 'bad',
@@ -257,9 +267,25 @@ export function MessageBubble({
 					) : null}
 
 					{isAssistant && message.model ? (
-						<div className="mb-2 flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+						<div className="mb-2 flex flex-wrap items-center gap-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
 							<Bot className="h-3 w-3" />
 							{message.model}
+							{message.activeSkillTrace?.items.length ? (
+								<span
+									className="inline-flex items-center gap-1 rounded bg-primary/10 px-1.5 py-0.5 text-[10px] normal-case tracking-normal text-primary"
+									title={message.activeSkillTrace.items
+										.map(
+											(skill) =>
+												`${skill.title} (${skill.templateId}@${skill.versionId})`
+										)
+										.join(', ')}
+								>
+									<Sparkles className="h-3 w-3" />
+									{message.activeSkillTrace.items.length === 1
+										? message.activeSkillTrace.items[0].title
+										: `${message.activeSkillTrace.items.length} skills`}
+								</span>
+							) : null}
 							{message.isStreaming ? (
 								<button
 									onClick={onStop}
@@ -272,7 +298,12 @@ export function MessageBubble({
 						</div>
 					) : null}
 
-					<div className="leading-relaxed text-foreground">
+					<div
+						data-message-content="true"
+						data-message-id={message.id}
+						data-selection-disabled={isUser && isEditing ? 'true' : undefined}
+						className="leading-relaxed text-foreground"
+					>
 						{isEditing && isUser ? (
 							<div className="min-w-[100px] max-w-full space-y-2 w-fit">
 								<div className="grid leading-relaxed">
@@ -316,6 +347,9 @@ export function MessageBubble({
 							) : (
 								<div
 									onClick={() => {
+										if (window.getSelection()?.toString().trim()) {
+											return
+										}
 										if (!isEditing && !disableMutatingActions) {
 											setIsEditing(true)
 										}
@@ -382,6 +416,72 @@ export function MessageBubble({
 						)}
 					</div>
 
+					{isUser && !isEditing && message.attachments?.length ? (
+						<div className="mt-3 flex flex-wrap items-center gap-2 border-t border-border/30 pt-3">
+							{message.attachments.map((attachment) => {
+								const imageUrl =
+									attachment.contentUrl ??
+									`/api/attachments/${attachment.fileObjectId}/content`
+
+								return attachment.kind === 'image' ? (
+									<div
+										key={attachment.id}
+										className="inline-flex max-w-full items-center gap-2 rounded-md border border-border/50 bg-background/30 px-2 py-1 text-[11px] text-muted-foreground"
+									>
+										{imageUrl ? (
+											<img
+												src={imageUrl}
+												alt=""
+												className="h-8 w-8 shrink-0 rounded object-cover"
+											/>
+										) : (
+											<ImageIcon className="h-4 w-4 shrink-0 text-primary" />
+										)}
+										<div className="min-w-0">
+											<div className="max-w-40 truncate text-foreground">
+												{attachment.filename}
+											</div>
+											<div className="text-[10px] uppercase text-muted-foreground">
+												Vision
+											</div>
+										</div>
+									</div>
+								) : (
+									<div
+										key={attachment.id}
+										className="inline-flex max-w-full items-center gap-1.5 rounded-md border border-border/50 bg-background/30 px-2 py-1 text-[11px] text-muted-foreground"
+									>
+										<FileText className="h-3.5 w-3.5 shrink-0 text-primary" />
+										<span className="max-w-44 truncate text-foreground">
+											{attachment.filename}
+										</span>
+										<span>Document</span>
+									</div>
+								)
+							})}
+						</div>
+					) : null}
+
+					{isAssistant && message.citations?.length ? (
+						<div className="mt-3 flex flex-wrap items-center gap-1.5 border-t border-border/30 pt-3">
+							{message.citations.map((citation) => (
+								<span
+									key={citation.chunkId}
+									className="inline-flex max-w-full items-center gap-1 rounded-md border border-border/50 bg-background/30 px-2 py-1 text-[11px] text-muted-foreground"
+								>
+									<FileText className="h-3 w-3 shrink-0 text-primary" />
+									<span className="font-medium text-foreground">
+										[{citation.index}]
+									</span>
+									<span className="max-w-44 truncate">
+										{citation.sourceLabel}
+										{citation.pageNumber ? ` p.${citation.pageNumber}` : ''}
+									</span>
+								</span>
+							))}
+						</div>
+					) : null}
+
 					{isUser && !isEditing && !isStreaming ? (
 						<button
 							onClick={() => {
@@ -391,7 +491,11 @@ export function MessageBubble({
 							}}
 							disabled={disableMutatingActions}
 							className="absolute -left-8 top-1/2 rounded-lg bg-background/50 p-1.5 opacity-0 transition-all group-hover:opacity-100 hover:bg-background disabled:cursor-not-allowed disabled:opacity-30"
-							title={disableMutatingActions ? 'Queue must finish before editing' : 'Edit message'}
+							title={
+								disableMutatingActions
+									? 'Queue must finish before editing'
+									: 'Edit message'
+							}
 						>
 							<Pencil className="h-3.5 w-3.5 text-muted-foreground hover:text-foreground" />
 						</button>
@@ -405,7 +509,9 @@ export function MessageBubble({
 							<div className="flex items-center gap-1">
 								<button
 									onClick={siblingNav.onPrevious}
-									disabled={siblingNav.disabled || siblingNav.currentIndex === 1}
+									disabled={
+										siblingNav.disabled || siblingNav.currentIndex === 1
+									}
 									className="rounded p-1 transition-colors hover:bg-primary/10 disabled:opacity-30 disabled:hover:bg-transparent"
 									title="Previous version"
 								>
@@ -468,9 +574,7 @@ export function MessageBubble({
 						</div>
 					) : null}
 
-					{isAssistant &&
-					!message.isStreaming &&
-					message.completionTokens ? (
+					{isAssistant && !message.isStreaming && message.completionTokens ? (
 						<div className="mt-2 font-mono text-[10px] text-muted-foreground/50">
 							{message.promptTokens} → {message.completionTokens} tokens
 						</div>

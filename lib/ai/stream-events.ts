@@ -1,8 +1,18 @@
 import type { JsonValue } from "@/lib/idempotency";
+import type { ActiveSkillTrace } from "@/lib/skills/catalog";
 
 export interface ChatStreamUsage {
 	promptTokens: number;
 	completionTokens: number;
+}
+
+export interface ChatStreamCitation {
+	index: number;
+	chunkId: string;
+	fileId: string;
+	sourceLabel: string;
+	pageNumber: number | null;
+	score: number;
 }
 
 export interface ChatStreamReplayBody {
@@ -13,6 +23,7 @@ export interface ChatStreamReplayBody {
 	generationId?: string | null;
 	content: string;
 	usage: ChatStreamUsage;
+	citations?: ChatStreamCitation[];
 }
 
 export interface ChatStreamErrorReplayBody {
@@ -28,6 +39,7 @@ export interface ChatStreamErrorReplayBody {
 	providerRequestId?: string;
 	partialContent: boolean;
 	content: string;
+	replacementContent?: string;
 }
 
 export type ChatStreamIdempotencyBody =
@@ -41,8 +53,10 @@ export type ChatStreamEvent =
 			userMessageId: string;
 			assistantMessageId?: string;
 			generationId?: string;
+			activeSkillTrace?: ActiveSkillTrace | null;
 	  }
 	| { type: "content"; content: string }
+	| { type: "citations"; citations: ChatStreamCitation[] }
 	| {
 			type: "done";
 			assistantMessageId?: string;
@@ -56,6 +70,9 @@ export type ChatStreamEvent =
 			retryAfterSeconds?: number;
 			providerRequestId?: string;
 			partialContent: boolean;
+			replacementContent?: string;
+			traceId?: string;
+			generationId?: string | null;
 	  };
 
 export function toJsonValue(body: unknown): JsonValue {
@@ -126,6 +143,13 @@ export function buildChatStreamReplayResponse(body: JsonValue | null) {
 					});
 				}
 
+				if (streamBody.citations?.length) {
+					enqueueSseEvent(controller, encoder, {
+						type: "citations",
+						citations: streamBody.citations,
+					});
+				}
+
 				enqueueSseEvent(controller, encoder, {
 					type: "done",
 					assistantMessageId:
@@ -165,6 +189,7 @@ export function buildChatStreamReplayResponse(body: JsonValue | null) {
 					retryAfterSeconds: streamBody.retryAfterSeconds,
 					providerRequestId: streamBody.providerRequestId,
 					partialContent: streamBody.partialContent,
+					replacementContent: streamBody.replacementContent,
 				});
 			}
 

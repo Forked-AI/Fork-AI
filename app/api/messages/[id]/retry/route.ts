@@ -133,6 +133,11 @@ export async function POST(
 	request: NextRequest,
 	{ params }: { params: Promise<{ id: string }> }
 ) {
+	const suppliedTraceId = request.headers.get("x-request-id")?.trim();
+	const traceId =
+		suppliedTraceId && suppliedTraceId.length <= 128
+			? suppliedTraceId
+			: crypto.randomUUID();
 	try {
 		const session = await auth.api.getSession({
 			headers: request.headers,
@@ -246,11 +251,13 @@ export async function POST(
 			retryAssistantMessageId: id,
 			appSystemPrompt,
 			userCustomInstructions: parseResult.data.systemPrompt ?? "",
+			modelCapabilities: modelSelection.capabilities,
 			streamIdempotency: idempotency.record,
 			rateLimit: rateLimit.state,
+			traceId,
 		});
 	} catch (error) {
-		logServerError("messages/retry", "retry_failed", error);
+		logServerError("messages/retry", "retry_failed", error, { traceId });
 		return NextResponse.json(
 			{ error: "Failed to retry generation" },
 			{ status: 500 }

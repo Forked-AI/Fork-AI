@@ -1,8 +1,9 @@
 import { prisma } from "./prisma";
 import {
-    resolveSubscriptionEntitlement,
-    type BillingTier,
+	resolveSubscriptionEntitlement,
+	type BillingTier,
 } from "./subscription";
+import type { ProviderMessageContent } from "./chat-system-prompt";
 
 export type UsageBand =
 	| "low"
@@ -24,6 +25,7 @@ export interface TokenBudgetCheckResult extends TokenBudgetStatus {
 
 const DEFAULT_CHARS_PER_TOKEN = 4;
 const DEFAULT_COMPLETION_RESERVE = 800;
+const DEFAULT_IMAGE_INPUT_TOKENS = 1000;
 
 function parsePositiveInt(value: string | undefined, fallback: number): number {
 	const parsed = Number.parseInt(value ?? "", 10);
@@ -60,14 +62,33 @@ function toUsageBand(ratio: number): UsageBand {
 	return "low";
 }
 
+function estimateContentTokens(content: ProviderMessageContent): number {
+	if (typeof content === "string") {
+		return Math.max(1, Math.ceil(content.length / getCharsPerToken()));
+	}
+
+	return content.reduce((total, part) => {
+		if (part.type === "text") {
+			return (
+				total +
+				Math.max(1, Math.ceil(part.text.length / getCharsPerToken()))
+			);
+		}
+
+		return total + DEFAULT_IMAGE_INPUT_TOKENS;
+	}, 0);
+}
+
 function estimateTokensFromMessages(
-	messages: Array<{ content: string }>
+	messages: Array<{ content: ProviderMessageContent }>
 ): number {
-	const totalChars = messages.reduce(
-		(sum, message) => sum + message.content.length,
-		0
+	return Math.max(
+		1,
+		messages.reduce(
+			(sum, message) => sum + estimateContentTokens(message.content),
+			0
+		)
 	);
-	return Math.max(1, Math.ceil(totalChars / getCharsPerToken()));
 }
 
 async function getMonthlyUsedTokens(
@@ -75,25 +96,19 @@ async function getMonthlyUsedTokens(
 	windowStart: Date,
 	windowEnd: Date
 ): Promise<number> {
-	const usage = await prisma.message.aggregate({
+	const usage = await prisma.quotaLedger.findUnique({
 		where: {
-			role: "assistant",
-			isError: false,
-			createdAt: {
-				gte: windowStart,
-				lt: windowEnd,
-			},
-			conversation: {
-				userId,
+			subjectType_subjectId_windowStart_windowEnd: {
+				subjectType: "user",
+				subjectId: userId,
+				windowStart,
+				windowEnd,
 			},
 		},
-		_sum: {
-			promptTokens: true,
-			completionTokens: true,
-		},
+		select: { usedTokens: true },
 	});
 
-	return (usage._sum.promptTokens ?? 0) + (usage._sum.completionTokens ?? 0);
+	return usage?.usedTokens ?? 0;
 }
 
 export async function getTokenBudgetStatus(
@@ -120,7 +135,7 @@ export async function getTokenBudgetStatus(
 
 export async function checkTokenBudgetBeforeRequest(
 	userId: string,
-	messagesForEstimate: Array<{ content: string }>
+	messagesForEstimate: Array<{ content: ProviderMessageContent }>
 ): Promise<TokenBudgetCheckResult> {
 	const entitlement = await resolveSubscriptionEntitlement(userId);
 	const usedTokens = await getMonthlyUsedTokens(
@@ -128,7 +143,8 @@ export async function checkTokenBudgetBeforeRequest(
 		entitlement.usageWindowStart,
 		entitlement.usageWindowEnd
 	);
-	const estimatedPromptTokens = estimateTokensFromMessages(messagesForEstimate);
+	const estimatedPromptTokens =
+		estimateTokensFromMessages(messagesForEstimate);
 	const estimatedRequestTokens =
 		estimatedPromptTokens + getCompletionReserveTokens();
 	const allowed =

@@ -2,6 +2,20 @@
 export type ConversationRole = "user" | "assistant";
 export type ProviderRole = ConversationRole | "system";
 
+export type ProviderContentPart =
+	| {
+			type: "text";
+			text: string;
+	  }
+	| {
+			type: "image_url";
+			imageUrl:
+				| string
+				| { url: string; detail?: "auto" | "low" | "high" };
+	  };
+
+export type ProviderMessageContent = string | ProviderContentPart[];
+
 export interface ConversationMessage {
 	role: ConversationRole;
 	content: string;
@@ -9,7 +23,7 @@ export interface ConversationMessage {
 
 export interface ProviderMessage {
 	role: ProviderRole;
-	content: string;
+	content: ProviderMessageContent;
 }
 
 const SYSTEM_PROMPT_SECURITY_CONTEXT = [

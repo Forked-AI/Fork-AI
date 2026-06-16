@@ -4,7 +4,11 @@ import type {
 	ModelRequest,
 	ModelStreamChunk,
 } from "@/lib/ai/model-provider";
-import type { ProviderMessage } from "@/lib/chat-system-prompt";
+import type {
+	ProviderContentPart,
+	ProviderMessage,
+	ProviderMessageContent,
+} from "@/lib/chat-system-prompt";
 import { mistralClient } from "@/lib/models";
 
 interface MistralUsageLike {
@@ -14,9 +18,11 @@ interface MistralUsageLike {
 
 interface MistralStreamEventLike {
 	data?: {
+		id?: string;
+		model?: string;
 		choices?: Array<{
 			delta?: {
-				content?: string;
+				content?: ProviderMessageContent | null;
 			};
 		}>;
 		usage?: MistralUsageLike;
@@ -24,6 +30,8 @@ interface MistralStreamEventLike {
 }
 
 interface MistralCompleteResponseLike {
+	id?: string;
+	model?: string;
 	choices?: Array<{
 		message?: {
 			content?: unknown;
@@ -34,25 +42,39 @@ interface MistralCompleteResponseLike {
 
 interface MistralClientLike {
 	chat: {
-		complete(request: {
-			model: string;
-			messages: ProviderMessage[];
-		}, options?: { signal?: AbortSignal }): Promise<MistralCompleteResponseLike>;
-		stream(request: {
-			model: string;
-			messages: ProviderMessage[];
-		}, options?: { signal?: AbortSignal }): Promise<AsyncIterable<MistralStreamEventLike>>;
+		complete(
+			_request: {
+				model: string;
+				messages: ProviderMessage[];
+				maxTokens?: number;
+				temperature?: number;
+			},
+			_options?: { signal?: AbortSignal }
+		): Promise<MistralCompleteResponseLike>;
+		stream(
+			_request: {
+				model: string;
+				messages: ProviderMessage[];
+				maxTokens?: number;
+				temperature?: number;
+			},
+			_options?: { signal?: AbortSignal }
+		): Promise<AsyncIterable<MistralStreamEventLike>>;
 	};
 }
 
 function toUsage(usage: MistralUsageLike | undefined) {
-	if (!usage) {
+	if (
+		!usage ||
+		(usage.promptTokens === undefined &&
+			usage.completionTokens === undefined)
+	) {
 		return undefined;
 	}
 
 	return {
-		promptTokens: usage.promptTokens ?? 0,
-		completionTokens: usage.completionTokens ?? 0,
+		promptTokens: usage.promptTokens,
+		completionTokens: usage.completionTokens,
 	};
 }
 
@@ -85,15 +107,43 @@ function extractTextContent(content: unknown): string {
 	return "";
 }
 
+function toMistralMessages(messages: ProviderMessage[]): ProviderMessage[] {
+	return messages.map((message) => ({
+		...message,
+		content: Array.isArray(message.content)
+			? message.content.map((part): ProviderContentPart => {
+					if (part.type === "image_url") {
+						return {
+							type: "image_url",
+							imageUrl: part.imageUrl,
+						};
+					}
+
+					return part;
+				})
+			: message.content,
+	}));
+}
+
 export class MistralProvider implements ModelProvider {
+	private readonly client: MistralClientLike;
+
 	constructor(
-		private readonly client: MistralClientLike = mistralClient as unknown as MistralClientLike
-	) {}
+		client: MistralClientLike = mistralClient as unknown as MistralClientLike
+	) {
+		this.client = client;
+	}
 
 	async complete(request: ModelRequest): Promise<ModelCompleteResult> {
 		const providerRequest = {
 			model: request.model,
-			messages: request.messages,
+			messages: toMistralMessages(request.messages),
+			...(request.maxTokens !== undefined
+				? { maxTokens: request.maxTokens }
+				: {}),
+			...(request.temperature !== undefined
+				? { temperature: request.temperature }
+				: {}),
 		};
 		const response = request.signal
 			? await this.client.chat.complete(providerRequest, {
@@ -105,10 +155,9 @@ export class MistralProvider implements ModelProvider {
 			content: extractTextContent(
 				response.choices?.[0]?.message?.content
 			),
-			usage: toUsage(response.usage) ?? {
-				promptTokens: 0,
-				completionTokens: 0,
-			},
+			usage: toUsage(response.usage),
+			providerRequestId: response.id,
+			resolvedModel: response.model,
 		};
 	}
 
@@ -117,7 +166,13 @@ export class MistralProvider implements ModelProvider {
 	): Promise<AsyncIterable<ModelStreamChunk>> {
 		const providerRequest = {
 			model: request.model,
-			messages: request.messages,
+			messages: toMistralMessages(request.messages),
+			...(request.maxTokens !== undefined
+				? { maxTokens: request.maxTokens }
+				: {}),
+			...(request.temperature !== undefined
+				? { temperature: request.temperature }
+				: {}),
 		};
 		const providerStream = request.signal
 			? await this.client.chat.stream(providerRequest, {
@@ -133,8 +188,12 @@ export class MistralProvider implements ModelProvider {
 	): AsyncIterable<ModelStreamChunk> {
 		for await (const event of providerStream) {
 			yield {
-				content: event.data?.choices?.[0]?.delta?.content ?? "",
+				content: extractTextContent(
+					event.data?.choices?.[0]?.delta?.content ?? ""
+				),
 				usage: toUsage(event.data?.usage),
+				providerRequestId: event.data?.id,
+				resolvedModel: event.data?.model,
 			};
 		}
 	}

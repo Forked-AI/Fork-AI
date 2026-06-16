@@ -1,5 +1,6 @@
 node_modules
 .next
+.next-build*
 dist
 out
 .DS_Store
@@ -7,6 +8,7 @@ out
 *.log
 *.lock
 coverage
+.data
 .env
 .env.local
 .env.development.local
@@ -16,11 +18,11 @@ coverage
 /app/generated/prisma
 /generated/prisma
 generated
-tests
 .codex
 .playwright*
 *.sql
+!prisma/migrations/**/*.sql
 *.png
 *.jpg
 docs/
-*.md
+# *.md
