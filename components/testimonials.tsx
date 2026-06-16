@@ -1,12 +1,12 @@
 'use client'
 
-import Image from 'next/image'
-import { useRef } from 'react'
+import { geist } from '@/lib/fonts'
+import { cn } from '@/lib/utils'
+import { useGSAP } from '@gsap/react'
 import gsap from 'gsap'
 import { ScrollTrigger } from 'gsap/ScrollTrigger'
-import { useGSAP } from '@gsap/react'
-import { cn } from '@/lib/utils'
-import { geist } from '@/lib/fonts'
+import Image from 'next/image'
+import { useRef } from 'react'
 
 gsap.registerPlugin(ScrollTrigger)
 
@@ -98,8 +98,6 @@ export function TestimonialsSection() {
 					}
 				)
 			})
-
-			return () => mm.revert()
 		})
 
 		mm.add('(max-width: 767px)', () => {
@@ -116,6 +114,8 @@ export function TestimonialsSection() {
 				})
 			})
 		})
+
+		return () => mm.revert()
 	}, { scope: containerRef })
 
 	return (

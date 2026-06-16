@@ -13,6 +13,8 @@ import { AuroraBackground } from '@/components/ui/aurora-background'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { useSettings } from '@/hooks/use-settings'
 import { createPerformanceMonitor } from '@/lib/performance-monitor'
+import { createDebouncedCallback } from '@/lib/rate-limit'
+import { ScrollTrigger } from 'gsap/ScrollTrigger'
 import { useEffect, useRef, useState } from 'react'
 
 const LOW_PERFORMANCE_FPS_THRESHOLD = 30
@@ -38,7 +40,8 @@ export function HomePageContent() {
 		}
 	}, [])
 
-	const shouldReduceByPreference = prefersReducedMotion || settings.reducedEffects
+	const shouldReduceByPreference =
+		prefersReducedMotion || settings.reducedEffects
 
 	useEffect(() => {
 		if (isMobile || shouldReduceByPreference || hasAutoDegradedRef.current) {
@@ -60,6 +63,23 @@ export function HomePageContent() {
 		return () => monitor.stop()
 	}, [isMobile, shouldReduceByPreference])
 
+	useEffect(() => {
+		const refreshScrollTriggers = createDebouncedCallback(() => {
+			ScrollTrigger.refresh()
+		}, 150)
+
+		window.addEventListener('resize', refreshScrollTriggers, { passive: true })
+		window.addEventListener('orientationchange', refreshScrollTriggers, {
+			passive: true,
+		})
+
+		return () => {
+			window.removeEventListener('resize', refreshScrollTriggers)
+			window.removeEventListener('orientationchange', refreshScrollTriggers)
+			refreshScrollTriggers.cancel()
+		}
+	}, [])
+
 	const shouldReduceEffects = shouldReduceByPreference || isAutoDegraded
 
 	return (
@@ -67,10 +87,13 @@ export function HomePageContent() {
 			{/* Fixed SVG energy paths that drift with scroll — behind everything */}
 			{!shouldReduceEffects && <ScrollCanvas />}
 
-			<AuroraBackground className="min-h-screen w-full" reducedEffects={shouldReduceEffects}>
+			<AuroraBackground
+				className="min-h-screen w-full"
+				reducedEffects={shouldReduceEffects}
+			>
 				<div className="min-h-screen w-full relative">
 					{/* Hero Section */}
-					<Hero showParticleSphere={false} />
+					<Hero />
 
 					{/* Wipe curtain between Hero → Features */}
 					<SectionWipe

@@ -3,45 +3,50 @@
 import { ChatModalShell } from '@/components/chat/chat-modal-shell'
 import { Button } from '@/components/ui/button'
 import {
-    Field,
-    FieldContent,
-    FieldDescription,
-    FieldLabel,
+	Field,
+	FieldContent,
+	FieldDescription,
+	FieldLabel,
 } from '@/components/ui/field'
+import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
 } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { useSettings } from '@/hooks/use-settings'
+import { createIdempotencyHeaders } from '@/lib/idempotency-client'
 import {
-    resolveEffectiveTheme,
-    resolveThemePalette,
-} from '@/lib/theme-engine'
+	normalizeKeyboardEvent,
+	shortcutLabelParts,
+	stringifyShortcut,
+	validateShortcut,
+} from '@/lib/keyboard-shortcuts'
+import { resolveEffectiveTheme, resolveThemePalette } from '@/lib/theme-engine'
 import {
-    Check,
-    ChevronRight,
-    CreditCard,
-    Download,
-    Keyboard,
-    Link2Off,
-    MessageSquare,
-    Moon,
-    Palette,
-    PanelLeft,
-    RotateCcw,
-    Settings as SettingsIcon,
-    Shield,
-    Sparkles,
-    Trash2,
-    Zap,
+	Check,
+	ChevronRight,
+	CreditCard,
+	Download,
+	Keyboard,
+	Link2Off,
+	MessageSquare,
+	Moon,
+	Palette,
+	PanelLeft,
+	RotateCcw,
+	Settings as SettingsIcon,
+	Shield,
+	Sparkles,
+	Trash2,
+	Zap,
 } from 'lucide-react'
 import { useTheme } from 'next-themes'
-import { useState } from 'react'
+import { useState, type KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { ChatBehaviorModal } from './chat-behavior-modal'
 import { ThemeCustomizationModal } from './theme-customization-modal'
 
@@ -60,6 +65,10 @@ interface SettingsSwitchRowProps {
 	onCheckedChange: (checked: boolean) => void
 }
 
+function wait(ms: number) {
+	return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
 function SettingsSwitchRow({
 	id,
 	label,
@@ -73,7 +82,10 @@ function SettingsSwitchRow({
 			className="items-start justify-between gap-4 rounded-lg border border-border/40 bg-sidebar/20 px-3 py-2.5"
 		>
 			<FieldContent className="gap-0.5">
-				<FieldLabel htmlFor={id} className="w-auto text-sm font-medium text-foreground">
+				<FieldLabel
+					htmlFor={id}
+					className="w-auto text-sm font-medium text-foreground"
+				>
 					{label}
 				</FieldLabel>
 				{description ? (
@@ -103,8 +115,14 @@ export function SettingsModal({
 	const [showSaved, setShowSaved] = useState(false)
 	const [themeModalOpen, setThemeModalOpen] = useState(false)
 	const [chatBehaviorModalOpen, setChatBehaviorModalOpen] = useState(false)
-	const [privacyActionBusy, setPrivacyActionBusy] = useState<string | null>(null)
-	const [privacyActionStatus, setPrivacyActionStatus] = useState<string | null>(null)
+	const [shortcutRecording, setShortcutRecording] = useState(false)
+	const [shortcutError, setShortcutError] = useState<string | null>(null)
+	const [privacyActionBusy, setPrivacyActionBusy] = useState<string | null>(
+		null
+	)
+	const [privacyActionStatus, setPrivacyActionStatus] = useState<string | null>(
+		null
+	)
 	const previewTheme =
 		resolveEffectiveTheme(settings.theme, resolvedTheme) ?? 'dark'
 	const previewPalette = resolveThemePalette(settings, previewTheme)
@@ -127,6 +145,33 @@ export function SettingsModal({
 
 	const handleKeybindingChange = (value: 'enter' | 'ctrl-enter') => {
 		updateSettings({ sendKeybinding: value })
+		showSavedIndicator()
+	}
+
+	const handleShortcutCapture = (
+		event: ReactKeyboardEvent<HTMLInputElement>
+	) => {
+		if (!shortcutRecording) return
+
+		event.preventDefault()
+		event.stopPropagation()
+
+		if (event.key === 'Escape') {
+			setShortcutRecording(false)
+			setShortcutError(null)
+			return
+		}
+
+		const combo = normalizeKeyboardEvent(event.nativeEvent)
+		const validation = validateShortcut(combo)
+		if (!validation.valid) {
+			setShortcutError(validation.message ?? 'Choose another shortcut.')
+			return
+		}
+
+		updateSettings({ recentChatSwitcherShortcut: stringifyShortcut(combo) })
+		setShortcutRecording(false)
+		setShortcutError(null)
 		showSavedIndicator()
 	}
 
@@ -154,13 +199,53 @@ export function SettingsModal({
 		setPrivacyActionBusy(`export-${format}`)
 		setPrivacyActionStatus(null)
 		try {
-			const response = await fetch(`/api/account/export?format=${format}`)
-			if (!response.ok) {
-				throw new Error('Export failed')
+			const queueResponse = await fetch('/api/account/export', {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json',
+					...createIdempotencyHeaders(`account-export-${format}`),
+				},
+				body: JSON.stringify({ format }),
+			})
+
+			if (!queueResponse.ok) {
+				throw new Error('Export queue failed')
+			}
+
+			const queuePayload = (await queueResponse.json()) as {
+				jobId?: string
+			}
+
+			if (!queuePayload.jobId) {
+				throw new Error('Export job was not returned')
+			}
+
+			setPrivacyActionStatus('Preparing account export...')
+
+			let response: Response | null = null
+			for (let attempt = 0; attempt < 60; attempt += 1) {
+				response = await fetch(
+					`/api/account/export/jobs/${encodeURIComponent(queuePayload.jobId)}`
+				)
+
+				if (response.status === 200) {
+					break
+				}
+
+				if (response.status !== 202) {
+					throw new Error('Export generation failed')
+				}
+
+				await wait(1000)
+			}
+
+			if (!response || response.status !== 200) {
+				throw new Error('Export generation timed out')
 			}
 
 			const blob = await response.blob()
-			const contentDisposition = response.headers.get('Content-Disposition') ?? ''
+			const contentDisposition =
+				response.headers.get('Content-Disposition') ?? ''
 			const filenameMatch = /filename="([^"]+)"/.exec(contentDisposition)
 			const filename =
 				filenameMatch?.[1] ??
@@ -182,7 +267,11 @@ export function SettingsModal({
 	}
 
 	const revokeAllShares = async () => {
-		if (!confirm('Revoke all active share links? Existing links will stop working.')) {
+		if (
+			!confirm(
+				'Revoke all active share links? Existing links will stop working.'
+			)
+		) {
 			return
 		}
 
@@ -191,6 +280,7 @@ export function SettingsModal({
 		try {
 			const response = await fetch('/api/account/shares/revoke', {
 				method: 'POST',
+				headers: createIdempotencyHeaders('shares-revoke'),
 			})
 			const payload = await response.json().catch(() => null)
 			if (!response.ok) {
@@ -210,7 +300,9 @@ export function SettingsModal({
 	}
 
 	const deleteAccount = async () => {
-		const confirmation = prompt('Type DELETE to permanently delete your account.')
+		const confirmation = prompt(
+			'Type DELETE to permanently delete your account.'
+		)
 		if (confirmation !== 'DELETE') {
 			return
 		}
@@ -220,7 +312,10 @@ export function SettingsModal({
 		try {
 			const response = await fetch('/api/account/delete', {
 				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
+				headers: {
+					'Content-Type': 'application/json',
+					...createIdempotencyHeaders('account-delete'),
+				},
 				body: JSON.stringify({ confirmation }),
 			})
 			if (!response.ok) {
@@ -239,9 +334,13 @@ export function SettingsModal({
 		{ keys: ['Ctrl', 'I'], description: 'Focus input' },
 		{ keys: ['Cmd', 'B'], description: 'Toggle sidebar' },
 		{ keys: ['Cmd', '/'], description: 'Open settings' },
+		{
+			keys: shortcutLabelParts(settings.recentChatSwitcherShortcut),
+			description: 'Switch recent chat',
+		},
 		{ keys: ['Esc'], description: 'Close modal' },
 		{ keys: ['Shift', 'Enter'], description: 'New line in message' },
-		{ keys: ['Cmd', 'K'], description: 'Command palette (coming soon)' },
+		{ keys: ['Cmd', 'K'], description: 'Search conversations' },
 	]
 
 	return (
@@ -370,7 +469,9 @@ export function SettingsModal({
 								className="group flex w-full items-center justify-between rounded-lg border border-border/50 p-3 text-left transition-all hover:border-primary/50 hover:bg-primary/5"
 							>
 								<div className="flex-1">
-									<p className="mb-1 text-sm font-medium">Configure AI Behavior</p>
+									<p className="mb-1 text-sm font-medium">
+										Configure AI Behavior
+									</p>
 									<p className="text-xs text-muted-foreground">
 										Temperature: {settings.chatTemperature.toFixed(1)} •
 										{settings.systemPrompt
@@ -659,7 +760,54 @@ export function SettingsModal({
 							</h3>
 						</div>
 
-						<div className="space-y-2 pl-6">
+						<div className="space-y-4 pl-6">
+							<div className="rounded-lg border border-border/50 p-3">
+								<div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+									<div className="flex-1 space-y-2">
+										<Label
+											htmlFor="recent-chat-shortcut"
+											className="text-sm font-medium text-foreground"
+										>
+											Recent Chat Switcher
+										</Label>
+										<Input
+											id="recent-chat-shortcut"
+											readOnly
+											value={
+												shortcutRecording
+													? 'Press shortcut...'
+													: settings.recentChatSwitcherShortcut
+											}
+											onKeyDown={handleShortcutCapture}
+											onBlur={() => setShortcutRecording(false)}
+											aria-invalid={shortcutError ? true : undefined}
+											className="font-mono"
+										/>
+									</div>
+									<Button
+										type="button"
+										variant="outline"
+										onClick={() => {
+											setShortcutRecording(true)
+											setShortcutError(null)
+											requestAnimationFrame(() => {
+												document.getElementById('recent-chat-shortcut')?.focus()
+											})
+										}}
+									>
+										Record shortcut
+									</Button>
+								</div>
+								<p className="mt-2 text-xs text-muted-foreground">
+									Hold the modifier and press the trigger again to cycle.
+									Release the modifier to open the highlighted chat.
+								</p>
+								{shortcutError ? (
+									<p className="mt-2 text-xs text-destructive">
+										{shortcutError}
+									</p>
+								) : null}
+							</div>
 							{keyboardShortcuts.map((shortcut, index) => (
 								<div
 									key={index}

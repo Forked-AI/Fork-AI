@@ -1,6 +1,7 @@
 'use client'
 
 import { geist } from '@/lib/fonts'
+import { createRafThrottle } from '@/lib/rate-limit'
 import { cn } from '@/lib/utils'
 import { useGSAP } from '@gsap/react'
 import gsap from 'gsap'
@@ -139,7 +140,7 @@ const STEPS = [
 		icon: ArrowLeftRight,
 		tag: 'Multi-Model',
 		title: 'Swap models\nmid-flow.',
-		body: 'Different models excel at different tasks. Switch GPT-4, Claude, or Gemini on any branch—compare responses on the same context with zero re-explaining.',
+		body: 'Different models excel at different tasks. Switch GPT-4, Mistral, or Claude on any branch—compare responses on the same context with zero re-explaining.',
 		visual: (
 			<div className="flex items-end gap-3 w-full max-w-[240px]">
 				{[
@@ -149,15 +150,15 @@ const STEPS = [
 						color: 'from-green-500/25 to-emerald-500/10',
 					},
 					{
-						name: 'Claude',
+						name: 'Mistral',
 						h: 'h-28',
 						color: 'from-orange-500/30 to-amber-500/10',
 						active: true,
 					},
 					{
-						name: 'Gemini',
+						name: 'Claude',
 						h: 'h-16',
-						color: 'from-blue-500/25 to-cyan-500/10',
+						color: 'from-amber-300/25 to-yellow-500/10',
 					},
 				].map((m) => (
 					<div
@@ -167,11 +168,11 @@ const STEPS = [
 							m.h,
 							m.color,
 							m.active
-								? 'border-[#cbd5e1]/40 shadow-[0_0_20px_rgba(203,213,225,0.2)]'
+								? 'border-orange-400/40 shadow-[0_0_20px_rgba(251,146,60,0.22)]'
 								: ''
 						)}
 					>
-						<span className={m.active ? 'text-[#cbd5e1]' : 'text-white/50'}>
+						<span className={m.active ? 'text-orange-200' : 'text-white/50'}>
 							{m.name}
 						</span>
 					</div>
@@ -216,6 +217,8 @@ export function Features() {
 			const mm = gsap.matchMedia()
 
 			mm.add('(min-width: 768px)', () => {
+				let cancelNarrativeUpdate: (() => void) | undefined
+
 				// ── 1. Section-2 entrance: slide up FROM BELOW (offground pattern) ──
 				// The header tag row reveals horizontally (slides from left, like offground service tags)
 				gsap.from('.features-tag-row .ftag', {
@@ -278,14 +281,8 @@ export function Features() {
 						})
 					)
 
-					ScrollTrigger.create({
-						trigger: narrativeRef.current,
-						start: 'top top',
-						end: `+=${totalScrollLength}`,
-						pin: true,
-						pinSpacing: true,
-						anticipatePin: 1,
-						onUpdate: (self) => {
+					const updateNarrativeStep = createRafThrottle(
+						(self: ScrollTrigger) => {
 							const rawStep = self.progress * (steps.length - 1)
 							const currentStep = Math.max(
 								0,
@@ -340,7 +337,18 @@ export function Features() {
 								ease: 'power2.out',
 								delay: 0.1,
 							})
-						},
+						}
+					)
+					cancelNarrativeUpdate = updateNarrativeStep.cancel
+
+					ScrollTrigger.create({
+						trigger: narrativeRef.current,
+						start: 'top top',
+						end: `+=${totalScrollLength}`,
+						pin: true,
+						pinSpacing: true,
+						anticipatePin: 1,
+						onUpdate: updateNarrativeStep,
 					})
 				}
 
@@ -363,7 +371,9 @@ export function Features() {
 					)
 				})
 
-				return () => mm.revert()
+				return () => {
+					cancelNarrativeUpdate?.()
+				}
 			})
 
 			mm.add('(max-width: 767px)', () => {
@@ -377,6 +387,8 @@ export function Features() {
 					})
 				})
 			})
+
+			return () => mm.revert()
 		},
 		{ scope: containerRef }
 	)
@@ -626,11 +638,11 @@ export function Features() {
 												<span className="rounded-lg bg-emerald-300/10 px-1.5 py-1.5 text-emerald-100/70">
 													GPT
 												</span>
+												<span className="rounded-lg bg-orange-400/10 px-1.5 py-1.5 text-orange-200/70">
+													Mistral
+												</span>
 												<span className="rounded-lg bg-amber-300/10 px-1.5 py-1.5 text-amber-100/70">
 													Claude
-												</span>
-												<span className="rounded-lg bg-sky-300/10 px-1.5 py-1.5 text-sky-100/70">
-													Gemini
 												</span>
 											</div>
 											<div className="space-y-1.5">
@@ -776,7 +788,7 @@ export function Features() {
 
 				{/* Progress dots (taiko-style scroll position indicator) */}
 				<div className="absolute right-6 top-1/2 -translate-y-1/2 flex flex-col gap-3 z-20">
-					{STEPS.map((step, i) => (
+					{STEPS.map((step) => (
 						<div
 							key={step.tag}
 							className="w-1.5 h-1.5 rounded-full bg-white/20 transition-all duration-300"

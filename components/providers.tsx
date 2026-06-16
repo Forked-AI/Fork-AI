@@ -18,6 +18,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
 	const isChatRoute = pathname?.startsWith('/chat')
 	const isShareRoute = pathname?.startsWith('/share')
 	const shouldHideGlobalChrome = isAdminRoute || isChatRoute || isShareRoute
+	const needsFooterClearance = pathname?.startsWith('/branching-ai-chat')
 
 	// Routes with short content that need extra padding for footer
 	const shortContentRoutes = ['/signup', '/policy', '/landing', '/login']
@@ -28,6 +29,14 @@ export function Providers({ children }: { children: React.ReactNode }) {
 	// Show scroll indicator on pages with footer and potentially short content
 	// Note: prelaunch handles its own scroll indicator
 	const showScrollIndicator = !shouldHideGlobalChrome && needsExtraPadding
+	const mainClassName = [
+		needsExtraPadding ? 'min-h-screen pb-96' : '',
+		needsFooterClearance && !shouldHideGlobalChrome
+			? 'pb-[26rem] md:pb-[24rem]'
+			: '',
+	]
+		.filter(Boolean)
+		.join(' ')
 
 	return (
 		<QueryClientProvider client={queryClient}>
@@ -40,7 +49,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
 				<ThemeApplier />
 				<AuthProvider>
 					{!shouldHideGlobalChrome && <SiteHeader />}
-					<main className={needsExtraPadding ? 'min-h-screen pb-96' : ''}>
+					<main className={mainClassName}>
 						{children}
 						{showScrollIndicator && <ScrollIndicator />}
 					</main>

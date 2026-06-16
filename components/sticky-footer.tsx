@@ -88,6 +88,14 @@ export function StickyFooter() {
 										Pricing
 									</Link>
 								</li>
+								<li>
+									<Link
+										href="/branching-ai-chat"
+										className="text-[#cbd5e1] transition-all duration-300 hover:text-white hover:translate-x-1 inline-block"
+									>
+										Branching AI Chat
+									</Link>
+								</li>
 							</ul>
 							<ul className="space-y-2">
 								<li>

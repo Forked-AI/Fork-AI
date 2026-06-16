@@ -3,7 +3,7 @@
  * This is the full landing page with sections after Hero masked during prelaunch.
  * Only the Hero section is visible; other sections are commented out.
  *
- * SEE: PRELAUNCH-RESTORATION.md for restoration instructions when ready to launch.
+ * SEE: docs/operations/launch/PRELAUNCH-RESTORATION.md for restoration instructions when ready to launch.
  */
 
 import { FAQSection } from '@/components/faq-section'

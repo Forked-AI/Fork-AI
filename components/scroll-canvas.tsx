@@ -1,9 +1,9 @@
 'use client'
 
-import { useRef } from 'react'
+import { useGSAP } from '@gsap/react'
 import gsap from 'gsap'
 import { ScrollTrigger } from 'gsap/ScrollTrigger'
-import { useGSAP } from '@gsap/react'
+import { useRef } from 'react'
 
 gsap.registerPlugin(ScrollTrigger)
 
@@ -52,9 +52,9 @@ export function ScrollCanvas() {
 					scrub: 1,
 				},
 			})
-
-			return () => mm.revert()
 		})
+
+		return () => mm.revert()
 	}, { scope: svgRef })
 
 	return (

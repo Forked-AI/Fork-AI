@@ -2,7 +2,7 @@
  * SITE HEADER - PRELAUNCH CONFIGURATION
  * Navigation links point to /landing route during prelaunch phase.
  *
- * SEE: PRELAUNCH-RESTORATION.md for restoration instructions when ready to launch.
+ * SEE: docs/operations/launch/PRELAUNCH-RESTORATION.md for restoration instructions when ready to launch.
  */
 
 'use client'
