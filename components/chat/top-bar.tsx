@@ -113,14 +113,14 @@ export function TopBar({
 										? 'text-primary hover:text-primary/80'
 										: 'text-muted-foreground hover:text-foreground'
 								}`}
-								title={showGraphView ? 'Show Chat View' : 'Show Graph View'}
+								title={showGraphView ? 'Show Chat View' : 'Show Fork View'}
 							>
 								<GitBranch
 									className={`w-3.5 h-3.5 transition-colors ${
 										showGraphView ? 'text-primary' : 'group-hover:text-primary'
 									}`}
 								/>
-								<span className="hidden sm:inline">Graph</span>
+								<span className="hidden sm:inline">Fork</span>
 							</button>
 							<div className="w-px h-3 bg-border" />
 						</>

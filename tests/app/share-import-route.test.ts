@@ -17,6 +17,9 @@ const prismaMocks = vi.hoisted(() => ({
 		})
 	),
 }))
+const rateLimitMocks = vi.hoisted(() => ({
+	checkRequestRateLimit: vi.fn(),
+}))
 
 vi.mock('@/lib/auth', () => ({
 	auth: {
@@ -35,6 +38,20 @@ vi.mock('@/lib/prisma', () => ({
 	},
 }))
 
+vi.mock('@/lib/api-rate-limit', () => ({
+	checkRequestRateLimit: rateLimitMocks.checkRequestRateLimit,
+}))
+
+vi.mock('@/lib/idempotency', () => ({
+	getUserIdempotencyActorKey: vi.fn((userId: string) => `user:${userId}`),
+	withJsonIdempotency: vi.fn(
+		async (_request: Request, _options: unknown, handler: () => Promise<unknown>) => {
+			const result = (await handler()) as { body: unknown; status?: number }
+			return Response.json(result.body, { status: result.status ?? 200 })
+		}
+	),
+}))
+
 vi.mock('next/headers', () => ({
 	headers: async () => new Headers(),
 }))
@@ -46,6 +63,16 @@ describe('POST /api/share/[token]/import', () => {
 		prismaMocks.transaction.mockClear()
 		prismaTransactionMocks.conversationCreate.mockReset()
 		prismaTransactionMocks.messageCreate.mockReset()
+		rateLimitMocks.checkRequestRateLimit.mockReset()
+		rateLimitMocks.checkRequestRateLimit.mockResolvedValue({
+			allowed: true,
+			state: {
+				allowed: true,
+				remaining: 19,
+				resetAt: new Date('2026-04-08T01:00:00.000Z'),
+			},
+			identityHash: 'identity',
+		})
 	})
 
 	it('rejects unauthenticated imports', async () => {
@@ -57,6 +84,35 @@ describe('POST /api/share/[token]/import', () => {
 
 		expect(response.status).toBe(401)
 		await expect(response.json()).resolves.toEqual({ error: 'Unauthorized' })
+	})
+
+	it('rate limits share imports before auth lookup', async () => {
+		rateLimitMocks.checkRequestRateLimit.mockResolvedValueOnce({
+			allowed: false,
+			response: Response.json(
+				{
+					error: 'Too many share import requests. Please try again later.',
+					errorCode: 'SHARE_IMPORT_RATE_LIMIT_EXCEEDED',
+					retryAfterSeconds: 60,
+				},
+				{ status: 429, headers: { 'Retry-After': '60' } }
+			),
+			state: {
+				allowed: false,
+				remaining: 0,
+				resetAt: new Date('2026-04-08T01:00:00.000Z'),
+				retryAfterSeconds: 60,
+			},
+			identityHash: 'identity',
+		})
+
+		const response = await POST(new Request('http://localhost/api/share/token-1/import'), {
+			params: Promise.resolve({ token: 'token-1' }),
+		})
+
+		expect(response.status).toBe(429)
+		expect(authMocks.getSession).not.toHaveBeenCalled()
+		expect(prismaMocks.findUnique).not.toHaveBeenCalled()
 	})
 
 	it('returns the original conversation for the owner without importing', async () => {

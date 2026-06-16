@@ -1,124 +1,236 @@
-import { mistralClient } from '@/lib/models'
-import { logServerError } from '@/lib/server-safe-log'
-import type { ShareSummaryData } from '@/lib/share/types'
+import { randomUUID } from "node:crypto";
+import { normalizeProviderStreamError } from "@/lib/ai/errors";
+import type { ModelProvider } from "@/lib/ai/model-provider";
+import { selectModelProvider } from "@/lib/ai/orchestrator";
+import type { ProviderMessage } from "@/lib/chat-system-prompt";
+import { prisma } from "@/lib/prisma";
+import { logServerError } from "@/lib/server-safe-log";
+import type { ShareSummaryData } from "@/lib/share/types";
+import {
+	buildUsageMeasurement,
+	createUsageAttempt,
+	estimateInputTokens,
+	estimateOutputTokens,
+	finalizeUsageEvent,
+} from "@/lib/usage/usage-service";
 
 interface SummaryResult {
-	summary: ShareSummaryData | null
-	warning: string | null
+	summary: ShareSummaryData | null;
+	warning: string | null;
 }
 
-const SUMMARY_MODEL = 'ministral-3b-latest'
+const SUMMARY_MODEL = "ministral-3b-latest";
+const SUMMARY_PROMPT_VERSION = "share-summary-v1";
 
-function extractTextContent(content: unknown) {
-	if (typeof content === 'string') return content.trim()
-	if (Array.isArray(content)) {
-		return content
-			.map((part) => {
-				if (typeof part === 'string') return part
-				if (part && typeof part === 'object' && 'text' in part) {
-					const text = (part as { text?: unknown }).text
-					return typeof text === 'string' ? text : ''
-				}
-				return ''
-			})
-			.join('')
-			.trim()
-	}
-	return ''
-}
+type ShareSummaryPrismaClient = any;
 
 function extractJsonPayload(text: string) {
-	const firstBrace = text.indexOf('{')
-	const lastBrace = text.lastIndexOf('}')
-	if (firstBrace < 0 || lastBrace < 0 || lastBrace <= firstBrace) return null
+	const firstBrace = text.indexOf("{");
+	const lastBrace = text.lastIndexOf("}");
+	if (firstBrace < 0 || lastBrace < 0 || lastBrace <= firstBrace) return null;
 
 	try {
 		return JSON.parse(text.slice(firstBrace, lastBrace + 1)) as {
-			overview?: unknown
-			keyPoints?: unknown
-		}
+			overview?: unknown;
+			keyPoints?: unknown;
+		};
 	} catch {
-		return null
+		return null;
 	}
 }
 
-export async function generateShareSummary(options: {
-	messages: Array<{ role: 'user' | 'assistant'; content: string }>
-	enabled: boolean
-}): Promise<SummaryResult> {
-	if (!options.enabled) {
-		return { summary: null, warning: null }
-	}
-
-	if (!process.env.MISTRAL_API_KEY) {
-		return {
-			summary: null,
-			warning: 'Summary generation is unavailable until MISTRAL_API_KEY is configured.',
-		}
-	}
-
-	const conversation = options.messages
+function buildShareSummaryMessages(
+	messages: Array<{ role: "user" | "assistant"; content: string }>
+): ProviderMessage[] {
+	const conversation = messages
 		.map((message) => {
-			const role = message.role === 'user' ? 'User' : 'Assistant'
-			return `${role}: ${message.content.slice(0, 2000)}`
+			const role = message.role === "user" ? "User" : "Assistant";
+			return `${role}: ${message.content.slice(0, 2000)}`;
 		})
-		.join('\n\n')
-		.slice(0, 12000)
+		.join("\n\n")
+		.slice(0, 12000);
 
 	if (!conversation.trim()) {
-		return { summary: null, warning: null }
+		return [];
 	}
 
-	const prompt = [
-		'Create a professional share summary for the selected conversation clips.',
-		'Return strict JSON with this shape only:',
-		'{"overview":"string","keyPoints":["string","string"]}',
-		'Rules:',
-		'- overview: 1 short paragraph, max 320 characters',
-		'- keyPoints: 2 to 4 concise bullets',
-		'- Do not mention masked values or invent missing context',
-		'- Keep a professional, concise tone',
-		'Conversation:',
-		conversation,
-	].join('\n')
+	return [
+		{
+			role: "user",
+			content: [
+				"Create a professional share summary for the selected conversation clips.",
+				"Return strict JSON with this shape only:",
+				'{"overview":"string","keyPoints":["string","string"]}',
+				"Rules:",
+				"- overview: 1 short paragraph, max 320 characters",
+				"- keyPoints: 2 to 4 concise bullets",
+				"- Do not mention masked values or invent missing context",
+				"- Keep a professional, concise tone",
+				"Conversation:",
+				conversation,
+			].join("\n"),
+		},
+	];
+}
 
+export async function generateShareSummary(options: {
+	userId: string;
+	conversationId: string;
+	messages: Array<{ role: "user" | "assistant"; content: string }>;
+	enabled: boolean;
+	prismaClient?: ShareSummaryPrismaClient;
+	provider?: ModelProvider;
+	model?: string;
+}): Promise<SummaryResult> {
+	if (!options.enabled) {
+		return { summary: null, warning: null };
+	}
+
+	if (!options.provider && !process.env.MISTRAL_API_KEY) {
+		return {
+			summary: null,
+			warning:
+				"Summary generation is unavailable until MISTRAL_API_KEY is configured.",
+		};
+	}
+
+	const messages = buildShareSummaryMessages(options.messages);
+	if (!messages.length) {
+		return { summary: null, warning: null };
+	}
+
+	const model = options.model ?? SUMMARY_MODEL;
+	const modelSelection = options.provider
+		? { provider: options.provider, providerName: "custom", model }
+		: selectModelProvider(model);
+	if (!modelSelection) {
+		return {
+			summary: null,
+			warning:
+				"Summary generation is unavailable for the selected model.",
+		};
+	}
+
+	const prismaClient = options.prismaClient ?? prisma;
+	const deduplicationKey = `share-summary:${options.conversationId}:${randomUUID()}`;
+	await createUsageAttempt({
+		prismaClient,
+		deduplicationKey,
+		userId: options.userId,
+		conversationId: options.conversationId,
+		feature: "conversation_summary",
+		provider: modelSelection.providerName,
+		requestedModel: modelSelection.model,
+		promptVersion: SUMMARY_PROMPT_VERSION,
+	});
+
+	let response: Awaited<ReturnType<ModelProvider["complete"]>> | null = null;
 	try {
-		const response = await mistralClient.chat.complete({
-			model: SUMMARY_MODEL,
-			messages: [{ role: 'user', content: prompt }],
+		response = await modelSelection.provider.complete({
+			model: modelSelection.model,
+			messages,
 			maxTokens: 280,
 			temperature: 0.2,
-		})
+		});
 
-		const text = extractTextContent(response.choices?.[0]?.message?.content)
-		const payload = extractJsonPayload(text)
+		const payload = extractJsonPayload(response.content);
 		const overview =
-			typeof payload?.overview === 'string' ? payload.overview.trim() : ''
+			typeof payload?.overview === "string"
+				? payload.overview.trim()
+				: "";
 		const keyPoints = Array.isArray(payload?.keyPoints)
-			? payload.keyPoints.filter((value): value is string => typeof value === 'string').map((value) => value.trim()).filter(Boolean).slice(0, 4)
-			: []
+			? payload.keyPoints
+					.filter(
+						(value): value is string => typeof value === "string"
+					)
+					.map((value) => value.trim())
+					.filter(Boolean)
+					.slice(0, 4)
+			: [];
+		const measurement = buildUsageMeasurement({
+			requestedModel: modelSelection.model,
+			resolvedModel: response.resolvedModel,
+			providerRequestId: response.providerRequestId,
+			providerUsage: response.usage,
+			estimatedInputTokens: estimateInputTokens({
+				messages,
+				provider: modelSelection.providerName,
+				model: modelSelection.model,
+			}),
+			estimatedOutputTokens: estimateOutputTokens({
+				content: response.content,
+				provider: modelSelection.providerName,
+				model: modelSelection.model,
+			}),
+			outcome: overview ? "completed" : "failed",
+			hasPartialOutput: Boolean(response.content),
+		});
 
 		if (!overview) {
+			await finalizeUsageEvent({
+				prismaClient,
+				deduplicationKey,
+				outcome: "failed",
+				measurement,
+				errorCode: "INVALID_SHARE_SUMMARY",
+			});
 			return {
 				summary: null,
-				warning: 'Summary generation did not return a valid result.',
-			}
+				warning: "Summary generation did not return a valid result.",
+			};
 		}
+
+		await finalizeUsageEvent({
+			prismaClient,
+			deduplicationKey,
+			outcome: "completed",
+			measurement,
+		});
 
 		return {
 			summary: {
 				overview,
 				keyPoints,
-				model: SUMMARY_MODEL,
+				model: response.resolvedModel ?? modelSelection.model,
 				generatedAt: new Date().toISOString(),
 			},
 			warning: null,
-		}
+		};
 	} catch (error) {
-		logServerError('share/summary', 'generate_failed', error)
+		const normalized = normalizeProviderStreamError(error);
+		await finalizeUsageEvent({
+			prismaClient,
+			deduplicationKey,
+			outcome: "failed",
+			measurement: buildUsageMeasurement({
+				requestedModel: modelSelection.model,
+				resolvedModel: response?.resolvedModel,
+				providerRequestId:
+					normalized.providerRequestId ?? response?.providerRequestId,
+				providerUsage: response?.usage,
+				estimatedInputTokens: estimateInputTokens({
+					messages,
+					provider: modelSelection.providerName,
+					model: modelSelection.model,
+				}),
+				estimatedOutputTokens: response
+					? estimateOutputTokens({
+							content: response.content,
+							provider: modelSelection.providerName,
+							model: modelSelection.model,
+						})
+					: 0,
+				outcome: "failed",
+				hasPartialOutput: Boolean(response?.content),
+			}),
+			errorCode: normalized.errorCode,
+			providerStatusCode: normalized.providerStatusCode,
+		});
+		logServerError("share/summary", "generate_failed", error);
 		return {
 			summary: null,
-			warning: 'Summary generation failed. You can still share the selected messages.',
-		}
+			warning:
+				"Summary generation failed. You can still share the selected messages.",
+		};
 	}
 }

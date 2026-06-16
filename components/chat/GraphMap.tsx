@@ -941,25 +941,20 @@ export default function GraphMap({
 		>
 			<div className="graph-vignette" />
 
-			<div className="absolute top-4 left-4 z-30 bg-background/90 backdrop-blur-sm border border-border rounded-lg p-4 text-xs space-y-2">
-				<div className="flex items-center gap-2">
-					<div className="w-3 h-3 rounded-full bg-white" />
-					<span className="text-foreground/80">User message</span>
+			<div className="absolute top-4 left-4 z-30 bg-background/50 backdrop-blur-md border border-white/10 rounded-xl p-4 text-xs space-y-3 shadow-2xl">
+				<div className="flex items-center gap-3">
+					<div className="w-3.5 h-3.5 rounded-full bg-gradient-to-br from-white to-gray-200 border border-white/40 shadow-[0_0_8px_rgba(255,255,255,0.3)]" />
+					<span className="text-foreground/90 font-medium tracking-wide">User message</span>
 				</div>
-				<div className="flex items-center gap-2">
-					<div className="w-3 h-3 rounded-full bg-accent" />
-					<span className="text-foreground/80">AI response</span>
+				<div className="flex items-center gap-3">
+					<div className="w-3.5 h-3.5 rounded-full bg-gradient-to-br from-accent to-accent/80 border border-accent/40 shadow-[0_0_8px_rgba(139,92,246,0.3)]" />
+					<span className="text-foreground/90 font-medium tracking-wide">AI response</span>
 				</div>
-				<div className="flex items-center gap-2">
-					<div className="relative w-3 h-3 rounded-full bg-amber-400">
-						<div className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-amber-400 border border-background rounded-full" />
+				<div className="flex items-center gap-3">
+					<div className="relative w-3.5 h-3.5 rounded-full bg-gradient-to-br from-amber-300 to-amber-500 border border-amber-300/40 shadow-[0_0_8px_rgba(251,191,36,0.3)]">
 					</div>
-					<span className="text-foreground/80">Branch point</span>
+					<span className="text-foreground/90 font-medium tracking-wide">Branch point</span>
 				</div>
-				{/* <div className="flex items-center gap-2">
-					<div className="w-3 h-3 rounded-full bg-white shadow-[0_0_20px_rgba(255,255,255,0.8)] ring-2 ring-white" />
-					<span className="text-foreground/80">Selected / active</span>
-				</div> */}
 			</div>
 
 			{/* Selection Counter */}
@@ -1055,10 +1050,10 @@ export default function GraphMap({
 									<path
 										d={pathData}
 										stroke={isHighlighted ? '#3b82f6' : '#71717a'}
-										strokeWidth={isHighlighted ? 3 : 2}
+										strokeWidth={isHighlighted ? 4 : 2}
 										fill="none"
-										opacity={isHighlighted ? 1 : 0.6}
-										style={{ transition: draggingNodeId ? 'none' : 'all 0.3s' }}
+										opacity={isHighlighted ? 1 : 0.3}
+										style={{ transition: draggingNodeId ? 'none' : 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)' }}
 										markerEnd={
 											isHighlighted
 												? 'url(#arrowhead-highlight)'
@@ -1069,10 +1064,10 @@ export default function GraphMap({
 									{/* Always render animated path but control opacity */}
 									<path
 										d={pathData}
-										stroke="#3b82f6"
+										stroke="#60a5fa"
 										strokeWidth={2}
 										fill="none"
-										strokeDasharray="8 8"
+										strokeDasharray="6 12"
 										className={cn(
 											'animate-dash transition-opacity duration-300',
 											isHighlighted ? 'opacity-100' : 'opacity-0'
@@ -1172,36 +1167,36 @@ export default function GraphMap({
 							data-node-id={node.id}
 							data-node-role={node.role}
 							className={cn(
-								'absolute -translate-x-1/2 -translate-y-1/2 rounded-full cursor-pointer group transition-all duration-300 ease-out',
-								isSelected && 'ring-2 ring-white scale-125 z-20',
+								'absolute -translate-x-1/2 -translate-y-1/2 rounded-full cursor-pointer group transition-all duration-500 ease-out',
+								isSelected && 'ring-[3px] ring-white/80 scale-125 z-20 shadow-[0_0_20px_rgba(255,255,255,0.4)]',
 								isTarget && 'ring-[6px] ring-accent scale-110 z-20',
-								!isSelected && !isTarget && 'z-10',
+								!isSelected && !isTarget && 'z-10 hover:scale-[1.15]',
 								isDimmed ? 'opacity-10 scale-50' : 'opacity-100',
 								node.role === 'user'
-									? 'bg-white'
+									? 'bg-gradient-to-br from-white to-gray-200 border border-white/40 shadow-inner'
 									: node.role === 'assistant' && childCount > 1
-										? 'bg-amber-400'
+										? 'bg-gradient-to-br from-amber-300 to-amber-500 border border-amber-300/40 shadow-inner'
 										: node.role === 'assistant'
-											? 'bg-accent'
-											: 'bg-secondary'
+											? 'bg-gradient-to-br from-accent to-accent/80 border border-accent/40 shadow-inner'
+											: 'bg-secondary border border-white/10'
 							)}
 							style={{
 								left: displayX,
 								top: displayY,
-								width: 24,
-								height: 24,
+								width: 28,
+								height: 28,
 								boxShadow:
 									isSelected || isHovered
-										? '0 0 30px rgba(255,255,255,0.9), 0 0 60px rgba(255,255,255,0.5)'
+										? '0 0 30px rgba(255,255,255,0.6), inset 0 2px 4px rgba(255,255,255,0.8)'
 										: isHighlighted
-											? '0 0 20px rgba(139,92,246,0.6), 0 0 40px rgba(139,92,246,0.3)'
-											: '0 0 8px rgba(0,0,0,0.3)',
+											? '0 0 20px rgba(139,92,246,0.6), inset 0 2px 4px rgba(255,255,255,0.3)'
+											: '0 4px 12px rgba(0,0,0,0.5), inset 0 2px 4px rgba(255,255,255,0.2)',
 							}}
 							onPointerEnter={() => setHoveredNodeId(node.id)}
 							onPointerLeave={() => setHoveredNodeId(null)}
 						>
-{childCount > 1 && (
-								<div className="absolute -top-1 -right-1 w-3 h-3 bg-background text-foreground text-[9px] font-bold rounded-full flex items-center justify-center z-10 shadow-sm border border-amber-400">
+							{childCount > 1 && (
+								<div className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 px-1 bg-background text-foreground text-[10px] font-bold rounded-full flex items-center justify-center z-10 shadow-lg border border-amber-400">
 									{childCount}
 								</div>
 							)}
@@ -1211,10 +1206,10 @@ export default function GraphMap({
 								neighbors.has(node.id)) && (
 								<span
 									className={cn(
-										'absolute left-8 top-1/2 -translate-y-1/2 whitespace-nowrap text-[10px] font-medium pointer-events-none uppercase tracking-widest transition-all duration-200',
+										'absolute left-10 top-1/2 -translate-y-1/2 whitespace-nowrap text-[11px] font-medium pointer-events-none uppercase tracking-widest transition-all duration-300',
 										isSelected || isHovered
-											? 'text-foreground'
-											: 'text-foreground/60 group-hover:text-foreground'
+											? 'text-foreground translate-x-1'
+											: 'text-foreground/50 group-hover:text-foreground/80 group-hover:translate-x-0.5'
 									)}
 								>
 									{isParent && '↑ '}
@@ -1237,16 +1232,16 @@ export default function GraphMap({
 				<button
 					onClick={handleOrganize}
 					className="bg-background/90 backdrop-blur border border-border rounded-lg p-2 shadow-lg hover:bg-accent hover:text-white transition-colors group"
-					title="Organize Graph (Reset Layout)"
+					title="Organize Fork (Reset Layout)"
 				>
 					<LayoutIcon className="w-5 h-5 text-foreground/80 group-hover:text-white" />
 				</button>
 
 				{/* Minimap */}
 				{showMinimap && layoutedGraph.nodes.length > 0 && (
-					<div className="bg-background/90 backdrop-blur border border-border rounded-lg p-3 shadow-lg">
-						<div className="text-[9px] font-bold uppercase tracking-widest text-secondary mb-2">
-							Map
+					<div className="bg-background/50 backdrop-blur-md border border-white/10 rounded-xl p-3 shadow-2xl">
+						<div className="text-[10px] font-bold uppercase tracking-widest text-foreground/80 mb-2">
+							FORK
 						</div>
 						<svg width={200} height={150} className="overflow-visible">
 							{(() => {
@@ -1279,7 +1274,7 @@ export default function GraphMap({
 													y1={(parent.y - minY) * scale}
 													x2={(node.x - minX) * scale}
 													y2={(node.y - minY) * scale}
-													className="stroke-muted stroke-1"
+													className="stroke-foreground/40 stroke-1"
 												/>
 											)
 										})}
@@ -1294,7 +1289,7 @@ export default function GraphMap({
 												className={
 													selectedNodeIds.has(node.id)
 														? 'fill-accent'
-														: 'fill-muted hover:fill-accent/50'
+														: 'fill-foreground/60 hover:fill-accent/80'
 												}
 											/>
 										))}

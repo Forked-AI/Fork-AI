@@ -10,6 +10,9 @@ const prismaMocks = vi.hoisted(() => ({
 const authMocks = vi.hoisted(() => ({
 	getSession: vi.fn(),
 }))
+const rateLimitMocks = vi.hoisted(() => ({
+	checkRequestRateLimit: vi.fn(),
+}))
 const mockSession = vi.hoisted(() => ({
 	value: null as { user: { id: string } } | null,
 }))
@@ -37,6 +40,10 @@ vi.mock('@/lib/auth', () => ({
 	},
 }))
 
+vi.mock('@/lib/api-rate-limit', () => ({
+	checkRequestRateLimit: rateLimitMocks.checkRequestRateLimit,
+}))
+
 vi.mock('next/headers', () => ({
 	headers: async () => new Headers(),
 }))
@@ -57,15 +64,12 @@ vi.mock('next/link', () => ({
 	}: React.AnchorHTMLAttributes<HTMLAnchorElement> & {
 		href: string
 		prefetch?: boolean
-	}) => (
-		<a href={href} {...props}>
-			{children}
-		</a>
-	),
+	}) => React.createElement('a', { href, ...props }, children),
 }))
 
 vi.mock('next/image', () => ({
-	default: (props: React.ImgHTMLAttributes<HTMLImageElement>) => <img {...props} />,
+	default: (props: React.ImgHTMLAttributes<HTMLImageElement>) =>
+		React.createElement('img', props),
 }))
 
 describe('SharePage', () => {
@@ -73,12 +77,22 @@ describe('SharePage', () => {
 		prismaMocks.findUnique.mockReset()
 		prismaMocks.update.mockReset()
 		authMocks.getSession.mockReset()
+		rateLimitMocks.checkRequestRateLimit.mockReset()
 		mockRedirect.mockClear()
 		mockRouterPush.mockReset()
 		mockSession.value = null
 
 		prismaMocks.update.mockResolvedValue({})
 		authMocks.getSession.mockImplementation(async () => mockSession.value)
+		rateLimitMocks.checkRequestRateLimit.mockResolvedValue({
+			allowed: true,
+			state: {
+				allowed: true,
+				remaining: 59,
+				resetAt: new Date('2026-04-08T00:01:00.000Z'),
+			},
+			identityHash: 'identity',
+		})
 		prismaMocks.findUnique.mockResolvedValue({
 			id: 'share-record-1',
 			shareToken: 'token-1',

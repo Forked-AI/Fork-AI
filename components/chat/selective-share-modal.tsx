@@ -26,6 +26,7 @@ import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import type { Message } from '@/hooks/use-chat'
 import { useToast } from '@/hooks/use-toast'
+import { createIdempotencyHeaders } from '@/lib/idempotency-client'
 import { applyApprovedShareMasking, FULL_MESSAGE_REDACTION } from '@/lib/share/masking'
 import type {
 	ShareDraftMessage,
@@ -284,7 +285,10 @@ export function SelectiveShareModal({
 		try {
 			const response = await fetch('/api/chat/share', {
 				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
+				headers: {
+					'Content-Type': 'application/json',
+					...createIdempotencyHeaders('share'),
+				},
 				body: JSON.stringify({
 					conversationId,
 					title: shareTitle || conversationTitle,

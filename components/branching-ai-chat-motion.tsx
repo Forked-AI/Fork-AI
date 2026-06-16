@@ -257,17 +257,17 @@ function ModelComparisonGraphic() {
 			tag: 'Iteration',
 		},
 		{
-			name: 'Claude',
-			tone: 'from-amber-300/30 to-orange-500/10',
+			name: 'Mistral',
+			tone: 'from-orange-400/30 to-amber-500/5',
 			height: 'h-36',
-			tag: 'Long-form',
+			tag: 'Agentic',
 			active: true,
 		},
 		{
-			name: 'Gemini',
-			tone: 'from-sky-300/25 to-blue-500/10',
+			name: 'Claude',
+			tone: 'from-amber-300/25 to-yellow-500/5',
 			height: 'h-24',
-			tag: 'Cross-check',
+			tag: 'Long-form',
 		},
 	]
 
@@ -357,6 +357,17 @@ const integrationOptions: Array<{
 	tone: string
 }> = [
 	{
+		id: 'mistral',
+		name: 'Mistral Large 3',
+		label: 'Agentic reasoning',
+		description:
+			'Mistral Large 3 is a 256 K-context, open-weight multimodal model that excels at multi-step reasoning and tool use — ideal for autonomous branching workflows.',
+		outputTitle: 'Agentic branch draft',
+		output:
+			'Mistral decomposes the task into sub-goals, calls tools in sequence, and surfaces a structured execution plan across three parallel branches.',
+		tone: 'from-orange-400/20 to-amber-500/5',
+	},
+	{
 		id: 'chatgpt',
 		name: 'ChatGPT',
 		label: 'Fast iteration',
@@ -377,17 +388,6 @@ const integrationOptions: Array<{
 		output:
 			'The branch is reviewed for assumptions, missing evidence, and the tradeoffs hidden in the first answer.',
 		tone: 'from-amber-300/25 to-orange-500/5',
-	},
-	{
-		id: 'gemini',
-		name: 'Gemini',
-		label: 'Cross-check',
-		description:
-			'Compare assumptions from another model perspective before deciding which path should move forward.',
-		outputTitle: 'Alternate branch check',
-		output:
-			'A second perspective flags edge cases and gives the team a cleaner comparison before choosing.',
-		tone: 'from-sky-300/25 to-blue-500/5',
 	},
 ]
 
@@ -941,8 +941,22 @@ export function ModelIntegrationsWidget() {
 						className="flex h-full flex-col rounded-[1.25rem] border border-sky-200/25 bg-slate-950/70 p-5 shadow-[0_0_48px_rgba(125,211,252,0.08)]"
 					>
 						<div className="flex items-center gap-3">
-							<span className="flex h-10 w-10 items-center justify-center rounded-full border border-sky-200/25 bg-sky-200/10 text-sky-100">
-								<Bot className="h-5 w-5" />
+							<span
+								className={`flex h-10 w-10 items-center justify-center rounded-full border overflow-hidden ${
+									selected.id === 'mistral'
+										? 'border-orange-500/30 bg-[#0d0d0d]'
+										: 'border-sky-200/25 bg-sky-200/10 text-sky-100'
+								}`}
+							>
+								{selected.id === 'mistral' ? (
+									<img
+										src="/mistral-logo.png"
+										alt="Mistral AI"
+										className="h-7 w-7 object-contain p-0.5"
+									/>
+								) : (
+									<Bot className="h-5 w-5" />
+								)}
 							</span>
 							<div>
 								<p className="text-sm font-semibold text-white">

@@ -1,14 +1,16 @@
 import {
-    conversationDetailQueryKey,
-    fetchConversationDetail,
-    type ConversationDetailPayload,
+	clearCachedConversationDetail,
+	conversationDetailQueryKey,
+	fetchConversationDetail,
+	type ConversationDetailPayload,
 } from "@/lib/conversation-api";
+import { createIdempotencyHeaders } from "@/lib/idempotency-client";
 import {
-    useMutation,
-    useQuery,
-    useQueryClient,
-    type QueryClient,
-    type QueryKey,
+	useMutation,
+	useQuery,
+	useQueryClient,
+	type QueryClient,
+	type QueryKey,
 } from "@tanstack/react-query";
 import { useCallback } from "react";
 
@@ -82,7 +84,9 @@ interface UpdateConversationVariables {
 interface UpdateConversationContext {
 	didOptimisticUpdate: boolean;
 	previousCollections?: CollectionCacheEntry[];
-	previousConversationQueries: Array<[QueryKey, ConversationsResponse | undefined]>;
+	previousConversationQueries: Array<
+		[QueryKey, ConversationsResponse | undefined]
+	>;
 }
 
 function isConversationQueryKey(
@@ -121,11 +125,17 @@ function updateCollectionCounts(
 	return collections.map((collection) => {
 		let conversations = collection._count.conversations;
 
-		if (sourceCollectionId !== null && collection.id === sourceCollectionId) {
+		if (
+			sourceCollectionId !== null &&
+			collection.id === sourceCollectionId
+		) {
 			conversations = Math.max(0, conversations - 1);
 		}
 
-		if (targetCollectionId !== null && collection.id === targetCollectionId) {
+		if (
+			targetCollectionId !== null &&
+			collection.id === targetCollectionId
+		) {
 			conversations += 1;
 		}
 
@@ -160,7 +170,10 @@ function patchConversationTitleInCaches(
 
 		let didChange = false;
 		const nextConversations = data.conversations.map((conversation) => {
-			if (conversation.id !== conversationId || conversation.title === title) {
+			if (
+				conversation.id !== conversationId ||
+				conversation.title === title
+			) {
 				return conversation;
 			}
 
@@ -243,7 +256,10 @@ async function createConversation(data: {
 }): Promise<{ conversation: { id: string; title: string } }> {
 	const response = await fetch("/api/conversations", {
 		method: "POST",
-		headers: { "Content-Type": "application/json" },
+		headers: {
+			"Content-Type": "application/json",
+			...createIdempotencyHeaders("conversation"),
+		},
 		credentials: "include",
 		body: JSON.stringify(data),
 	});
@@ -311,8 +327,12 @@ export function useConversations(options: UseConversationsOptions = {}) {
 
 	// Query for fetching conversations
 	const conversationsQuery = useQuery({
-		queryKey: ["conversations", { page, limit, collectionId, search, pinned }],
-		queryFn: () => fetchConversations(page, limit, collectionId, search, pinned),
+		queryKey: [
+			"conversations",
+			{ page, limit, collectionId, search, pinned },
+		],
+		queryFn: () =>
+			fetchConversations(page, limit, collectionId, search, pinned),
 		enabled,
 		staleTime: 30000, // 30 seconds
 	});
@@ -328,17 +348,20 @@ export function useConversations(options: UseConversationsOptions = {}) {
 	// Mutation for deleting a conversation
 	const deleteMutation = useMutation({
 		mutationFn: deleteConversation,
-		onSuccess: () => {
+		onSuccess: (_data, conversationId) => {
+			clearCachedConversationDetail(conversationId);
+			queryClient.removeQueries({
+				queryKey: conversationDetailQueryKey(conversationId),
+				exact: true,
+			});
 			invalidateConversationRelatedQueries();
 		},
 	});
 
 	// Mutation for updating a conversation
 	const updateMutation = useMutation({
-		mutationFn: ({
-			id,
-			...data
-		}: UpdateConversationVariables) => updateConversation(id, data),
+		mutationFn: ({ id, ...data }: UpdateConversationVariables) =>
+			updateConversation(id, data),
 		onMutate: async (variables): Promise<UpdateConversationContext> => {
 			if (variables.collectionId === undefined) {
 				return {
@@ -356,8 +379,9 @@ export function useConversations(options: UseConversationsOptions = {}) {
 				queryClient.getQueriesData<ConversationsResponse>({
 					queryKey: ["conversations"],
 				});
-			const previousCollections =
-				queryClient.getQueryData<CollectionCacheEntry[]>(["collections"]);
+			const previousCollections = queryClient.getQueryData<
+				CollectionCacheEntry[]
+			>(["collections"]);
 
 			let movedConversation: ConversationPreview | undefined;
 
@@ -393,9 +417,9 @@ export function useConversations(options: UseConversationsOptions = {}) {
 			const targetCollection =
 				targetCollectionId === null
 					? null
-					: previousCollections?.find(
+					: (previousCollections?.find(
 							(collection) => collection.id === targetCollectionId
-						) ?? null;
+						) ?? null);
 
 			if (targetCollectionId !== null && !targetCollection) {
 				return {
@@ -448,7 +472,10 @@ export function useConversations(options: UseConversationsOptions = {}) {
 				let nextPagination = data.pagination;
 				let didChange = false;
 
-				if (isSourceCollectionQuery && (searchTerm === "" || hasConversation)) {
+				if (
+					isSourceCollectionQuery &&
+					(searchTerm === "" || hasConversation)
+				) {
 					nextConversations = nextConversations.filter(
 						(conversation) => conversation.id !== variables.id
 					);
@@ -476,10 +503,10 @@ export function useConversations(options: UseConversationsOptions = {}) {
 										? optimisticConversation
 										: conversation
 								)
-							: [optimisticConversation, ...nextConversations].slice(
-									0,
-									data.pagination.limit
-								);
+							: [
+									optimisticConversation,
+									...nextConversations,
+								].slice(0, data.pagination.limit);
 					}
 
 					didChange = true;
@@ -525,7 +552,10 @@ export function useConversations(options: UseConversationsOptions = {}) {
 				return;
 			}
 
-			for (const [queryKey, data] of context.previousConversationQueries) {
+			for (const [
+				queryKey,
+				data,
+			] of context.previousConversationQueries) {
 				if (data === undefined) {
 					queryClient.removeQueries({ queryKey, exact: true });
 					continue;
@@ -535,11 +565,17 @@ export function useConversations(options: UseConversationsOptions = {}) {
 			}
 
 			if (context.previousCollections === undefined) {
-				queryClient.removeQueries({ queryKey: ["collections"], exact: true });
+				queryClient.removeQueries({
+					queryKey: ["collections"],
+					exact: true,
+				});
 				return;
 			}
 
-			queryClient.setQueryData(["collections"], context.previousCollections);
+			queryClient.setQueryData(
+				["collections"],
+				context.previousCollections
+			);
 		},
 		onSuccess: (data, variables) => {
 			if (variables.collectionId !== undefined) {
@@ -547,6 +583,7 @@ export function useConversations(options: UseConversationsOptions = {}) {
 			}
 
 			if (variables.title !== undefined) {
+				clearCachedConversationDetail(data.conversation.id);
 				patchConversationTitleInCaches(
 					queryClient,
 					data.conversation.id,
@@ -596,14 +633,21 @@ export function useConversations(options: UseConversationsOptions = {}) {
 					`/api/conversations/${conversationId}/generate-title`,
 					{
 						method: "POST",
+						headers: createIdempotencyHeaders("title"),
 						credentials: "include",
 					}
 				);
 
 				if (response.ok) {
 					const data = await response.json();
+					if (data?.status === "queued") {
+						invalidateConversationListQueries();
+						return null;
+					}
+
 					if (typeof data.title === "string" && data.title.trim()) {
 						const generatedTitle = data.title.trim();
+						clearCachedConversationDetail(conversationId);
 						patchConversationTitleInCaches(
 							queryClient,
 							conversationId,

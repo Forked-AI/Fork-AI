@@ -2,7 +2,12 @@
 
 import { EmptyState } from '@/components/chat/empty-state'
 import { type Message } from '@/hooks/use-chat'
-import type { MutableRefObject, RefObject } from 'react'
+import type {
+	MouseEvent as ReactMouseEvent,
+	MutableRefObject,
+	RefObject,
+	TouchEvent as ReactTouchEvent,
+} from 'react'
 import { MessageBubble } from './message-bubble'
 
 interface SiblingNav {
@@ -28,6 +33,70 @@ interface ConversationMessageListProps {
 	onEditParent: (messageId: string) => void
 	editHandlersRef: MutableRefObject<Map<string, () => void>>
 	disableMutatingActions?: boolean
+	onQuoteSelection?: (selection: {
+		messageId: string
+		text: string
+		rect: DOMRect
+	}) => void
+	onScroll?: () => void
+}
+
+function getElementFromNode(node: Node | null): Element | null {
+	if (!node) return null
+	return node.nodeType === Node.ELEMENT_NODE
+		? (node as Element)
+		: node.parentElement
+}
+
+function getRangeRect(range: Range): DOMRect | null {
+	const rect = range.getBoundingClientRect()
+	if (rect.width > 0 || rect.height > 0) {
+		return rect
+	}
+
+	return range.getClientRects()[0] ?? null
+}
+
+function readQuoteSelection(
+	container: HTMLElement
+): { messageId: string; text: string; rect: DOMRect } | null {
+	const selection = window.getSelection()
+	const text = selection?.toString().trim()
+
+	if (!selection || !text || selection.rangeCount === 0) {
+		return null
+	}
+
+	const range = selection.getRangeAt(0)
+	const commonElement = getElementFromNode(range.commonAncestorContainer)
+	const messageContent = commonElement?.closest<HTMLElement>(
+		'[data-message-content="true"]'
+	)
+
+	if (!messageContent || !container.contains(messageContent)) {
+		return null
+	}
+
+	if (messageContent.dataset.selectionDisabled === 'true') {
+		return null
+	}
+
+	if (
+		commonElement?.closest(
+			'button, input, select, textarea, [data-quote-selection-ignore="true"]'
+		)
+	) {
+		return null
+	}
+
+	const messageId = messageContent.dataset.messageId
+	const rect = getRangeRect(range)
+
+	if (!messageId || !rect) {
+		return null
+	}
+
+	return { messageId, text, rect }
 }
 
 export function ConversationMessageList({
@@ -45,10 +114,41 @@ export function ConversationMessageList({
 	onEditParent,
 	editHandlersRef,
 	disableMutatingActions = false,
+	onQuoteSelection,
+	onScroll,
 }: ConversationMessageListProps) {
+	const handlePotentialQuoteSelection = (
+		event: ReactMouseEvent<HTMLDivElement> | ReactTouchEvent<HTMLDivElement>
+	) => {
+		if (!onQuoteSelection || disableMutatingActions) {
+			return
+		}
+
+		const target = event.target
+		if (
+			target instanceof Element &&
+			target.closest(
+				'button, input, select, textarea, [data-quote-selection-ignore="true"]'
+			)
+		) {
+			return
+		}
+
+		const container = event.currentTarget
+		window.setTimeout(() => {
+			const quoteSelection = readQuoteSelection(container)
+			if (quoteSelection) {
+				onQuoteSelection(quoteSelection)
+			}
+		}, 0)
+	}
+
 	return (
 		<div
 			ref={messagesContainerRef}
+			onMouseUp={handlePotentialQuoteSelection}
+			onTouchEnd={handlePotentialQuoteSelection}
+			onScroll={onScroll}
 			className="relative flex-1 overflow-y-auto w-full"
 		>
 			{displayedMessages.length > 0 ? (

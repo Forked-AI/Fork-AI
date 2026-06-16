@@ -42,7 +42,7 @@ export default function InspectorPanel({
 			<div className="absolute top-0 right-0 w-80 h-full bg-background/80 backdrop-blur-xl border-l border-border z-30 flex flex-col overflow-y-auto overflow-x-hidden custom-scrollbar">
 				<div className="p-6 flex items-center justify-between border-b border-border">
 					<div>
-						<span className="text-[10px] font-bold uppercase tracking-[0.2em] text-accent">
+						<span className="text-[10px] font-bold uppercase tracking-[0.2em] text-foreground/80">
 							{selectedNode.role}
 						</span>
 						<p className="text-xs text-secondary mt-1">
@@ -157,7 +157,7 @@ export default function InspectorPanel({
 		<div className="absolute top-0 right-0 w-80 h-full bg-background/80 backdrop-blur-xl border-l border-border z-30 flex flex-col overflow-y-auto overflow-x-hidden custom-scrollbar">
 			<div className="p-6 flex items-center justify-between border-b border-border">
 				<div>
-					<span className="text-[10px] font-bold uppercase tracking-[0.2em] text-accent">
+					<span className="text-[10px] font-bold uppercase tracking-[0.2em] text-foreground/80">
 						Multi-Select
 					</span>
 					<p className="text-xs text-secondary mt-1">

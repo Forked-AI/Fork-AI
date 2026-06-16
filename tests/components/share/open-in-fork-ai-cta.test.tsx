@@ -45,7 +45,9 @@ describe('OpenInForkAICta', () => {
 			/>
 		)
 
-		expect(screen.getByTestId('share-open-in-fork-ai-floating-cta')).toHaveAttribute(
+		expect(
+			screen.getByTestId('share-open-in-fork-ai-floating-cta')
+		).toHaveAttribute(
 			'href',
 			'/login?next=%2Fshare%2Fshare-token%3FopenInChat%3D1'
 		)
@@ -62,22 +64,22 @@ describe('OpenInForkAICta', () => {
 			/>
 		)
 
-		expect(screen.getByTestId('share-open-in-fork-ai-floating-cta')).toHaveAttribute(
-			'href',
-			'/chat?c=conversation-1'
-		)
+		expect(
+			screen.getByTestId('share-open-in-fork-ai-floating-cta')
+		).toHaveAttribute('href', '/chat?c=conversation-1')
 	})
 
 	it('imports a shared conversation for non-owners and navigates to the new chat', async () => {
 		const user = userEvent.setup()
-		const fetchMock = vi
-			.spyOn(globalThis, 'fetch')
-			.mockResolvedValue(
-				new Response(JSON.stringify({ conversationId: 'imported-conversation-1' }), {
+		const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+			new Response(
+				JSON.stringify({ conversationId: 'imported-conversation-1' }),
+				{
 					status: 200,
 					headers: { 'Content-Type': 'application/json' },
-				})
+				}
 			)
+		)
 
 		render(
 			<OpenInForkAICta
@@ -91,24 +93,33 @@ describe('OpenInForkAICta', () => {
 
 		await user.click(screen.getByTestId('share-open-in-fork-ai-floating-cta'))
 
-		expect(fetchMock).toHaveBeenCalledWith('/api/share/share-token/import', {
-			method: 'POST',
-			credentials: 'include',
-		})
+		expect(fetchMock).toHaveBeenCalledWith(
+			'/api/share/share-token/import',
+			expect.objectContaining({
+				method: 'POST',
+				credentials: 'include',
+				headers: expect.objectContaining({
+					'Idempotency-Key': expect.stringMatching(/^share-import:/),
+				}),
+			})
+		)
 		await waitFor(() => {
-			expect(mockRouterPush).toHaveBeenCalledWith('/chat?c=imported-conversation-1')
+			expect(mockRouterPush).toHaveBeenCalledWith(
+				'/chat?c=imported-conversation-1'
+			)
 		})
 	})
 
 	it('auto-opens only once for signed-in non-owners resuming after auth', async () => {
-		const fetchMock = vi
-			.spyOn(globalThis, 'fetch')
-			.mockResolvedValue(
-				new Response(JSON.stringify({ conversationId: 'imported-conversation-2' }), {
+		const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+			new Response(
+				JSON.stringify({ conversationId: 'imported-conversation-2' }),
+				{
 					status: 200,
 					headers: { 'Content-Type': 'application/json' },
-				})
+				}
 			)
+		)
 
 		const { rerender } = render(
 			<OpenInForkAICta

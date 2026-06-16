@@ -4,6 +4,7 @@
  */
 
 import type { ChatGraph, GraphNode } from "./graph-adapter";
+import { createIdempotencyHeaders } from "./idempotency-client";
 
 const API_BASE = "/api";
 
@@ -113,7 +114,10 @@ export async function attachAndUpdatePosition(
 export async function duplicateNode(nodeId: string): Promise<GraphNode> {
 	const response = await fetch(`${API_BASE}/messages/${nodeId}/duplicate`, {
 		method: "POST",
-		headers: { "Content-Type": "application/json" },
+		headers: {
+			"Content-Type": "application/json",
+			...createIdempotencyHeaders("message"),
+		},
 		credentials: "include",
 	});
 

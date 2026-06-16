@@ -1,5 +1,6 @@
 'use client'
 
+import { createIdempotencyHeaders } from '@/lib/idempotency-client'
 import { cn } from '@/lib/utils'
 import { Loader2 } from 'lucide-react'
 import Link from 'next/link'
@@ -44,6 +45,7 @@ export function OpenInForkAICta({
 		try {
 			const response = await fetch(`/api/share/${shareToken}/import`, {
 				method: 'POST',
+				headers: createIdempotencyHeaders('share-import'),
 				credentials: 'include',
 			})
 

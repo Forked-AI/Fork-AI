@@ -20,6 +20,7 @@ export interface Settings {
 	defaultModel: string;
 	messageTruncateLength: number;
 	sendKeybinding: "enter" | "ctrl-enter";
+	recentChatSwitcherShortcut: string;
 	// Theme customization - complete theme package
 	themeBackground: string; // Main background
 	themeChatBackground: string; // Visible chat background (supports gradients)
@@ -51,6 +52,7 @@ const DEFAULT_SETTINGS: Settings = {
 	defaultModel: "gpt-4",
 	messageTruncateLength: 300,
 	sendKeybinding: "enter",
+	recentChatSwitcherShortcut: "Alt+Q",
 	// Theme customization defaults (Default preset)
 	...DEFAULT_THEME_SETTINGS,
 	strictContrastMode: false,
