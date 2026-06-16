@@ -3,7 +3,7 @@ type SafeLogValue = string | number | boolean | null | undefined;
 type SafeLogMetadata = Record<string, SafeLogValue>;
 
 const SENSITIVE_KEY_PATTERN =
-	/(authorization|content|cookie|database|email|key|message|password|prompt|secret|token|url)/i;
+	/(authorization|content|cookie|database|email|key|message|password|prompt(?!Version$)|secret|token|url)/i;
 
 function redactMetadata(metadata: SafeLogMetadata = {}): SafeLogMetadata {
 	return Object.fromEntries(

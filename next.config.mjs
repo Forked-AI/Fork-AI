@@ -1,5 +1,9 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+	distDir: process.env.NEXT_DIST_DIR || '.next',
+	experimental: {
+		webpackBuildWorker: process.env.NEXT_WEBPACK_BUILD_WORKER !== 'false',
+	},
 	eslint: {
 		ignoreDuringBuilds: true,
 	},
@@ -25,8 +29,8 @@ const nextConfig = {
 			"font-src 'self' data:",
 			"connect-src 'self' https:",
 			"media-src 'self' https: blob:",
-			"frame-src https://www.youtube.com https://youtube.com",
-			"upgrade-insecure-requests",
+			'frame-src https://www.youtube.com https://youtube.com',
+			'upgrade-insecure-requests',
 		].join('; ');
 
 		return [

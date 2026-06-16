@@ -54,7 +54,7 @@ export function getProMonthlyTokenBudget(): number {
 	);
 }
 
-function getMonthWindow(date: Date): { start: Date; end: Date } {
+export function getUtcMonthWindow(date: Date): { start: Date; end: Date } {
 	const start = new Date(
 		Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1, 0, 0, 0, 0)
 	);
@@ -88,7 +88,9 @@ async function hasActiveProSubscription(userId: string): Promise<boolean> {
 				return true;
 			}
 
-			const endedAtMs = row.endedAt ? new Date(row.endedAt).getTime() : null;
+			const endedAtMs = row.endedAt
+				? new Date(row.endedAt).getTime()
+				: null;
 			if (endedAtMs && endedAtMs <= nowMs) {
 				return false;
 			}
@@ -96,19 +98,26 @@ async function hasActiveProSubscription(userId: string): Promise<boolean> {
 			const periodEndMs = row.periodEnd
 				? new Date(row.periodEnd).getTime()
 				: null;
-			const trialEndMs = row.trialEnd ? new Date(row.trialEnd).getTime() : null;
+			const trialEndMs = row.trialEnd
+				? new Date(row.trialEnd).getTime()
+				: null;
 
 			return Boolean(
 				(periodEndMs && periodEndMs > nowMs) ||
-					(trialEndMs && trialEndMs > nowMs)
+				(trialEndMs && trialEndMs > nowMs)
 			);
 		});
 	} catch (error) {
 		if (!hasLoggedSubscriptionTableWarning) {
 			hasLoggedSubscriptionTableWarning = true;
-			logServerError("subscription", "stripe_subscription_query_failed", error, {
-				fallback: "signup-trial/free",
-			});
+			logServerError(
+				"subscription",
+				"stripe_subscription_query_failed",
+				error,
+				{
+					fallback: "signup-trial/free",
+				}
+			);
 		}
 		return false;
 	}
@@ -123,7 +132,7 @@ export async function resolveSubscriptionEntitlement(
 	});
 
 	const now = new Date();
-	const { start, end } = getMonthWindow(now);
+	const { start, end } = getUtcMonthWindow(now);
 
 	if (!user) {
 		return {

@@ -3,6 +3,7 @@ import {
 	type RateLimitConfig,
 	type RateLimitResult,
 } from "@/lib/chat-rate-limit";
+import { recordOperationalMetric } from "@/lib/operational-metrics";
 import { getRequestIdentity, hashIdentity } from "@/lib/request-identity";
 import { logServerWarning } from "@/lib/server-safe-log";
 import { NextResponse } from "next/server";
@@ -92,6 +93,21 @@ export async function checkRequestRateLimit(
 		bucket: options.bucket,
 		actorHash: hashIdentity(identityHash),
 		retryAfterSeconds: getRetryAfterSeconds(state),
+	});
+	await recordOperationalMetric({
+		kind: "rate_limit",
+		source: options.bucket,
+		status: "blocked",
+		route: options.scope ?? null,
+		errorCode: options.errorCode ?? "RATE_LIMIT_EXCEEDED",
+		traceId: hashIdentity(identityHash),
+		metadata: {
+			bucket: options.bucket,
+			actorHash: hashIdentity(identityHash),
+			retryAfterSeconds: getRetryAfterSeconds(state),
+			windowSeconds: options.windowSeconds,
+			maxRequests: options.maxRequests,
+		},
 	});
 
 	return {

@@ -1,4 +1,5 @@
 import { authClient } from "@/lib/auth-client";
+import { clearConversationDetailCache } from "@/lib/conversation-api";
 import { useRouter } from "next/navigation";
 import { useCallback } from "react";
 
@@ -13,6 +14,7 @@ export function useLogout() {
 		try {
 			// Sign out the user
 			await authClient.signOut();
+			clearConversationDetailCache();
 
 			// Clear any local storage data that might persist
 			if (typeof window !== "undefined") {
@@ -33,6 +35,7 @@ export function useLogout() {
 			window.location.href = "/";
 		} catch (error) {
 			console.error("Logout failed:", error);
+			clearConversationDetailCache();
 
 			// Even if logout fails, still redirect to clear local state
 			router.push("/");

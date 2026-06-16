@@ -1,4 +1,8 @@
 import { auth } from "@/lib/auth";
+import {
+	getUserIdempotencyActorKey,
+	withJsonIdempotency,
+} from "@/lib/idempotency";
 import { prisma } from "@/lib/prisma";
 import { logServerError } from "@/lib/server-safe-log";
 import { headers } from "next/headers";
@@ -27,18 +31,32 @@ export async function POST(request: NextRequest) {
 			);
 		}
 
-		// Store feedback in database
-		await prisma.messageFeedback.create({
-			data: {
-				messageId,
-				userId: session.user.id,
-				type,
-				reasons: reasons || [],
-				comment: comment || "",
+		return await withJsonIdempotency(
+			request,
+			{
+				scope: "chat:feedback",
+				actorKey: getUserIdempotencyActorKey(session.user.id),
+				requestInput: { messageId, type, reasons, comment },
 			},
-		});
+			async () => {
+				// Store feedback in database
+				const feedback = await prisma.messageFeedback.create({
+					data: {
+						messageId,
+						userId: session.user.id,
+						type,
+						reasons: reasons || [],
+						comment: comment || "",
+					},
+				});
 
-		return NextResponse.json({ success: true });
+				return {
+					body: { success: true },
+					resourceType: "message_feedback",
+					resourceId: feedback.id,
+				};
+			}
+		);
 	} catch (error) {
 		logServerError("chat/feedback", "save_failed", error);
 		return NextResponse.json(

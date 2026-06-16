@@ -64,6 +64,25 @@ function parseRetryAfterSeconds(value: string | null): number | undefined {
 export function normalizeProviderStreamError(
 	error: unknown
 ): NormalizedStreamError {
+	if (
+		error &&
+		typeof error === "object" &&
+		"code" in error &&
+		(error as { code?: unknown }).code === "PROVIDER_CIRCUIT_OPEN"
+	) {
+		const circuitError = error as {
+			retryAfterSeconds?: number;
+			statusCode?: number;
+		};
+		return {
+			message:
+				"The selected model is temporarily unavailable. Please retry shortly.",
+			errorCode: "PROVIDER_CIRCUIT_OPEN",
+			providerStatusCode: circuitError.statusCode ?? 503,
+			retryAfterSeconds: circuitError.retryAfterSeconds,
+		};
+	}
+
 	const providerError = error as {
 		statusCode?: number;
 		status?: number;

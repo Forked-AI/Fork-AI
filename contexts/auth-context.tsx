@@ -1,6 +1,7 @@
 'use client'
 
 import { authClient } from '@/lib/auth-client'
+import { clearConversationDetailCache } from '@/lib/conversation-api'
 import type { Session, User } from 'better-auth/types'
 import {
 	createContext,
@@ -51,6 +52,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 			// Clear local state
 			setUser(null)
 			setSession(null)
+			clearConversationDetailCache()
 
 			// Clear any local storage data that might persist
 			if (typeof window !== 'undefined') {
@@ -71,6 +73,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 			// Even if logout fails, clear local state and redirect
 			setUser(null)
 			setSession(null)
+			clearConversationDetailCache()
 			window.location.href = '/'
 		}
 	}

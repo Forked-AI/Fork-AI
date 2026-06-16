@@ -1,4 +1,8 @@
 import { auth } from "@/lib/auth";
+import {
+	getUserIdempotencyActorKey,
+	withJsonIdempotency,
+} from "@/lib/idempotency";
 import { prisma } from "@/lib/prisma";
 import { logServerError } from "@/lib/server-safe-log";
 import { headers } from "next/headers";
@@ -190,33 +194,48 @@ export async function POST(request: Request) {
 
 		const { title, collectionId } = result.data;
 
-		// If collection specified, verify ownership
-		if (collectionId) {
-			const collection = await prisma.collection.findFirst({
-				where: {
-					id: collectionId,
-					userId,
-					isDefault: false,
-				},
-			});
-
-			if (!collection) {
-				return NextResponse.json(
-					{ error: "Collection not found" },
-					{ status: 404 }
-				);
-			}
-		}
-
-		const conversation = await prisma.conversation.create({
-			data: {
-				title,
-				userId,
-				collectionId: collectionId || null,
+		return await withJsonIdempotency(
+			request,
+			{
+				scope: "conversations:create",
+				actorKey: getUserIdempotencyActorKey(userId),
+				requestInput: result.data,
 			},
-		});
+			async () => {
+				// If collection specified, verify ownership
+				if (collectionId) {
+					const collection = await prisma.collection.findFirst({
+						where: {
+							id: collectionId,
+							userId,
+							isDefault: false,
+						},
+					});
 
-		return NextResponse.json({ conversation }, { status: 201 });
+					if (!collection) {
+						return {
+							body: { error: "Collection not found" },
+							status: 404,
+						};
+					}
+				}
+
+				const conversation = await prisma.conversation.create({
+					data: {
+						title,
+						userId,
+						collectionId: collectionId || null,
+					},
+				});
+
+				return {
+					body: { conversation },
+					status: 201,
+					resourceType: "conversation",
+					resourceId: conversation.id,
+				};
+			}
+		);
 	} catch (error) {
 		logServerError("conversations", "create_failed", error);
 		return NextResponse.json(

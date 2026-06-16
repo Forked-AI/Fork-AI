@@ -1,4 +1,8 @@
 import { auth } from "@/lib/auth";
+import {
+	getUserIdempotencyActorKey,
+	withJsonIdempotency,
+} from "@/lib/idempotency";
 import { prisma } from "@/lib/prisma";
 import { logServerError } from "@/lib/server-safe-log";
 import { NextRequest, NextResponse } from "next/server";
@@ -25,48 +29,82 @@ export async function POST(
 
 		const { id } = await params;
 
-		// Verify message belongs to user's conversation
-		const message = await prisma.message.findFirst({
-			where: {
-				id,
-				conversation: {
-					userId: session.user.id,
-				},
+		return await withJsonIdempotency(
+			request,
+			{
+				scope: "messages:duplicate",
+				actorKey: getUserIdempotencyActorKey(session.user.id),
+				requestInput: { id },
 			},
-		});
+			async () => {
+				// Verify message belongs to user's conversation
+				const message = await prisma.message.findFirst({
+					where: {
+						id,
+						conversation: {
+							userId: session.user.id,
+						},
+					},
+				});
 
-		if (!message) {
-			return NextResponse.json(
-				{ error: "Message not found" },
-				{ status: 404 }
-			);
-		}
+				if (!message) {
+					return {
+						body: { error: "Message not found" },
+						status: 404,
+					};
+				}
 
-		// Create duplicate with +30px offset
-		const duplicate = await prisma.message.create({
-			data: {
-				conversationId: message.conversationId,
-				role: message.role,
-				content: message.content,
-				model: message.model,
-				parentMessageId: message.parentMessageId,
-				positionX: message.positionX ? message.positionX + 30 : 30,
-				positionY: message.positionY ? message.positionY + 30 : 30,
-				isRootNode: false,
-				rootNodeName: null,
-			},
-		});
+				// Create duplicate with +30px offset
+				const duplicate = await prisma.message.create({
+					data: {
+						conversationId: message.conversationId,
+						role: message.role,
+						content: message.content,
+						model: message.model,
+						promptTokens: message.promptTokens,
+						completionTokens: message.completionTokens,
+						isError: message.isError,
+						status: message.status,
+						errorCode: message.errorCode,
+						providerStatusCode: message.providerStatusCode,
+						providerRequestId: message.providerRequestId,
+						startedAt: message.startedAt,
+						completedAt: message.completedAt,
+						cancelledAt: message.cancelledAt,
+						lastChunkAt: message.lastChunkAt,
+						parentMessageId: message.parentMessageId,
+						positionX: message.positionX
+							? message.positionX + 30
+							: 30,
+						positionY: message.positionY
+							? message.positionY + 30
+							: 30,
+						isRootNode: false,
+						rootNodeName: null,
+					},
+				});
 
-		return NextResponse.json({
-			id: duplicate.id,
-			role: duplicate.role,
-			content: duplicate.content,
-			model: duplicate.model,
-			parentMessageId: duplicate.parentMessageId,
-			positionX: duplicate.positionX,
-			positionY: duplicate.positionY,
-			createdAt: duplicate.createdAt.getTime(),
-		});
+				return {
+					body: {
+						id: duplicate.id,
+						role: duplicate.role,
+						content: duplicate.content,
+						model: duplicate.model,
+						isError: duplicate.isError,
+						status: duplicate.status,
+						errorCode: duplicate.errorCode,
+						providerStatusCode: duplicate.providerStatusCode,
+						providerRequestId: duplicate.providerRequestId,
+						parentMessageId: duplicate.parentMessageId,
+						positionX: duplicate.positionX,
+						positionY: duplicate.positionY,
+						createdAt: duplicate.createdAt.getTime(),
+					},
+					resourceType: "message",
+					resourceId: duplicate.id,
+				};
+			}
+		);
 	} catch (error) {
 		logServerError("messages/duplicate", "duplicate_failed", error);
 		return NextResponse.json(
