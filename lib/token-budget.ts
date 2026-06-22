@@ -92,15 +92,16 @@ function estimateTokensFromMessages(
 }
 
 async function getMonthlyUsedTokens(
-	userId: string,
+	subjectType: "user" | "organization",
+	subjectId: string,
 	windowStart: Date,
 	windowEnd: Date
 ): Promise<number> {
 	const usage = await prisma.quotaLedger.findUnique({
 		where: {
 			subjectType_subjectId_windowStart_windowEnd: {
-				subjectType: "user",
-				subjectId: userId,
+				subjectType,
+				subjectId,
 				windowStart,
 				windowEnd,
 			},
@@ -112,11 +113,13 @@ async function getMonthlyUsedTokens(
 }
 
 export async function getTokenBudgetStatus(
-	userId: string
+	userId: string,
+	organizationId?: string | null
 ): Promise<TokenBudgetStatus> {
 	const entitlement = await resolveSubscriptionEntitlement(userId);
 	const usedTokens = await getMonthlyUsedTokens(
-		userId,
+		organizationId ? "organization" : "user",
+		organizationId ?? userId,
 		entitlement.usageWindowStart,
 		entitlement.usageWindowEnd
 	);
@@ -135,11 +138,13 @@ export async function getTokenBudgetStatus(
 
 export async function checkTokenBudgetBeforeRequest(
 	userId: string,
-	messagesForEstimate: Array<{ content: ProviderMessageContent }>
+	messagesForEstimate: Array<{ content: ProviderMessageContent }>,
+	organizationId?: string | null
 ): Promise<TokenBudgetCheckResult> {
 	const entitlement = await resolveSubscriptionEntitlement(userId);
 	const usedTokens = await getMonthlyUsedTokens(
-		userId,
+		organizationId ? "organization" : "user",
+		organizationId ?? userId,
 		entitlement.usageWindowStart,
 		entitlement.usageWindowEnd
 	);

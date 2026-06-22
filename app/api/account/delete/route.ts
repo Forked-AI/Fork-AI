@@ -48,6 +48,20 @@ export async function POST(request: Request) {
 						status: 401,
 					};
 				}
+				const organizationMembershipCount = await prisma.member.count({
+					where: { userId: session.user.id },
+				});
+				if (organizationMembershipCount > 0) {
+					return {
+						body: {
+							error: "Leave or transfer organization memberships before deleting this account.",
+							errorCode:
+								"ACCOUNT_DELETE_ORGANIZATION_MEMBERSHIP_REQUIRED",
+							organizationMembershipCount,
+						},
+						status: 409,
+					};
+				}
 
 				const fileObjects = await prisma.fileObject.findMany({
 					where: { userId: session.user.id },

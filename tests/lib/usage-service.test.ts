@@ -130,6 +130,63 @@ describe("usage service", () => {
 		);
 	});
 
+	it("increments both user and organization quota ledgers for organization usage", async () => {
+		const prismaClient: any = {
+			usageEvent: {
+				findUnique: vi.fn(async () => ({
+					id: "usage-org-1",
+					userId: "user-1",
+					organizationId: "org-1",
+					outcome: "pending",
+				})),
+				updateMany: vi.fn(async () => ({ count: 1 })),
+			},
+			quotaLedger: { upsert: vi.fn(async () => ({ id: "quota-1" })) },
+		};
+		prismaClient.$transaction = vi.fn(async (callback) =>
+			callback(prismaClient)
+		);
+		const measurement = buildUsageMeasurement({
+			requestedModel: "mistral-small-latest",
+			providerUsage: { promptTokens: 7, completionTokens: 3 },
+			outcome: "completed",
+		});
+
+		await expect(
+			finalizeUsageEvent({
+				prismaClient,
+				deduplicationKey: "generation:org-1",
+				outcome: "completed",
+				measurement,
+				finalizedAt: new Date("2026-06-05T10:00:00.000Z"),
+			})
+		).resolves.toBe(true);
+
+		expect(prismaClient.quotaLedger.upsert).toHaveBeenCalledTimes(2);
+		expect(prismaClient.quotaLedger.upsert).toHaveBeenCalledWith(
+			expect.objectContaining({
+				where: {
+					subjectType_subjectId_windowStart_windowEnd:
+						expect.objectContaining({
+							subjectType: "user",
+							subjectId: "user-1",
+						}),
+				},
+			})
+		);
+		expect(prismaClient.quotaLedger.upsert).toHaveBeenCalledWith(
+			expect.objectContaining({
+				where: {
+					subjectType_subjectId_windowStart_windowEnd:
+						expect.objectContaining({
+							subjectType: "organization",
+							subjectId: "org-1",
+						}),
+				},
+			})
+		);
+	});
+
 	it("finalizes stale non-generation attempts without double counting", async () => {
 		let outcome = "pending";
 		const prismaClient: any = {

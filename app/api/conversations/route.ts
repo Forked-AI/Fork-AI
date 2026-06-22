@@ -4,6 +4,10 @@ import {
 	withJsonIdempotency,
 } from "@/lib/idempotency";
 import { prisma } from "@/lib/prisma";
+import {
+	recordOrganizationAuditLog,
+	resolveWorkspaceContext,
+} from "@/lib/organizations/context";
 import { logServerError } from "@/lib/server-safe-log";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
@@ -40,6 +44,12 @@ export async function GET(request: Request) {
 		}
 
 		const userId = session.user.id;
+		const workspaceResult = await resolveWorkspaceContext({
+			session,
+			requiredPermission: "workspace:read",
+		});
+		if (!workspaceResult.ok) return workspaceResult.response;
+		const workspace = workspaceResult.workspace;
 		const url = new URL(request.url);
 
 		const queryResult = listQuerySchema.safeParse({
@@ -60,9 +70,16 @@ export async function GET(request: Request) {
 		const { page, limit, collectionId, search, pinned } = queryResult.data;
 		const skip = (page - 1) * limit;
 
-		// Build where clause with search support
-		// eslint-disable-next-line @typescript-eslint/no-explicit-any
-		const where: any = { userId };
+		const where: {
+			userId: string;
+			organizationId: string | null;
+			collectionId?: string | null;
+			isPinned?: boolean;
+			OR?: Array<Record<string, unknown>>;
+		} = {
+			userId,
+			organizationId: workspace.organizationId,
+		};
 
 		if (collectionId !== undefined) {
 			where.collectionId = collectionId === "null" ? null : collectionId;
@@ -92,7 +109,10 @@ export async function GET(request: Request) {
 
 		const orderBy =
 			pinned === true
-				? [{ pinnedAt: "desc" as const }, { updatedAt: "desc" as const }]
+				? [
+						{ pinnedAt: "desc" as const },
+						{ updatedAt: "desc" as const },
+					]
 				: [{ updatedAt: "desc" as const }];
 
 		// Fetch conversations with last message preview
@@ -182,6 +202,12 @@ export async function POST(request: Request) {
 		}
 
 		const userId = session.user.id;
+		const workspaceResult = await resolveWorkspaceContext({
+			session,
+			requiredPermission: "workspace:write",
+		});
+		if (!workspaceResult.ok) return workspaceResult.response;
+		const workspace = workspaceResult.workspace;
 		const body = await request.json();
 
 		const result = createConversationSchema.safeParse(body);
@@ -224,8 +250,17 @@ export async function POST(request: Request) {
 					data: {
 						title,
 						userId,
+						organizationId: workspace.organizationId,
 						collectionId: collectionId || null,
 					},
+				});
+				await recordOrganizationAuditLog({
+					workspace,
+					action: "conversation.create",
+					targetType: "conversation",
+					targetId: conversation.id,
+					request,
+					metadata: { titleLength: title.length },
 				});
 
 				return {

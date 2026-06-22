@@ -15,6 +15,8 @@ const prismaMocks = vi.hoisted(() => ({
 	usageEventFindMany: vi.fn(),
 	quotaLedgerFindMany: vi.fn(),
 	quotaLedgerDeleteMany: vi.fn(),
+	memberFindMany: vi.fn(),
+	memberCount: vi.fn(),
 	fileObjectFindMany: vi.fn(),
 }));
 const storageMocks = vi.hoisted(() => ({
@@ -51,6 +53,10 @@ vi.mock("@/lib/prisma", () => ({
 		quotaLedger: {
 			findMany: prismaMocks.quotaLedgerFindMany,
 			deleteMany: prismaMocks.quotaLedgerDeleteMany,
+		},
+		member: {
+			findMany: prismaMocks.memberFindMany,
+			count: prismaMocks.memberCount,
 		},
 		fileObject: {
 			findMany: prismaMocks.fileObjectFindMany,
@@ -95,12 +101,16 @@ describe("account lifecycle routes", () => {
 		prismaMocks.usageEventFindMany.mockReset();
 		prismaMocks.quotaLedgerFindMany.mockReset();
 		prismaMocks.quotaLedgerDeleteMany.mockReset();
+		prismaMocks.memberFindMany.mockReset();
+		prismaMocks.memberCount.mockReset();
 		prismaMocks.fileObjectFindMany.mockReset();
 		storageMocks.deleteStoredFileObjects.mockReset();
 		authMocks.getSession.mockResolvedValue({ user: { id: "user-1" } });
 		prismaMocks.usageEventFindMany.mockResolvedValue([]);
 		prismaMocks.quotaLedgerFindMany.mockResolvedValue([]);
 		prismaMocks.quotaLedgerDeleteMany.mockResolvedValue({ count: 0 });
+		prismaMocks.memberFindMany.mockResolvedValue([]);
+		prismaMocks.memberCount.mockResolvedValue(0);
 		prismaMocks.fileObjectFindMany.mockResolvedValue([]);
 		storageMocks.deleteStoredFileObjects.mockResolvedValue(undefined);
 	});

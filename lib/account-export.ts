@@ -42,10 +42,19 @@ function formatMarkdownExport(
 		`- Email verified: ${exportData.profile.emailVerified ? "yes" : "no"}`,
 		`- Created: ${exportData.profile.createdAt}`,
 		"",
-		"## Conversations",
-		"",
 	];
 
+	if (exportData.organizationMemberships.length > 0) {
+		lines.push("## Organization Memberships", "");
+		for (const membership of exportData.organizationMemberships) {
+			lines.push(
+				`- ${membership.organization.name} (${membership.role}) joined ${membership.createdAt}`
+			);
+		}
+		lines.push("");
+	}
+
+	lines.push("## Conversations", "");
 	for (const conversation of exportData.conversations) {
 		lines.push(`### ${conversation.title}`, "");
 		lines.push(`Created: ${conversation.createdAt}`);
@@ -76,6 +85,13 @@ function formatMarkdownExport(
 		lines.push(`- Expires: ${share.expiresAt ?? "never"}`);
 		lines.push(`- Access count: ${share.accessCount}`);
 		lines.push("");
+	}
+
+	lines.push("## Feedback", "");
+	for (const feedback of exportData.feedback) {
+		lines.push(
+			`- ${feedback.createdAt}: ${feedback.type}, ${feedback.lifecycleState}, reasons: ${feedback.reasons.join(", ") || "none"}`
+		);
 	}
 
 	lines.push("## AI Usage", "");
@@ -137,155 +153,198 @@ async function auditAccountExportModeration(
 }
 
 export async function buildAccountExportData(userId: string) {
-	const [user, conversations, shares, usageEvents, quotaLedgers] =
-		await Promise.all([
-			prisma.user.findUnique({
-				where: { id: userId },
-				select: {
-					id: true,
-					name: true,
-					email: true,
-					emailVerified: true,
-					createdAt: true,
-					updatedAt: true,
-				},
-			}),
-			prisma.conversation.findMany({
-				where: { userId },
-				orderBy: { createdAt: "asc" },
-				include: {
-					collection: {
-						select: { id: true, name: true, color: true },
+	const [
+		user,
+		organizationMemberships,
+		conversations,
+		shares,
+		feedback,
+		usageEvents,
+		quotaLedgers,
+	] = await Promise.all([
+		prisma.user.findUnique({
+			where: { id: userId },
+			select: {
+				id: true,
+				name: true,
+				email: true,
+				emailVerified: true,
+				createdAt: true,
+				updatedAt: true,
+			},
+		}),
+		prisma.member.findMany({
+			where: { userId },
+			orderBy: { createdAt: "asc" },
+			select: {
+				id: true,
+				role: true,
+				createdAt: true,
+				organization: {
+					select: {
+						id: true,
+						name: true,
+						slug: true,
+						createdAt: true,
 					},
-					messages: {
-						orderBy: { createdAt: "asc" },
-						select: {
-							id: true,
-							role: true,
-							content: true,
-							model: true,
-							promptTokens: true,
-							completionTokens: true,
-							isError: true,
-							status: true,
-							errorCode: true,
-							providerStatusCode: true,
-							providerRequestId: true,
-							startedAt: true,
-							completedAt: true,
-							cancelledAt: true,
-							lastChunkAt: true,
-							promptVersion: true,
-							contextSummaryId: true,
-							contextEstimatedTokens: true,
-							contextRecentMessageCount: true,
-							contextTotalMessageCount: true,
-							parentMessageId: true,
-							createdAt: true,
-							attachments: {
-								orderBy: { displayOrder: "asc" },
-								select: {
-									id: true,
-									fileObjectId: true,
-									kind: true,
-									promptUse: true,
-									displayOrder: true,
-									createdAt: true,
-									fileObject: {
-										select: {
-											id: true,
-											filename: true,
-											mimeType: true,
-											sizeBytes: true,
-											status: true,
-											kind: true,
-											purpose: true,
-										},
+				},
+			},
+		}),
+		prisma.conversation.findMany({
+			where: { userId },
+			orderBy: { createdAt: "asc" },
+			include: {
+				collection: {
+					select: { id: true, name: true, color: true },
+				},
+				messages: {
+					orderBy: { createdAt: "asc" },
+					select: {
+						id: true,
+						role: true,
+						content: true,
+						model: true,
+						promptTokens: true,
+						completionTokens: true,
+						isError: true,
+						status: true,
+						errorCode: true,
+						providerStatusCode: true,
+						providerRequestId: true,
+						startedAt: true,
+						completedAt: true,
+						cancelledAt: true,
+						lastChunkAt: true,
+						promptVersion: true,
+						contextSummaryId: true,
+						contextEstimatedTokens: true,
+						contextRecentMessageCount: true,
+						contextTotalMessageCount: true,
+						parentMessageId: true,
+						createdAt: true,
+						attachments: {
+							orderBy: { displayOrder: "asc" },
+							select: {
+								id: true,
+								fileObjectId: true,
+								kind: true,
+								promptUse: true,
+								displayOrder: true,
+								createdAt: true,
+								fileObject: {
+									select: {
+										id: true,
+										filename: true,
+										mimeType: true,
+										sizeBytes: true,
+										status: true,
+										kind: true,
+										purpose: true,
 									},
 								},
 							},
 						},
 					},
-					summaries: {
-						orderBy: { createdAt: "asc" },
-						select: {
-							id: true,
-							content: true,
-							promptVersion: true,
-							provider: true,
-							model: true,
-							sourceMessageCount: true,
-							summarizedThroughMessageId: true,
-							createdAt: true,
-							updatedAt: true,
-						},
+				},
+				summaries: {
+					orderBy: { createdAt: "asc" },
+					select: {
+						id: true,
+						content: true,
+						promptVersion: true,
+						provider: true,
+						model: true,
+						sourceMessageCount: true,
+						summarizedThroughMessageId: true,
+						createdAt: true,
+						updatedAt: true,
 					},
 				},
-			}),
-			prisma.sharedConversation.findMany({
-				where: { createdBy: userId },
-				orderBy: { createdAt: "asc" },
-				select: {
-					id: true,
-					conversationId: true,
-					shareToken: true,
-					selectedMessageIds: true,
-					snapshotData: true,
-					summaryData: true,
-					maskingData: true,
-					title: true,
-					createdAt: true,
-					expiresAt: true,
-					isActive: true,
-					accessCount: true,
-					allowDownload: true,
-					showTimestamps: true,
-					showModel: true,
-				},
-			}),
-			prisma.usageEvent.findMany({
-				where: { userId },
-				orderBy: { createdAt: "asc" },
-				select: {
-					id: true,
-					conversationId: true,
-					messageId: true,
-					generationId: true,
-					feature: true,
-					outcome: true,
-					provider: true,
-					requestedModel: true,
-					resolvedModel: true,
-					promptVersion: true,
-					providerRequestId: true,
-					inputTokens: true,
-					outputTokens: true,
-					billableUnits: true,
-					usageSource: true,
-					estimatedCostUsd: true,
-					costIsEstimate: true,
-					pricingVersion: true,
-					errorCode: true,
-					providerStatusCode: true,
-					startedAt: true,
-					finalizedAt: true,
-					createdAt: true,
-				},
-			}),
-			prisma.quotaLedger.findMany({
-				where: { subjectType: "user", subjectId: userId },
-				orderBy: { windowStart: "asc" },
-				select: {
-					id: true,
-					windowStart: true,
-					windowEnd: true,
-					usedTokens: true,
-					usedUsd: true,
-					createdAt: true,
-					updatedAt: true,
-				},
-			}),
-		]);
+			},
+		}),
+		prisma.sharedConversation.findMany({
+			where: { createdBy: userId },
+			orderBy: { createdAt: "asc" },
+			select: {
+				id: true,
+				conversationId: true,
+				organizationId: true,
+				shareToken: true,
+				selectedMessageIds: true,
+				snapshotData: true,
+				summaryData: true,
+				maskingData: true,
+				title: true,
+				createdAt: true,
+				expiresAt: true,
+				isActive: true,
+				accessCount: true,
+				allowDownload: true,
+				showTimestamps: true,
+				showModel: true,
+			},
+		}),
+		prisma.messageFeedback.findMany({
+			where: { userId },
+			orderBy: { createdAt: "asc" },
+			select: {
+				id: true,
+				messageId: true,
+				type: true,
+				reasons: true,
+				comment: true,
+				correctionJson: true,
+				lifecycleState: true,
+				redactedComment: true,
+				redactedCorrectionJson: true,
+				createdAt: true,
+				updatedAt: true,
+			},
+		}),
+		prisma.usageEvent.findMany({
+			where: { userId },
+			orderBy: { createdAt: "asc" },
+			select: {
+				id: true,
+				organizationId: true,
+				conversationId: true,
+				messageId: true,
+				generationId: true,
+				feature: true,
+				outcome: true,
+				provider: true,
+				requestedModel: true,
+				resolvedModel: true,
+				promptVersion: true,
+				providerRequestId: true,
+				inputTokens: true,
+				outputTokens: true,
+				billableUnits: true,
+				usageSource: true,
+				estimatedCostUsd: true,
+				costIsEstimate: true,
+				pricingVersion: true,
+				errorCode: true,
+				providerStatusCode: true,
+				startedAt: true,
+				finalizedAt: true,
+				createdAt: true,
+			},
+		}),
+		prisma.quotaLedger.findMany({
+			where: { subjectType: "user", subjectId: userId },
+			orderBy: { windowStart: "asc" },
+			select: {
+				id: true,
+				windowStart: true,
+				windowEnd: true,
+				usedTokens: true,
+				usedUsd: true,
+				createdAt: true,
+				updatedAt: true,
+			},
+		}),
+	]);
 
 	if (!user) {
 		throw new Error("Authenticated user was not found");
@@ -298,6 +357,15 @@ export async function buildAccountExportData(userId: string) {
 			createdAt: user.createdAt.toISOString(),
 			updatedAt: user.updatedAt.toISOString(),
 		},
+		organizationMemberships: organizationMemberships.map((membership) => ({
+			id: membership.id,
+			role: membership.role,
+			createdAt: membership.createdAt.toISOString(),
+			organization: {
+				...membership.organization,
+				createdAt: membership.organization.createdAt.toISOString(),
+			},
+		})),
 		conversations: conversations.map((conversation) => ({
 			...conversation,
 			createdAt: conversation.createdAt.toISOString(),
@@ -334,6 +402,11 @@ export async function buildAccountExportData(userId: string) {
 			...share,
 			createdAt: share.createdAt.toISOString(),
 			expiresAt: share.expiresAt?.toISOString() ?? null,
+		})),
+		feedback: feedback.map((item) => ({
+			...item,
+			createdAt: item.createdAt.toISOString(),
+			updatedAt: item.updatedAt.toISOString(),
 		})),
 		usageEvents: usageEvents.map((usage) => ({
 			...usage,

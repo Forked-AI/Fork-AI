@@ -1,6 +1,6 @@
 import { stripeClient } from "@better-auth/stripe/client";
 import { createAuthClient } from "better-auth/client";
-import { adminClient } from "better-auth/client/plugins";
+import { adminClient, organizationClient } from "better-auth/client/plugins";
 
 const publicAuthBaseUrl = process.env.NEXT_PUBLIC_BETTER_AUTH_URL?.trim();
 
@@ -10,6 +10,7 @@ export const authClient = createAuthClient({
 	...(publicAuthBaseUrl ? { baseURL: publicAuthBaseUrl } : {}),
 	plugins: [
 		adminClient(),
+		organizationClient(),
 		stripeClient({
 			subscription: true,
 		}),

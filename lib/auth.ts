@@ -1,7 +1,13 @@
 import { stripe } from "@better-auth/stripe";
 import { betterAuth } from "better-auth";
 import { prismaAdapter } from "better-auth/adapters/prisma";
-import { admin, multiSession } from "better-auth/plugins";
+import { admin, multiSession, organization } from "better-auth/plugins";
+import {
+	adminAc,
+	defaultAc as defaultOrganizationAc,
+	memberAc,
+	ownerAc,
+} from "better-auth/plugins/organization/access";
 import nodeMailer from "nodemailer";
 import Stripe from "stripe";
 import {
@@ -28,6 +34,22 @@ const stripeWebhookSecret = process.env.STRIPE_WEBHOOK_SECRET?.trim();
 const stripeProMonthlyPriceId = process.env.STRIPE_PRO_MONTHLY_PRICE_ID?.trim();
 const stripeProAnnualPriceId = process.env.STRIPE_PRO_ANNUAL_PRICE_ID?.trim();
 let stripeSubscriptionPlugin: ReturnType<typeof stripe> | null = null;
+
+const billingAdminAc = defaultOrganizationAc.newRole({
+	organization: ["update"],
+	member: [],
+	invitation: [],
+	team: [],
+	ac: ["read"],
+});
+
+const viewerAc = defaultOrganizationAc.newRole({
+	organization: [],
+	member: [],
+	invitation: [],
+	team: [],
+	ac: ["read"],
+});
 
 if (stripeSecretKey && stripeWebhookSecret && stripeProMonthlyPriceId) {
 	const stripeClient = new Stripe(stripeSecretKey, {
@@ -197,6 +219,24 @@ export const auth = betterAuth({
 			maximumSessions: 2,
 		}),
 		admin(),
+		organization({
+			creatorRole: "owner",
+			membershipLimit: parsePositiveInt(
+				process.env.ORGANIZATION_MEMBERSHIP_LIMIT,
+				100
+			),
+			invitationLimit: parsePositiveInt(
+				process.env.ORGANIZATION_INVITATION_LIMIT,
+				100
+			),
+			roles: {
+				owner: ownerAc,
+				admin: adminAc,
+				member: memberAc,
+				billing_admin: billingAdminAc,
+				viewer: viewerAc,
+			},
+		}),
 		...(stripeSubscriptionPlugin ? [stripeSubscriptionPlugin] : []),
 	],
 });

@@ -196,6 +196,40 @@ enum SkillPackageKind {
   setup
 }
 
+enum MarketplacePostType {
+  result
+  skill
+  config
+  setup
+  case_study
+}
+
+enum MarketplacePostVisibility {
+  draft
+  unlisted
+  public
+}
+
+enum MarketplacePostStatus {
+  draft
+  listed
+  blocked
+  unpublished
+  deleted
+}
+
+enum MarketplaceProvenanceType {
+  skill
+  config_pack
+  setup
+  model
+}
+
+enum MarketplaceEngagementType {
+  like
+  bookmark
+}
+
 enum MessageAttachmentKind {
   document
   image
@@ -213,34 +247,40 @@ model WaitlistEntry {
 }
 
 model User {
-  id                    String                     @id
-  name                  String
-  email                 String
-  emailVerified         Boolean                    @default(false)
-  image                 String?
-  role                  String                     @default("user")
-  createdAt             DateTime                   @default(now())
-  updatedAt             DateTime                   @updatedAt
-  sessions              Session[]
-  accounts              Account[]
-  collections           Collection[]
-  conversations         Conversation[]
-  conversationSummaries ConversationSummary[]
-  sharedConversations   SharedConversation[]
-  generations           Generation[]
-  usageEvents           UsageEvent[]
-  moderationEvents      ModerationEvent[]
-  abuseSignals          AbuseSignal[]
-  adminAuditEvents      AdminAuditEvent[]
-  fileObjects           FileObject[]
-  documentChunks        DocumentChunk[]
-  messageAttachments    MessageAttachment[]
-  toolExecutions        ToolExecution[]
-  skillTemplates        SkillTemplate[]
-  skillTemplateVersions SkillTemplateVersion[]
-  installedSkills       InstalledSkill[]
-  skillBindings         ConversationSkillBinding[]
-  skillCollections      SkillCollection[]
+  id                     String                      @id
+  name                   String
+  email                  String
+  emailVerified          Boolean                     @default(false)
+  image                  String?
+  role                   String                      @default("user")
+  createdAt              DateTime                    @default(now())
+  updatedAt              DateTime                    @updatedAt
+  sessions               Session[]
+  accounts               Account[]
+  organizationMembers    Member[]
+  organizationInvites    Invitation[]                @relation("InvitationInviter")
+  apiKeys                ApiKey[]
+  organizationAuditLogs  OrganizationAuditLog[]      @relation("OrganizationAuditActor")
+  collections            Collection[]
+  conversations          Conversation[]
+  conversationSummaries  ConversationSummary[]
+  sharedConversations    SharedConversation[]
+  generations            Generation[]
+  usageEvents            UsageEvent[]
+  moderationEvents       ModerationEvent[]
+  abuseSignals           AbuseSignal[]
+  adminAuditEvents       AdminAuditEvent[]
+  fileObjects            FileObject[]
+  documentChunks         DocumentChunk[]
+  messageAttachments     MessageAttachment[]
+  toolExecutions         ToolExecution[]
+  skillTemplates         SkillTemplate[]
+  skillTemplateVersions  SkillTemplateVersion[]
+  installedSkills        InstalledSkill[]
+  skillBindings          ConversationSkillBinding[]
+  skillCollections       SkillCollection[]
+  marketplacePosts       MarketplacePost[]
+  marketplaceEngagements MarketplacePostEngagement[]
 
   banned     Boolean?  @default(false)
   banReason  String?
@@ -263,10 +303,13 @@ model Session {
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  impersonatedBy String?
+  impersonatedBy       String?
+  activeOrganizationId String?
+  activeOrganization   Organization? @relation(fields: [activeOrganizationId], references: [id], onDelete: SetNull)
 
   @@unique([token])
   @@index([userId])
+  @@index([activeOrganizationId])
   @@map("session")
 }
 
@@ -302,6 +345,128 @@ model Verification {
   @@map("verification")
 }
 
+model Organization {
+  id                    String                     @id @default(cuid())
+  name                  String
+  slug                  String                     @unique
+  logo                  String?
+  metadata              Json?
+  createdAt             DateTime                   @default(now())
+  updatedAt             DateTime                   @updatedAt
+  sessions              Session[]
+  members               Member[]
+  invitations           Invitation[]
+  roles                 OrganizationRole[]
+  apiKeys               ApiKey[]
+  auditLogs             OrganizationAuditLog[]
+  conversations         Conversation[]
+  conversationSummaries ConversationSummary[]
+  generations           Generation[]
+  usageEvents           UsageEvent[]
+  fileObjects           FileObject[]
+  documentChunks        DocumentChunk[]
+  messageAttachments    MessageAttachment[]
+  embeddings            Embedding[]
+  moderationEvents      ModerationEvent[]
+  abuseSignals          AbuseSignal[]
+  toolExecutions        ToolExecution[]
+  sharedConversations   SharedConversation[]
+  skillBindings         ConversationSkillBinding[]
+  marketplacePosts      MarketplacePost[]
+
+  @@index([slug])
+  @@map("organization")
+}
+
+model Member {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role           String       @default("member")
+  createdAt      DateTime     @default(now())
+
+  @@unique([organizationId, userId])
+  @@index([userId])
+  @@index([organizationId, role])
+  @@map("member")
+}
+
+model Invitation {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  email          String
+  role           String
+  status         String       @default("pending")
+  expiresAt      DateTime?
+  inviterId      String
+  inviter        User         @relation("InvitationInviter", fields: [inviterId], references: [id], onDelete: Cascade)
+  createdAt      DateTime     @default(now())
+
+  @@index([organizationId, status])
+  @@index([email])
+  @@index([inviterId])
+  @@map("invitation")
+}
+
+model OrganizationRole {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  role           String
+  permission     String       @db.Text
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([organizationId, role])
+  @@map("organizationRole")
+}
+
+model ApiKey {
+  id             String        @id @default(cuid())
+  userId         String
+  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organizationId String?
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name           String
+  keyPrefix      String
+  keyHash        String        @unique
+  scopes         String[]
+  lastUsedAt     DateTime?
+  expiresAt      DateTime?
+  revokedAt      DateTime?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  @@index([userId, createdAt])
+  @@index([organizationId, createdAt])
+  @@index([keyPrefix])
+  @@map("api_key")
+}
+
+model OrganizationAuditLog {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  actorId        String?
+  actor          User?        @relation("OrganizationAuditActor", fields: [actorId], references: [id], onDelete: SetNull)
+  action         String
+  targetType     String
+  targetId       String?
+  requestId      String?
+  idempotencyKey String?
+  metadataJson   Json?
+  createdAt      DateTime     @default(now())
+
+  @@index([organizationId, createdAt])
+  @@index([actorId, createdAt])
+  @@index([action, createdAt])
+  @@index([targetType, targetId, createdAt])
+  @@map("organization_audit_log")
+}
+
 model Collection {
   id            String         @id @default(cuid())
   name          String
@@ -322,6 +487,8 @@ model Conversation {
   title               String
   userId              String
   user                User                       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organizationId      String?
+  organization        Organization?              @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   collectionId        String?
   collection          Collection?                @relation(fields: [collectionId], references: [id], onDelete: SetNull)
   isPinned            Boolean                    @default(false)
@@ -341,6 +508,8 @@ model Conversation {
   updatedAt           DateTime                   @updatedAt
 
   @@index([userId])
+  @@index([organizationId])
+  @@index([userId, organizationId, updatedAt])
   @@index([collectionId])
   @@index([userId, isPinned, pinnedAt])
   @@map("conversation")
@@ -381,6 +550,7 @@ model Message {
   moderationEvents             ModerationEvent[]
   toolExecutions               ToolExecution[]
   skillBindings                ConversationSkillBinding[]
+  marketplacePosts             MarketplacePost[]
   // Tree structure for branching
   parentMessageId              String?                    @map("parent_message_id")
   parentMessage                Message?                   @relation("MessageTree", fields: [parentMessageId], references: [id], onDelete: SetNull)
@@ -400,24 +570,27 @@ model Message {
 }
 
 model ConversationSummary {
-  id                         String       @id @default(cuid())
+  id                         String        @id @default(cuid())
   conversationId             String
-  conversation               Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  conversation               Conversation  @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   userId                     String
-  user                       User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  content                    String       @db.Text
+  user                       User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organizationId             String?
+  organization               Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  content                    String        @db.Text
   promptVersion              String
   provider                   String?
   model                      String?
   sourceMessageCount         Int
   summarizedThroughMessageId String?
   sourceFingerprint          String
-  createdAt                  DateTime     @default(now())
-  updatedAt                  DateTime     @updatedAt
+  createdAt                  DateTime      @default(now())
+  updatedAt                  DateTime      @updatedAt
 
   @@unique([conversationId, promptVersion, sourceFingerprint])
   @@index([conversationId, createdAt])
   @@index([userId])
+  @@index([organizationId])
   @@map("conversation_summary")
 }
 
@@ -425,6 +598,8 @@ model Generation {
   id                        String           @id @default(cuid())
   userId                    String
   user                      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organizationId            String?
+  organization              Organization?    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   conversationId            String
   conversation              Conversation     @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   userMessageId             String
@@ -457,6 +632,7 @@ model Generation {
   usageEvent                UsageEvent?
 
   @@index([userId])
+  @@index([organizationId])
   @@index([conversationId])
   @@index([userMessageId])
   @@index([status, lastChunkAt])
@@ -573,6 +749,8 @@ model ConversationSkillBinding {
   id               String            @id @default(cuid())
   userId           String
   user             User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organizationId   String?
+  organization     Organization?     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   conversationId   String?
   conversation     Conversation?     @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   messageId        String?
@@ -586,6 +764,7 @@ model ConversationSkillBinding {
   consumedAt       DateTime?
 
   @@index([userId, conversationId, scope])
+  @@index([organizationId])
   @@index([messageId])
   @@index([installedSkillId, createdAt])
   @@map("conversation_skill_binding")
@@ -597,6 +776,7 @@ model UsageEvent {
   userId             String?
   user               User?         @relation(fields: [userId], references: [id], onDelete: Cascade)
   organizationId     String?
+  organization       Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   conversationId     String?
   conversation       Conversation? @relation(fields: [conversationId], references: [id], onDelete: SetNull)
   messageId          String?
@@ -625,6 +805,7 @@ model UsageEvent {
   updatedAt          DateTime      @updatedAt
 
   @@index([userId, createdAt])
+  @@index([organizationId, createdAt])
   @@index([conversationId, createdAt])
   @@index([feature, outcome, createdAt])
   @@index([provider, requestedModel, createdAt])
@@ -652,6 +833,7 @@ model FileObject {
   userId           String
   user             User                @relation(fields: [userId], references: [id], onDelete: Cascade)
   organizationId   String?
+  organization     Organization?       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   storageProvider  FileStorageProvider @default(local)
   storageKey       String              @unique
   kind             FileObjectKind      @default(text)
@@ -688,6 +870,8 @@ model MessageAttachment {
   conversation   Conversation               @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   userId         String
   user           User                       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organizationId String?
+  organization   Organization?              @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   fileObjectId   String
   fileObject     FileObject                 @relation(fields: [fileObjectId], references: [id], onDelete: Cascade)
   kind           MessageAttachmentKind
@@ -699,24 +883,26 @@ model MessageAttachment {
   @@index([messageId, displayOrder])
   @@index([conversationId, displayOrder])
   @@index([userId, createdAt])
+  @@index([organizationId])
   @@index([fileObjectId])
   @@map("message_attachment")
 }
 
 model DocumentChunk {
-  id              String     @id
+  id              String        @id
   fileId          String
-  file            FileObject @relation(fields: [fileId], references: [id], onDelete: Cascade)
+  file            FileObject    @relation(fields: [fileId], references: [id], onDelete: Cascade)
   userId          String
-  user            User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   organizationId  String?
+  organization    Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   chunkIndex      Int
-  content         String     @db.Text
+  content         String        @db.Text
   contentHash     String
   pageNumber      Int?
   sourceLabel     String
-  permissionScope String     @default("user")
-  createdAt       DateTime   @default(now())
+  permissionScope String        @default("user")
+  createdAt       DateTime      @default(now())
   embedding       Embedding?
 
   @@unique([fileId, chunkIndex])
@@ -732,6 +918,7 @@ model Embedding {
   chunk          DocumentChunk          @relation(fields: [chunkId], references: [id], onDelete: Cascade)
   userId         String
   organizationId String?
+  organization   Organization?          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   provider       String
   model          String
   dimensions     Int
@@ -745,17 +932,27 @@ model Embedding {
 }
 
 model MessageFeedback {
-  id        String   @id @default(cuid())
-  messageId String
-  message   Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
-  userId    String
-  type      String // "good" | "bad"
-  reasons   String[] // Array of reasons for bad feedback
-  comment   String   @db.Text
-  createdAt DateTime @default(now())
+  id                     String    @id @default(cuid())
+  messageId              String
+  message                Message   @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  userId                 String
+  type                   String // "good" | "bad"
+  reasons                String[] // Array of reasons for bad feedback
+  comment                String    @db.Text
+  correctionJson         Json?
+  lifecycleState         String    @default("raw_feedback")
+  redactedComment        String?   @db.Text
+  redactedCorrectionJson Json?
+  evalCaseJson           Json?
+  provenanceJson         Json?
+  reviewedBy             String?
+  reviewedAt             DateTime?
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
 
   @@index([messageId])
   @@index([userId])
+  @@index([lifecycleState, createdAt])
   @@map("message_feedback")
 }
 
@@ -764,6 +961,7 @@ model SharedConversation {
   conversationId     String
   shareToken         String    @unique // 10-char random token used in public URL
   createdBy          String
+  organizationId     String?
   selectedMessageIds String    @db.Text // JSON: string[] ordered list of message IDs
   snapshotData       String    @db.Text // JSON: MessageSnapshot[] frozen at share time
   summaryData        String?   @db.Text // JSON: ShareSummaryData | null
@@ -780,11 +978,14 @@ model SharedConversation {
   showModel      Boolean @default(true)
 
   user             User              @relation(fields: [createdBy], references: [id], onDelete: Cascade)
+  organization     Organization?     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   conversation     Conversation      @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   moderationEvents ModerationEvent[]
+  marketplacePosts MarketplacePost[]
 
   @@index([shareToken])
   @@index([createdBy])
+  @@index([organizationId])
   @@index([conversationId])
   @@map("shared_conversation")
 }
@@ -794,6 +995,7 @@ model ModerationEvent {
   userId               String?
   user                 User?               @relation(fields: [userId], references: [id], onDelete: Cascade)
   organizationId       String?
+  organization         Organization?       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   conversationId       String?
   conversation         Conversation?       @relation(fields: [conversationId], references: [id], onDelete: SetNull)
   messageId            String?
@@ -816,6 +1018,7 @@ model ModerationEvent {
   createdAt            DateTime            @default(now())
 
   @@index([userId, createdAt])
+  @@index([organizationId, createdAt])
   @@index([conversationId, createdAt])
   @@index([messageId, createdAt])
   @@index([fileObjectId, createdAt])
@@ -830,6 +1033,7 @@ model AbuseSignal {
   userId             String?
   user               User?              @relation(fields: [userId], references: [id], onDelete: Cascade)
   organizationId     String?
+  organization       Organization?      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   conversationId     String?
   conversation       Conversation?      @relation(fields: [conversationId], references: [id], onDelete: SetNull)
   signalType         AbuseSignalType
@@ -845,10 +1049,87 @@ model AbuseSignal {
   createdAt          DateTime           @default(now())
 
   @@index([userId, createdAt])
+  @@index([organizationId, createdAt])
   @@index([conversationId, createdAt])
   @@index([signalType, createdAt])
   @@index([actorHash, createdAt])
   @@map("abuse_signal")
+}
+
+model MarketplacePost {
+  id                   String                      @id @default(cuid())
+  type                 MarketplacePostType         @default(result)
+  title                String
+  summary              String                      @db.Text
+  visibility           MarketplacePostVisibility   @default(draft)
+  status               MarketplacePostStatus       @default(draft)
+  creatorId            String
+  creator              User                        @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  organizationId       String?
+  organization         Organization?               @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  sharedConversationId String
+  sharedConversation   SharedConversation          @relation(fields: [sharedConversationId], references: [id], onDelete: Cascade)
+  sourceMessageId      String?
+  sourceMessage        Message?                    @relation(fields: [sourceMessageId], references: [id], onDelete: SetNull)
+  moderationAction     ModerationAction            @default(allow)
+  moderationCategory   ModerationCategory          @default(none)
+  moderationSeverity   ModerationSeverity          @default(low)
+  moderationReason     String                      @default("") @db.Text
+  contentHash          String?
+  viewCount            Int                         @default(0)
+  likeCount            Int                         @default(0)
+  bookmarkCount        Int                         @default(0)
+  reportCount          Int                         @default(0)
+  publishedAt          DateTime?
+  unlistedAt           DateTime?
+  deletedAt            DateTime?
+  createdAt            DateTime                    @default(now())
+  updatedAt            DateTime                    @updatedAt
+  provenance           MarketplacePostProvenance[]
+  engagements          MarketplacePostEngagement[]
+
+  @@index([creatorId, createdAt])
+  @@index([organizationId, createdAt])
+  @@index([visibility, status, createdAt])
+  @@index([sharedConversationId])
+  @@index([sourceMessageId])
+  @@map("marketplace_post")
+}
+
+model MarketplacePostProvenance {
+  id               String                    @id @default(cuid())
+  postId           String
+  post             MarketplacePost           @relation(fields: [postId], references: [id], onDelete: Cascade)
+  type             MarketplaceProvenanceType
+  templateId       String?
+  versionId        String?
+  installedSkillId String?
+  title            String
+  source           String?
+  riskLevel        ToolRiskLevel?
+  requiredTools    String[]
+  renderHash       String?
+  metadataJson     Json?
+  createdAt        DateTime                  @default(now())
+
+  @@index([postId])
+  @@index([type, templateId, versionId])
+  @@map("marketplace_post_provenance")
+}
+
+model MarketplacePostEngagement {
+  id        String                    @id @default(cuid())
+  postId    String
+  post      MarketplacePost           @relation(fields: [postId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User                      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      MarketplaceEngagementType
+  createdAt DateTime                  @default(now())
+
+  @@unique([postId, userId, type])
+  @@index([userId, type, createdAt])
+  @@index([postId, type])
+  @@map("marketplace_post_engagement")
 }
 
 model ToolExecution {
@@ -856,6 +1137,7 @@ model ToolExecution {
   userId               String
   user                 User                @relation(fields: [userId], references: [id], onDelete: Cascade)
   organizationId       String?
+  organization         Organization?       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   conversationId       String?
   conversation         Conversation?       @relation(fields: [conversationId], references: [id], onDelete: SetNull)
   messageId            String?
@@ -875,6 +1157,7 @@ model ToolExecution {
   updatedAt            DateTime            @updatedAt
 
   @@index([userId, createdAt])
+  @@index([organizationId, createdAt])
   @@index([conversationId, createdAt])
   @@index([messageId, createdAt])
   @@index([toolName, createdAt])
@@ -899,6 +1182,7 @@ model OperationalMetric {
   errorCode      String?
   providerStatus Int?
   userId         String?
+  organizationId String?
   conversationId String?
   traceId        String?
   metadataJson   Json?
@@ -910,6 +1194,7 @@ model OperationalMetric {
   @@index([job, createdAt])
   @@index([provider, model, createdAt])
   @@index([userId, createdAt])
+  @@index([organizationId, createdAt])
   @@index([conversationId, createdAt])
   @@index([traceId])
   @@map("operational_metric")

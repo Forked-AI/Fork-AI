@@ -113,6 +113,7 @@ export interface UsageMeasurement {
 }
 
 export interface BuildUsageMeasurementInput {
+	provider?: string | null;
 	requestedModel: string;
 	resolvedModel?: string | null;
 	providerRequestId?: string | null;
@@ -199,6 +200,7 @@ export function buildUsageMeasurement(
 					? "provider"
 					: "none");
 	const cost = estimateUsageCost({
+		provider: input.provider,
 		requestedModel: input.requestedModel,
 		resolvedModel: input.resolvedModel,
 		inputTokens,
@@ -258,6 +260,7 @@ export async function finalizeUsageEventInTransaction({
 		select: {
 			id: true,
 			userId: true,
+			organizationId: true,
 			conversationId: true,
 			feature: true,
 			provider: true,
@@ -309,28 +312,44 @@ export async function finalizeUsageEventInTransaction({
 	}
 
 	const { start, end } = getUtcMonthWindow(finalizedAt);
-	await prismaClient.quotaLedger.upsert({
-		where: {
-			subjectType_subjectId_windowStart_windowEnd: {
-				subjectType: "user",
-				subjectId: existing.userId,
-				windowStart: start,
-				windowEnd: end,
-			},
-		},
-		update: {
-			usedTokens: { increment: measurement.billableUnits },
-			usedUsd: { increment: measurement.estimatedCostUsd ?? "0" },
-		},
-		create: {
-			subjectType: "user",
-			subjectId: existing.userId,
-			windowStart: start,
-			windowEnd: end,
-			usedTokens: measurement.billableUnits,
-			usedUsd: measurement.estimatedCostUsd ?? "0",
-		},
-	});
+	const ledgerSubjects = [
+		{ subjectType: "user" as const, subjectId: existing.userId },
+		...(existing.organizationId
+			? [
+					{
+						subjectType: "organization" as const,
+						subjectId: existing.organizationId,
+					},
+				]
+			: []),
+	];
+
+	await Promise.all(
+		ledgerSubjects.map((subject) =>
+			prismaClient.quotaLedger.upsert({
+				where: {
+					subjectType_subjectId_windowStart_windowEnd: {
+						subjectType: subject.subjectType,
+						subjectId: subject.subjectId,
+						windowStart: start,
+						windowEnd: end,
+					},
+				},
+				update: {
+					usedTokens: { increment: measurement.billableUnits },
+					usedUsd: { increment: measurement.estimatedCostUsd ?? "0" },
+				},
+				create: {
+					subjectType: subject.subjectType,
+					subjectId: subject.subjectId,
+					windowStart: start,
+					windowEnd: end,
+					usedTokens: measurement.billableUnits,
+					usedUsd: measurement.estimatedCostUsd ?? "0",
+				},
+			})
+		)
+	);
 
 	await recordUsageOperationalMetric({
 		prismaClient,
