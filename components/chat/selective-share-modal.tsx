@@ -27,7 +27,10 @@ import { Textarea } from '@/components/ui/textarea'
 import type { Message } from '@/hooks/use-chat'
 import { useToast } from '@/hooks/use-toast'
 import { createIdempotencyHeaders } from '@/lib/idempotency-client'
-import { applyApprovedShareMasking, FULL_MESSAGE_REDACTION } from '@/lib/share/masking'
+import {
+	applyApprovedShareMasking,
+	FULL_MESSAGE_REDACTION,
+} from '@/lib/share/masking'
 import type {
 	ShareDraftMessage,
 	SharePreviewResponse,
@@ -49,12 +52,20 @@ import {
 	RefreshCw,
 	Share2,
 	Sparkles,
+	Store,
 	Twitter,
 	User,
 	X,
 } from 'lucide-react'
 import Link from 'next/link'
-import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import {
+	type ReactNode,
+	useCallback,
+	useEffect,
+	useMemo,
+	useRef,
+	useState,
+} from 'react'
 
 interface SelectiveShareModalProps {
 	open: boolean
@@ -94,12 +105,18 @@ export function SelectiveShareModal({
 	const [isPreparing, setIsPreparing] = useState(false)
 	const [isPublishing, setIsPublishing] = useState(false)
 	const [isRevoking, setIsRevoking] = useState(false)
+	const [isPostingToMarketplace, setIsPostingToMarketplace] = useState(false)
 	const [shareUrl, setShareUrl] = useState<string | null>(null)
 	const [shareToken, setShareToken] = useState<string | null>(null)
+	const [marketplacePostUrl, setMarketplacePostUrl] = useState<string | null>(
+		null
+	)
 	const [copied, setCopied] = useState(false)
 	const [draftMessages, setDraftMessages] = useState<ShareDraftMessage[]>([])
 	const [redactedIds, setRedactedIds] = useState<Set<string>>(new Set())
-	const [expandedMessageIds, setExpandedMessageIds] = useState<Set<string>>(new Set())
+	const [expandedMessageIds, setExpandedMessageIds] = useState<Set<string>>(
+		new Set()
+	)
 	const [summary, setSummary] = useState<ShareSummaryData | null>(null)
 	const [summaryWarning, setSummaryWarning] = useState<string | null>(null)
 
@@ -145,7 +162,9 @@ export function SelectiveShareModal({
 	useEffect(() => {
 		const availableIds = new Set(draftMessages.map((message) => message.id))
 		setExpandedMessageIds((current) => {
-			const next = new Set(Array.from(current).filter((id) => availableIds.has(id)))
+			const next = new Set(
+				Array.from(current).filter((id) => availableIds.has(id))
+			)
 			return next.size === current.size ? current : next
 		})
 	}, [draftMessages])
@@ -155,9 +174,13 @@ export function SelectiveShareModal({
 	}, [conversationTitle, open])
 
 	useEffect(() => {
-		const selectedSet = new Set(orderedSelectedMessages.map((message) => message.id))
+		const selectedSet = new Set(
+			orderedSelectedMessages.map((message) => message.id)
+		)
 		setRedactedIds((current) => {
-			const next = new Set(Array.from(current).filter((id) => selectedSet.has(id)))
+			const next = new Set(
+				Array.from(current).filter((id) => selectedSet.has(id))
+			)
 			redactedIdsRef.current = next
 			return next
 		})
@@ -191,14 +214,19 @@ export function SelectiveShareModal({
 		setIsPreparing(true)
 		try {
 			const approvedFindingIdsByMessageId = Object.fromEntries(
-				draftMessagesRef.current.map((message) => [message.id, message.approvedFindingIds])
+				draftMessagesRef.current.map((message) => [
+					message.id,
+					message.approvedFindingIds,
+				])
 			)
 			const response = await fetch('/api/chat/share/preview', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({
 					conversationId,
-					selectedMessageIds: orderedSelectedMessages.map((message) => message.id),
+					selectedMessageIds: orderedSelectedMessages.map(
+						(message) => message.id
+					),
 					autoMaskPII,
 					generateSummary,
 					approvedFindingIdsByMessageId,
@@ -217,12 +245,24 @@ export function SelectiveShareModal({
 			setSummaryWarning(data.summaryWarning)
 		} catch (error) {
 			const message =
-				error instanceof Error ? error.message : 'Failed to prepare share preview'
-			toast({ title: 'Preview failed', description: message, variant: 'destructive' })
+				error instanceof Error
+					? error.message
+					: 'Failed to prepare share preview'
+			toast({
+				title: 'Preview failed',
+				description: message,
+				variant: 'destructive',
+			})
 		} finally {
 			setIsPreparing(false)
 		}
-	}, [autoMaskPII, conversationId, generateSummary, orderedSelectedMessages, toast])
+	}, [
+		autoMaskPII,
+		conversationId,
+		generateSummary,
+		orderedSelectedMessages,
+		toast,
+	])
 
 	useEffect(() => {
 		if (!open) return
@@ -249,7 +289,9 @@ export function SelectiveShareModal({
 				current.map((message) => {
 					if (message.id !== messageId) return message
 
-					const approvedFindingIds = message.approvedFindingIds.includes(findingId)
+					const approvedFindingIds = message.approvedFindingIds.includes(
+						findingId
+					)
 						? message.approvedFindingIds.filter((id) => id !== findingId)
 						: [...message.approvedFindingIds, findingId]
 
@@ -269,14 +311,17 @@ export function SelectiveShareModal({
 		[clearSummaryAfterPrivacyChange]
 	)
 
-	const toggleExpandedMessage = useCallback((messageId: string, expanded: boolean) => {
-		setExpandedMessageIds((current) => {
-			const next = new Set(current)
-			if (expanded) next.add(messageId)
-			else next.delete(messageId)
-			return next
-		})
-	}, [])
+	const toggleExpandedMessage = useCallback(
+		(messageId: string, expanded: boolean) => {
+			setExpandedMessageIds((current) => {
+				const next = new Set(current)
+				if (expanded) next.add(messageId)
+				else next.delete(messageId)
+				return next
+			})
+		},
+		[]
+	)
 
 	const handlePublish = useCallback(async () => {
 		if (!conversationId || draftMessages.length === 0) return
@@ -318,7 +363,11 @@ export function SelectiveShareModal({
 		} catch (error) {
 			const message =
 				error instanceof Error ? error.message : 'Failed to create share link'
-			toast({ title: 'Publish failed', description: message, variant: 'destructive' })
+			toast({
+				title: 'Publish failed',
+				description: message,
+				variant: 'destructive',
+			})
 		} finally {
 			setIsPublishing(false)
 		}
@@ -343,7 +392,10 @@ export function SelectiveShareModal({
 		try {
 			await navigator.clipboard.writeText(shareUrl)
 			setCopied(true)
-			toast({ title: 'Link copied', description: 'Share link copied to clipboard.' })
+			toast({
+				title: 'Link copied',
+				description: 'Share link copied to clipboard.',
+			})
 			setTimeout(() => setCopied(false), 2000)
 		} catch {
 			toast({ title: 'Failed to copy', variant: 'destructive' })
@@ -355,7 +407,9 @@ export function SelectiveShareModal({
 			if (!shareUrl) return
 
 			const encodedUrl = encodeURIComponent(shareUrl)
-			const encodedText = encodeURIComponent(`Check out this shared conversation: ${shareTitle}`)
+			const encodedText = encodeURIComponent(
+				`Check out this shared conversation: ${shareTitle}`
+			)
 
 			if (platform === 'twitter') {
 				window.open(
@@ -385,10 +439,15 @@ export function SelectiveShareModal({
 
 		setIsRevoking(true)
 		try {
-			const response = await fetch(`/api/share/${shareToken}`, { method: 'DELETE' })
+			const response = await fetch(`/api/share/${shareToken}`, {
+				method: 'DELETE',
+			})
 			if (!response.ok) throw new Error()
 
-			toast({ title: 'Link revoked', description: 'The share link is no longer active.' })
+			toast({
+				title: 'Link revoked',
+				description: 'The share link is no longer active.',
+			})
 			setShareToken(null)
 			setShareUrl(null)
 			setStep('review')
@@ -399,10 +458,54 @@ export function SelectiveShareModal({
 		}
 	}, [shareToken, toast])
 
+	const handlePostToMarketplace = useCallback(async () => {
+		if (!shareToken) return
+
+		setIsPostingToMarketplace(true)
+		try {
+			const response = await fetch('/api/marketplace/posts', {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json',
+					...createIdempotencyHeaders('marketplace-share-post'),
+				},
+				body: JSON.stringify({
+					shareToken,
+					title: shareTitle || conversationTitle,
+					summary: summary?.overview ?? '',
+					visibility: 'unlisted',
+				}),
+			})
+			const payload = await response.json().catch(() => null)
+			if (!response.ok) {
+				throw new Error(payload?.error ?? 'Failed to post to marketplace')
+			}
+			const postUrl = `/marketplace/posts/${payload.post.id}`
+			setMarketplacePostUrl(postUrl)
+			toast({
+				title: 'Marketplace post created',
+				description:
+					'The selected share snapshot is now available as an unlisted post.',
+			})
+		} catch (error) {
+			toast({
+				title: 'Marketplace post failed',
+				description:
+					error instanceof Error
+						? error.message
+						: 'Failed to post to marketplace',
+				variant: 'destructive',
+			})
+		} finally {
+			setIsPostingToMarketplace(false)
+		}
+	}, [conversationTitle, shareTitle, shareToken, summary, toast])
+
 	const resetState = useCallback(() => {
 		setStep('review')
 		setShareUrl(null)
 		setShareToken(null)
+		setMarketplacePostUrl(null)
 		setCopied(false)
 		setDraftMessages([])
 		setSummary(null)
@@ -455,7 +558,9 @@ export function SelectiveShareModal({
 										size="sm"
 										variant="outline"
 										onClick={() => void refreshPreview()}
-										disabled={isPreparing || orderedSelectedMessages.length === 0}
+										disabled={
+											isPreparing || orderedSelectedMessages.length === 0
+										}
 										className="border-[#57FCFF]/20 hover:border-[#57FCFF]/40"
 									>
 										{isPreparing ? (
@@ -465,7 +570,10 @@ export function SelectiveShareModal({
 										)}
 										Refresh Preview
 									</Button>
-									<span>Preview is generated server-side and is not saved until you publish.</span>
+									<span>
+										Preview is generated server-side and is not saved until you
+										publish.
+									</span>
 								</div>
 								<div className="flex items-center gap-2">
 									<ToggleChip
@@ -487,8 +595,9 @@ export function SelectiveShareModal({
 									<AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-yellow-500" />
 									<div className="min-w-0 flex-1">
 										<p className="text-xs font-medium text-yellow-500">
-											{warnings.length} message{warnings.length !== 1 ? 's are' : ' is'} missing
-											their pair
+											{warnings.length} message
+											{warnings.length !== 1 ? 's are' : ' is'} missing their
+											pair
 										</p>
 										<p className="mt-0.5 text-xs text-yellow-500/70">
 											Sharing without the question or response may lose context.
@@ -510,7 +619,9 @@ export function SelectiveShareModal({
 									<div className="mb-4 flex items-center justify-between gap-3">
 										<div>
 											<Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-												Selected Messages ({draftMessages.length || orderedSelectedMessages.length})
+												Selected Messages (
+												{draftMessages.length || orderedSelectedMessages.length}
+												)
 											</Label>
 											<p className="mt-1 text-xs text-muted-foreground">
 												Review only the content that will be published.
@@ -534,7 +645,8 @@ export function SelectiveShareModal({
 												const displayContent = isRedacted
 													? FULL_MESSAGE_REDACTION
 													: message.maskedContent
-												const collapsible = !isRedacted && shouldCollapsePreview(displayContent)
+												const collapsible =
+													!isRedacted && shouldCollapsePreview(displayContent)
 												const isExpanded = expandedMessageIds.has(message.id)
 
 												return (
@@ -564,17 +676,23 @@ export function SelectiveShareModal({
 																</div>
 																<div className="min-w-0">
 																	<p className="text-xs font-semibold uppercase tracking-wider text-white/70">
-																		{isUser ? 'You' : message.model || 'Assistant'}
+																		{isUser
+																			? 'You'
+																			: message.model || 'Assistant'}
 																	</p>
 																	<p className="text-[11px] text-white/35">
-																		{new Date(message.createdAt).toLocaleString()}
+																		{new Date(
+																			message.createdAt
+																		).toLocaleString()}
 																	</p>
 																</div>
 															</div>
 															<Button
 																size="sm"
 																variant={isRedacted ? 'default' : 'outline'}
-																onClick={() => toggleWholeMessageRedaction(message.id)}
+																onClick={() =>
+																	toggleWholeMessageRedaction(message.id)
+																}
 																className={cn(
 																	'h-8 px-3 text-xs',
 																	isRedacted
@@ -597,7 +715,10 @@ export function SelectiveShareModal({
 																toggleExpandedMessage(message.id, nextOpen)
 															}
 														>
-															<CollapsibleContent forceMount className="overflow-visible">
+															<CollapsibleContent
+																forceMount
+																className="overflow-visible"
+															>
 																<div
 																	data-testid={`share-preview-body-${message.id}`}
 																	className={cn(
@@ -605,7 +726,9 @@ export function SelectiveShareModal({
 																		isRedacted
 																			? 'border-red-500/20 bg-red-500/5 text-white/45'
 																			: 'border-white/10 bg-black/10 text-white/85',
-																		collapsible && !isExpanded && 'max-h-40 overflow-hidden'
+																		collapsible &&
+																			!isExpanded &&
+																			'max-h-40 overflow-hidden'
 																	)}
 																>
 																	<div className="whitespace-pre-wrap break-words [overflow-wrap:anywhere]">
@@ -641,11 +764,16 @@ export function SelectiveShareModal({
 																</p>
 																<div className="flex flex-wrap gap-2">
 																	{message.findings.map((finding) => {
-																		const active = message.approvedFindingIds.includes(finding.id)
+																		const active =
+																			message.approvedFindingIds.includes(
+																				finding.id
+																			)
 																		return (
 																			<button
 																				key={finding.id}
-																				onClick={() => toggleFinding(message.id, finding.id)}
+																				onClick={() =>
+																					toggleFinding(message.id, finding.id)
+																				}
 																				className={cn(
 																					'rounded-full border px-3 py-1 text-[11px] transition-colors',
 																					active
@@ -681,7 +809,8 @@ export function SelectiveShareModal({
 													Share Summary
 												</p>
 												<p className="mt-1 text-xs text-muted-foreground">
-													Optional. Generated from the reviewed content, not the full chat.
+													Optional. Generated from the reviewed content, not the
+													full chat.
 												</p>
 											</div>
 											{generateSummary && (
@@ -714,7 +843,11 @@ export function SelectiveShareModal({
 													onChange={(event) =>
 														setSummary((current) =>
 															current
-																? { ...current, overview: event.target.value, edited: true }
+																? {
+																		...current,
+																		overview: event.target.value,
+																		edited: true,
+																	}
 																: current
 														)
 													}
@@ -729,7 +862,9 @@ export function SelectiveShareModal({
 															.map((value) => value.trim())
 															.filter(Boolean)
 														setSummary((current) =>
-															current ? { ...current, keyPoints, edited: true } : current
+															current
+																? { ...current, keyPoints, edited: true }
+																: current
 														)
 													}}
 													placeholder="One key point per line"
@@ -751,16 +886,22 @@ export function SelectiveShareModal({
 												Link Settings
 											</Label>
 											<div className="space-y-1.5">
-												<Label className="text-xs text-muted-foreground">Share title</Label>
+												<Label className="text-xs text-muted-foreground">
+													Share title
+												</Label>
 												<Input
 													value={shareTitle}
-													onChange={(event) => setShareTitle(event.target.value)}
+													onChange={(event) =>
+														setShareTitle(event.target.value)
+													}
 													placeholder="Conversation title"
 													className="bg-sidebar"
 												/>
 											</div>
 											<div className="space-y-1.5">
-												<Label className="text-xs text-muted-foreground">Link expiry</Label>
+												<Label className="text-xs text-muted-foreground">
+													Link expiry
+												</Label>
 												<div className="flex gap-2">
 													{([7, 30, null] as const).map((value) => (
 														<button
@@ -855,11 +996,18 @@ export function SelectiveShareModal({
 
 									<div className="rounded-xl border border-border/50 bg-sidebar/30 p-3">
 										<p className="text-xs text-muted-foreground">
-											<span className="font-semibold text-foreground">Privacy:</span> only the{' '}
-											{draftMessages.length || orderedSelectedMessages.length} selected message
-											{(draftMessages.length || orderedSelectedMessages.length) !== 1 ? 's' : ''}{' '}
-											will be shared. Sensitive values stay local until you publish, and the
-											preview is never persisted.
+											<span className="font-semibold text-foreground">
+												Privacy:
+											</span>{' '}
+											only the{' '}
+											{draftMessages.length || orderedSelectedMessages.length}{' '}
+											selected message
+											{(draftMessages.length ||
+												orderedSelectedMessages.length) !== 1
+												? 's'
+												: ''}{' '}
+											will be shared. Sensitive values stay local until you
+											publish, and the preview is never persisted.
 										</p>
 									</div>
 								</div>
@@ -872,7 +1020,9 @@ export function SelectiveShareModal({
 									<Check className="h-4 w-4 text-[#57FCFF]" />
 								</div>
 								<div>
-									<p className="text-sm font-semibold text-foreground">Share link created</p>
+									<p className="text-sm font-semibold text-foreground">
+										Share link created
+									</p>
 									<p className="text-xs text-muted-foreground">
 										Anyone with the link can view this shared conversation.
 									</p>
@@ -909,8 +1059,7 @@ export function SelectiveShareModal({
 										className="bg-sidebar/50"
 										onClick={() => handleShareVia('twitter')}
 									>
-										<Twitter className="mr-2 h-4 w-4" />
-										X / Twitter
+										<Twitter className="mr-2 h-4 w-4" />X / Twitter
 									</Button>
 									<Button
 										variant="outline"
@@ -932,9 +1081,50 @@ export function SelectiveShareModal({
 							</div>
 
 							<div className="flex justify-end">
-								<Button asChild variant="link" size="sm" className="px-0 text-[#57FCFF]">
+								<Button
+									asChild
+									variant="link"
+									size="sm"
+									className="px-0 text-[#57FCFF]"
+								>
 									<Link href="/chat/shares">Manage shares</Link>
 								</Button>
+							</div>
+
+							<div className="rounded-xl border border-border/50 bg-sidebar/30 p-4">
+								<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+									<div>
+										<p className="text-sm font-semibold text-foreground">
+											Post this snapshot to Marketplace
+										</p>
+										<p className="mt-1 text-xs text-muted-foreground">
+											Creates an unlisted post from only the selected shared
+											messages.
+										</p>
+									</div>
+									{marketplacePostUrl ? (
+										<Button asChild size="sm" variant="outline">
+											<Link href={marketplacePostUrl}>
+												<Link2 className="mr-2 h-4 w-4" />
+												View post
+											</Link>
+										</Button>
+									) : (
+										<Button
+											size="sm"
+											variant="outline"
+											onClick={() => void handlePostToMarketplace()}
+											disabled={isPostingToMarketplace}
+										>
+											{isPostingToMarketplace ? (
+												<Loader2 className="mr-2 h-4 w-4 animate-spin" />
+											) : (
+												<Store className="mr-2 h-4 w-4" />
+											)}
+											Post to Marketplace
+										</Button>
+									)}
+								</div>
 							</div>
 
 							<div className="border-t border-border/50 pt-4">
@@ -964,7 +1154,9 @@ export function SelectiveShareModal({
 					{step === 'review' && (
 						<Button
 							onClick={handlePublish}
-							disabled={isPreparing || isPublishing || draftMessages.length === 0}
+							disabled={
+								isPreparing || isPublishing || draftMessages.length === 0
+							}
 							className="bg-[#57FCFF] font-semibold text-black hover:bg-[#57FCFF]/90"
 						>
 							{isPublishing ? (
@@ -1028,7 +1220,10 @@ function usePairAnalysis(
 	selectedMessageIds: string[],
 	allMessages: Message[]
 ): PairWarning[] {
-	const selectedSet = useMemo(() => new Set(selectedMessageIds), [selectedMessageIds])
+	const selectedSet = useMemo(
+		() => new Set(selectedMessageIds),
+		[selectedMessageIds]
+	)
 	const messageMap = useMemo(
 		() => new Map(allMessages.map((message) => [message.id, message])),
 		[allMessages]
@@ -1049,7 +1244,8 @@ function usePairAnalysis(
 				)
 				if (!assistantChild) {
 					const anyChild = allMessages.find(
-						(item) => item.parentMessageId === message.id && item.role === 'assistant'
+						(item) =>
+							item.parentMessageId === message.id && item.role === 'assistant'
 					)
 					result.push({
 						messageId: id,
@@ -1058,7 +1254,10 @@ function usePairAnalysis(
 					})
 				}
 			} else if (message.role === 'assistant') {
-				if (message.parentMessageId && !selectedSet.has(message.parentMessageId)) {
+				if (
+					message.parentMessageId &&
+					!selectedSet.has(message.parentMessageId)
+				) {
 					result.push({
 						messageId: id,
 						missingRole: 'user',

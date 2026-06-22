@@ -14,6 +14,7 @@ import {
 	shouldPersistModerationDecision,
 } from "@/lib/moderation/moderation-service";
 import { prisma } from "@/lib/prisma";
+import { resolveWorkspaceContext } from "@/lib/organizations/context";
 import { buildSharePersistencePayload } from "@/lib/share/service";
 import type {
 	ShareMessageSelectionInput,
@@ -100,6 +101,7 @@ function isUniqueConstraintError(error: unknown) {
 async function createShareWithUniqueToken(data: {
 	conversationId: string;
 	createdBy: string;
+	organizationId: string | null;
 	selectedMessageIds: string;
 	snapshotData: string;
 	summaryData: string | null;
@@ -160,6 +162,12 @@ export async function POST(request: Request) {
 		}
 
 		const userId = session.user.id;
+		const workspaceResult = await resolveWorkspaceContext({
+			session,
+			requiredPermission: "workspace:write",
+		});
+		if (!workspaceResult.ok) return workspaceResult.response;
+		const workspace = workspaceResult.workspace;
 		const {
 			conversationId,
 			messageSelections,
@@ -177,11 +185,18 @@ export async function POST(request: Request) {
 			{
 				scope: "chat:share:create",
 				actorKey: getUserIdempotencyActorKey(userId),
-				requestInput: parsed.data,
+				requestInput: {
+					...parsed.data,
+					organizationId: workspace.organizationId,
+				},
 			},
 			async () => {
 				const conversation = await prisma.conversation.findFirst({
-					where: { id: conversationId, userId },
+					where: {
+						id: conversationId,
+						userId,
+						organizationId: workspace.organizationId,
+					},
 					select: { id: true, title: true },
 				});
 				if (!conversation) {
@@ -268,6 +283,7 @@ export async function POST(request: Request) {
 						contentHash: hashModeratedContent(selectedContent),
 						contentLength: selectedContent.length,
 						userId,
+						organizationId: workspace.organizationId,
 						conversationId,
 						metadata: {
 							messageCount: orderedMessages.length,
@@ -279,6 +295,7 @@ export async function POST(request: Request) {
 						severity: moderationDecision.severity,
 						action: "block",
 						userId,
+						organizationId: workspace.organizationId,
 						conversationId,
 						metadata: {
 							category: moderationDecision.category,
@@ -307,6 +324,7 @@ export async function POST(request: Request) {
 				const share = await createShareWithUniqueToken({
 					conversationId,
 					createdBy: userId,
+					organizationId: workspace.organizationId,
 					selectedMessageIds: JSON.stringify(
 						payload.selectedMessageIds
 					),
@@ -330,6 +348,7 @@ export async function POST(request: Request) {
 						contentHash: hashModeratedContent(selectedContent),
 						contentLength: selectedContent.length,
 						userId,
+						organizationId: workspace.organizationId,
 						conversationId,
 						sharedConversationId: share.id,
 						metadata: {
@@ -386,11 +405,21 @@ export async function GET(request: Request) {
 		}
 
 		const userId = session.user.id;
+		const workspaceResult = await resolveWorkspaceContext({
+			session,
+			requiredPermission: "workspace:read",
+		});
+		if (!workspaceResult.ok) return workspaceResult.response;
+		const workspace = workspaceResult.workspace;
 		const origin =
 			process.env.NEXT_PUBLIC_BASE_URL ?? "http://localhost:3000";
 
 		const shares = await prisma.sharedConversation.findMany({
-			where: { createdBy: userId, isActive: true },
+			where: {
+				createdBy: userId,
+				organizationId: workspace.organizationId,
+				isActive: true,
+			},
 			include: {
 				conversation: { select: { title: true } },
 			},

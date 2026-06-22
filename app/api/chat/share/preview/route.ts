@@ -1,5 +1,6 @@
 import { auth } from "@/lib/auth";
 import { checkChatRateLimit } from "@/lib/chat-rate-limit";
+import { resolveWorkspaceContext } from "@/lib/organizations/context";
 import { prisma } from "@/lib/prisma";
 import { buildSharePreview } from "@/lib/share/service";
 import { logServerError } from "@/lib/server-safe-log";
@@ -65,6 +66,12 @@ export async function POST(request: Request) {
 		}
 
 		const userId = session.user.id;
+		const workspaceResult = await resolveWorkspaceContext({
+			session,
+			requiredPermission: "workspace:read",
+		});
+		if (!workspaceResult.ok) return workspaceResult.response;
+		const workspace = workspaceResult.workspace;
 		const {
 			conversationId,
 			selectedMessageIds,
@@ -75,7 +82,11 @@ export async function POST(request: Request) {
 		} = parsed.data;
 
 		const conversation = await prisma.conversation.findFirst({
-			where: { id: conversationId, userId },
+			where: {
+				id: conversationId,
+				userId,
+				organizationId: workspace.organizationId,
+			},
 			select: { id: true },
 		});
 		if (!conversation) {
