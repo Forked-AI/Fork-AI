@@ -1,6 +1,7 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { readStoredFileObject } from "@/lib/rag/storage";
+import { resolveWorkspaceContext } from "@/lib/organizations/context";
 import { logServerError } from "@/lib/server-safe-log";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
@@ -19,12 +20,19 @@ export async function GET(
 				{ status: 401 }
 			);
 		}
+		const workspaceResult = await resolveWorkspaceContext({
+			session,
+			requiredPermission: "workspace:read",
+		});
+		if (!workspaceResult.ok) return workspaceResult.response;
+		const workspace = workspaceResult.workspace;
 
 		const { id } = await params;
 		const file = await prisma.fileObject.findFirst({
 			where: {
 				id,
-				userId: session.user.id,
+				userId: workspace.userId,
+				organizationId: workspace.organizationId,
 				kind: "image",
 			},
 			select: {

@@ -119,6 +119,8 @@ export async function retrieveWithPgvector({
 	organizationId,
 	fileIds,
 	queryVector,
+	embeddingProvider,
+	embeddingModel,
 	limit,
 	mode = getRagVectorSearchMode(),
 }: {
@@ -127,6 +129,8 @@ export async function retrieveWithPgvector({
 	organizationId?: string | null;
 	fileIds: string[];
 	queryVector: number[];
+	embeddingProvider: string;
+	embeddingModel: string;
 	limit: number;
 	mode?: RagVectorSearchMode;
 }): Promise<PgvectorRetrievedRow[] | null> {
@@ -136,18 +140,30 @@ export async function retrieveWithPgvector({
 
 	const dimensions = normalizeDimension(queryVector.length);
 	const vectorLiteral = toPgvectorLiteral(queryVector);
-	const params: unknown[] = [vectorLiteral, userId, dimensions];
+	const params: unknown[] = [
+		vectorLiteral,
+		userId,
+		dimensions,
+		embeddingProvider,
+		embeddingModel,
+	];
 	const conditions = [
 		`dc."userId" = $2`,
 		`f."userId" = $2`,
 		`f."status" = 'ready'`,
 		`e."dimensions" = $3`,
+		`e."provider" = $4`,
+		`e."model" = $5`,
 		`e."vector_pg" IS NOT NULL`,
 	];
 
 	if (organizationId) {
 		params.push(organizationId);
 		conditions.push(`dc."organizationId" = $${params.length}`);
+		conditions.push(`f."organizationId" = $${params.length}`);
+	} else {
+		conditions.push(`dc."organizationId" IS NULL`);
+		conditions.push(`f."organizationId" IS NULL`);
 	}
 
 	if (fileIds.length > 0) {
@@ -189,6 +205,8 @@ export async function retrieveWithPgvector({
 		logServerWarning("rag/pgvector", "retrieve_unavailable", {
 			userId,
 			dimensions,
+			embeddingProvider,
+			embeddingModel,
 		});
 		return null;
 	}

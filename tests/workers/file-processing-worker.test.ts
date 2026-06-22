@@ -10,6 +10,7 @@ const workerMocks = vi.hoisted(() => ({
 		};
 	}),
 	processUploadedFile: vi.fn(),
+	reindexFileEmbeddings: vi.fn(),
 }));
 
 vi.mock("bullmq", () => ({
@@ -22,6 +23,7 @@ vi.mock("@/lib/queue/connection", () => ({
 
 vi.mock("@/lib/rag/processing-service", () => ({
 	processUploadedFile: workerMocks.processUploadedFile,
+	reindexFileEmbeddings: workerMocks.reindexFileEmbeddings,
 }));
 
 vi.mock("@/lib/server-safe-log", () => ({
@@ -55,6 +57,35 @@ describe("file-processing worker", () => {
 		});
 
 		expect(workerMocks.processUploadedFile).toHaveBeenCalledWith({
+			fileId: "file-1",
+			userId: "user-1",
+		});
+	});
+
+	it("dispatches embedding reindex jobs to the processing service", async () => {
+		workerMocks.reindexFileEmbeddings.mockResolvedValue({
+			fileId: "file-1",
+			status: "ready",
+			chunkCount: 3,
+		});
+
+		await import("../../workers/file-processing.worker");
+		const processor = workerMocks.Worker.mock.calls[0][1] as (_job: {
+			id: string;
+			name: string;
+			data: { fileId: string; userId: string };
+		}) => Promise<void>;
+
+		await processor({
+			id: "job-1",
+			name: "reindex-file-embeddings",
+			data: {
+				fileId: "file-1",
+				userId: "user-1",
+			},
+		});
+
+		expect(workerMocks.reindexFileEmbeddings).toHaveBeenCalledWith({
 			fileId: "file-1",
 			userId: "user-1",
 		});

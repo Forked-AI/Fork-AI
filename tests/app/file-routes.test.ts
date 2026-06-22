@@ -162,6 +162,7 @@ describe("file routes", () => {
 			expect.objectContaining({
 				where: {
 					userId: "user-1",
+					organizationId: null,
 					purpose: "rag_document",
 					status: "ready",
 				},
@@ -325,6 +326,7 @@ describe("file routes", () => {
 				where: {
 					id: "file-2",
 					userId: "user-1",
+					organizationId: null,
 					purpose: "rag_document",
 				},
 			})

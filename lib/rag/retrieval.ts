@@ -1,14 +1,17 @@
 import {
-	cosineSimilarity,
-	LocalHashEmbeddingProvider,
-	parseVectorJson,
+	assertEmbeddingVector,
+	createEmbeddingProviderFromEnv,
 	type EmbeddingProvider,
 } from "@/lib/rag/embedding-provider";
-import {
-	retrieveWithPgvector,
-	type RagVectorSearchMode,
-} from "@/lib/rag/pgvector";
+import { retrieveHybridCandidates } from "@/lib/rag/hybrid-search";
+import { filterWeakRetrievalCandidates } from "@/lib/rag/retrieval-filter";
+import type { RagVectorSearchMode } from "@/lib/rag/pgvector";
 import { prisma } from "@/lib/prisma";
+import {
+	estimateRetrievalConfidence,
+	type RetrievalConfidence,
+} from "@/lib/rag/retrieval-confidence";
+import { NoopReranker, type Reranker } from "@/lib/rag/reranker";
 
 export interface RagCitation {
 	index: number;
@@ -17,6 +20,8 @@ export interface RagCitation {
 	sourceLabel: string;
 	pageNumber: number | null;
 	score: number;
+	confidence: RetrievalConfidence["label"];
+	attribution: RetrievedDocumentContext["attribution"];
 }
 
 export interface RetrievedDocumentContext {
@@ -26,6 +31,18 @@ export interface RetrievedDocumentContext {
 	sourceLabel: string;
 	pageNumber: number | null;
 	score: number;
+	confidence: RetrievalConfidence["label"];
+	scoreBreakdown: {
+		semantic: number;
+		lexical: number;
+		rerank: number | null;
+	};
+	attribution: {
+		provider: string;
+		model: string;
+		dimensions: number;
+		matchSource: "semantic" | "lexical" | "hybrid";
+	};
 }
 
 export interface RetrieveDocumentContextInput {
@@ -37,6 +54,7 @@ export interface RetrieveDocumentContextInput {
 	prismaClient?: any;
 	embeddingProvider?: EmbeddingProvider;
 	vectorSearchMode?: RagVectorSearchMode;
+	reranker?: Reranker;
 }
 
 const DEFAULT_RETRIEVAL_LIMIT = 4;
@@ -61,8 +79,9 @@ export async function retrieveDocumentContext({
 	limit = DEFAULT_RETRIEVAL_LIMIT,
 	organizationId = null,
 	prismaClient = prisma,
-	embeddingProvider = new LocalHashEmbeddingProvider(),
+	embeddingProvider,
 	vectorSearchMode,
+	reranker = new NoopReranker(),
 }: RetrieveDocumentContextInput): Promise<RetrievedDocumentContext[]> {
 	assertPermissionFilter(userId);
 
@@ -73,85 +92,57 @@ export async function retrieveDocumentContext({
 
 	const requestedFileIds = uniqueValues(fileIds);
 	const take = Math.min(Math.max(1, limit), MAX_RETRIEVAL_LIMIT);
-	const queryEmbedding = await embeddingProvider.embedText(normalizedQuery);
-	const pgvectorRows = await retrieveWithPgvector({
+	const provider =
+		embeddingProvider ?? (await createEmbeddingProviderFromEnv());
+	const queryEmbedding = await provider.embedText(normalizedQuery);
+	assertEmbeddingVector(queryEmbedding, {
+		provider: provider.provider,
+		model: provider.model,
+		dimensions: provider.dimensions,
+		version: provider.version,
+	});
+
+	const candidates = await retrieveHybridCandidates({
 		prismaClient,
 		userId,
 		organizationId,
 		fileIds: requestedFileIds,
+		query: normalizedQuery,
 		queryVector: queryEmbedding.vector,
+		embeddingProvider: queryEmbedding.provider,
+		embeddingModel: queryEmbedding.model,
+		embeddingDimensions: queryEmbedding.dimensions,
 		limit: take,
-		mode: vectorSearchMode,
+		vectorSearchMode,
 	});
 
-	if (pgvectorRows) {
-		return pgvectorRows.map((row) => ({
-			chunkId: row.chunkId,
-			fileId: row.fileId,
-			content: row.content,
-			sourceLabel: row.sourceLabel,
-			pageNumber: row.pageNumber ?? null,
-			score: Number(row.score),
-		}));
-	}
-
-	const where: Record<string, unknown> = {
-		userId,
-		file: {
-			status: "ready",
-		},
-	};
-
-	if (organizationId) {
-		where.organizationId = organizationId;
-	}
-
-	if (requestedFileIds.length > 0) {
-		where.fileId = { in: requestedFileIds };
-	}
-
-	const chunks = await prismaClient.documentChunk.findMany({
-		where,
-		take: 200,
-		orderBy: [{ fileId: "asc" }, { chunkIndex: "asc" }],
-		select: {
-			id: true,
-			fileId: true,
-			content: true,
-			sourceLabel: true,
-			pageNumber: true,
-			embedding: {
-				select: {
-					vectorJson: true,
-				},
+	const filteredCandidates = filterWeakRetrievalCandidates(candidates);
+	const confidence = estimateRetrievalConfidence(filteredCandidates);
+	const ranked = await reranker.rerank({
+		query: normalizedQuery,
+		chunks: filteredCandidates.map((candidate) => ({
+			chunkId: candidate.chunkId,
+			fileId: candidate.fileId,
+			content: candidate.content,
+			sourceLabel: candidate.sourceLabel,
+			pageNumber: candidate.pageNumber ?? null,
+			score: candidate.score,
+			confidence: confidence.label,
+			scoreBreakdown: {
+				semantic: Number(candidate.semanticScore.toFixed(6)),
+				lexical: Number(candidate.lexicalScore.toFixed(6)),
+				rerank: null,
 			},
-		},
+			attribution: {
+				provider: queryEmbedding.provider,
+				model: queryEmbedding.model,
+				dimensions: queryEmbedding.dimensions,
+				matchSource: candidate.matchSource,
+			},
+		})),
 	});
 
-	return chunks
-		.map((chunk: any) => ({
-			chunkId: chunk.id,
-			fileId: chunk.fileId,
-			content: chunk.content,
-			sourceLabel: chunk.sourceLabel,
-			pageNumber: chunk.pageNumber ?? null,
-			score: chunk.embedding?.vectorJson
-				? cosineSimilarity(
-						queryEmbedding.vector,
-						parseVectorJson(chunk.embedding.vectorJson)
-					)
-				: 0,
-		}))
-		.sort(
-			(
-				left: RetrievedDocumentContext,
-				right: RetrievedDocumentContext
-			) => {
-				if (right.score !== left.score) return right.score - left.score;
-				return left.chunkId.localeCompare(right.chunkId);
-			}
-		)
-		.slice(0, take);
+	return ranked.slice(0, take);
 }
 
 export function buildRagCitations(
@@ -164,5 +155,7 @@ export function buildRagCitations(
 		sourceLabel: chunk.sourceLabel,
 		pageNumber: chunk.pageNumber,
 		score: Number(chunk.score.toFixed(6)),
+		confidence: chunk.confidence,
+		attribution: chunk.attribution,
 	}));
 }

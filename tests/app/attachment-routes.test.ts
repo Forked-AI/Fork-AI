@@ -260,7 +260,11 @@ describe("attachment routes", () => {
 		expect(response.status).toBe(200);
 		expect(prismaMocks.fileFindFirst).toHaveBeenCalledWith(
 			expect.objectContaining({
-				where: { id: "file-image-1", userId: "user-1" },
+				where: {
+					id: "file-image-1",
+					userId: "user-1",
+					organizationId: null,
+				},
 			})
 		);
 		await expect(response.json()).resolves.toMatchObject({

@@ -11,6 +11,7 @@ import {
 	createR2MultipartUpload,
 	isR2DirectUploadAvailable,
 } from "@/lib/rag/storage";
+import { resolveWorkspaceContext } from "@/lib/organizations/context";
 import { logServerError, logServerInfo } from "@/lib/server-safe-log";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
@@ -45,6 +46,12 @@ export async function POST(request: Request) {
 				{ status: 401 }
 			);
 		}
+		const workspaceResult = await resolveWorkspaceContext({
+			session,
+			requiredPermission: "workspace:write",
+		});
+		if (!workspaceResult.ok) return workspaceResult.response;
+		const workspace = workspaceResult.workspace;
 
 		if (!isR2DirectUploadAvailable()) {
 			return NextResponse.json(
@@ -85,7 +92,7 @@ export async function POST(request: Request) {
 
 		fileId = `file_${randomUUID().replace(/-/g, "")}`;
 		const storageKey = buildStoredFileKey({
-			userId: session.user.id,
+			userId: workspace.userId,
 			fileId,
 			extension: validated.extension,
 		});
@@ -93,8 +100,8 @@ export async function POST(request: Request) {
 		const file = await prisma.fileObject.create({
 			data: {
 				id: fileId,
-				userId: session.user.id,
-				organizationId: null,
+				userId: workspace.userId,
+				organizationId: workspace.organizationId,
 				storageProvider: "r2",
 				storageKey,
 				kind: validated.kind,
@@ -128,7 +135,7 @@ export async function POST(request: Request) {
 
 		logServerInfo("attachments/direct", "upload_initiated", {
 			fileId,
-			userId: session.user.id,
+			userId: workspace.userId,
 			kind: validated.kind,
 			partCount: upload.parts.length,
 			sizeBytes: validated.sizeBytes,

@@ -6,6 +6,7 @@ import {
 } from "@/lib/idempotency";
 import { prisma } from "@/lib/prisma";
 import { deleteStoredFileObject } from "@/lib/rag/storage";
+import { resolveWorkspaceContext } from "@/lib/organizations/context";
 import { logServerError, logServerInfo } from "@/lib/server-safe-log";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
@@ -41,10 +42,20 @@ export async function GET(
 				{ status: 401 }
 			);
 		}
+		const workspaceResult = await resolveWorkspaceContext({
+			session,
+			requiredPermission: "workspace:read",
+		});
+		if (!workspaceResult.ok) return workspaceResult.response;
+		const workspace = workspaceResult.workspace;
 
 		const { id } = await params;
 		const file = await prisma.fileObject.findFirst({
-			where: { id, userId: session.user.id },
+			where: {
+				id,
+				userId: workspace.userId,
+				organizationId: workspace.organizationId,
+			},
 			select: ATTACHMENT_SELECT,
 		});
 
@@ -85,20 +96,30 @@ export async function DELETE(
 				{ status: 401 }
 			);
 		}
+		const workspaceResult = await resolveWorkspaceContext({
+			session,
+			requiredPermission: "workspace:write",
+		});
+		if (!workspaceResult.ok) return workspaceResult.response;
+		const workspace = workspaceResult.workspace;
 
 		const { id } = await params;
-		const userId = session.user.id;
+		const userId = workspace.userId;
 
 		return await withJsonIdempotency(
 			request,
 			{
 				scope: "attachments:delete",
 				actorKey: getUserIdempotencyActorKey(userId),
-				requestInput: { id },
+				requestInput: { id, organizationId: workspace.organizationId },
 			},
 			async () => {
 				const file = await prisma.fileObject.findFirst({
-					where: { id, userId },
+					where: {
+						id,
+						userId,
+						organizationId: workspace.organizationId,
+					},
 					select: {
 						id: true,
 						storageProvider: true,

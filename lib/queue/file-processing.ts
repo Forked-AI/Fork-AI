@@ -1,14 +1,20 @@
 import { Queue } from "bullmq";
 import { queueConnection } from "./connection";
 
-export type FileProcessingQueueJobName = "process-uploaded-file";
+export type FileProcessingQueueJobName =
+	| "process-uploaded-file"
+	| "reindex-file-embeddings";
 
 export interface ProcessUploadedFileJobData {
 	fileId: string;
 	userId: string;
 }
 
-export type FileProcessingQueueJobData = ProcessUploadedFileJobData;
+export type ReindexFileEmbeddingsJobData = ProcessUploadedFileJobData;
+
+export type FileProcessingQueueJobData =
+	| ProcessUploadedFileJobData
+	| ReindexFileEmbeddingsJobData;
 
 export const fileProcessingQueue = new Queue<
 	FileProcessingQueueJobData,
@@ -32,5 +38,13 @@ export function enqueueUploadedFileProcessingJob(
 ) {
 	return fileProcessingQueue.add("process-uploaded-file", options, {
 		jobId: `process-uploaded-file:${options.userId}:${options.fileId}`,
+	});
+}
+
+export function enqueueFileEmbeddingReindexJob(
+	options: ReindexFileEmbeddingsJobData
+) {
+	return fileProcessingQueue.add("reindex-file-embeddings", options, {
+		jobId: `reindex-file-embeddings:${options.userId}:${options.fileId}`,
 	});
 }

@@ -26,6 +26,7 @@ import {
 	deleteStoredFileObject,
 	saveFileObject,
 } from "@/lib/rag/storage";
+import { resolveWorkspaceContext } from "@/lib/organizations/context";
 import { logServerError, logServerInfo } from "@/lib/server-safe-log";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
@@ -71,6 +72,12 @@ export async function POST(request: Request) {
 				{ status: 401 }
 			);
 		}
+		const workspaceResult = await resolveWorkspaceContext({
+			session,
+			requiredPermission: "workspace:write",
+		});
+		if (!workspaceResult.ok) return workspaceResult.response;
+		const workspace = workspaceResult.workspace;
 
 		const formData = await request.formData();
 		const upload = formData.get("file");
@@ -97,12 +104,13 @@ export async function POST(request: Request) {
 		);
 		const idempotency = await beginIdempotency(request, {
 			scope: "attachments:upload",
-			actorKey: getUserIdempotencyActorKey(session.user.id),
+			actorKey: getUserIdempotencyActorKey(workspace.userId),
 			requestInput: {
 				filename: validated.filename,
 				mimeType: validated.mimeType,
 				sizeBytes: validated.sizeBytes,
 				kind: validated.kind,
+				organizationId: workspace.organizationId,
 			},
 			lockSeconds: 10 * 60,
 		});
@@ -124,7 +132,8 @@ export async function POST(request: Request) {
 				stage: "file_upload",
 				contentHash: hashModeratedContent(buffer),
 				contentLength: validated.sizeBytes,
-				userId: session.user.id,
+				userId: workspace.userId,
+				organizationId: workspace.organizationId,
 				metadata: {
 					filenameHash: hashModeratedContent(validated.filename),
 					mimeType: validated.mimeType,
@@ -136,7 +145,8 @@ export async function POST(request: Request) {
 				signalType: "file_scanner_block",
 				severity: moderationDecision.severity,
 				action: "block",
-				userId: session.user.id,
+				userId: workspace.userId,
+				organizationId: workspace.organizationId,
 				metadata: {
 					category: moderationDecision.category,
 					mimeType: validated.mimeType,
@@ -151,7 +161,7 @@ export async function POST(request: Request) {
 
 		const fileId = `file_${randomUUID().replace(/-/g, "")}`;
 		const storageKey = buildStoredFileKey({
-			userId: session.user.id,
+			userId: workspace.userId,
 			fileId,
 			extension: validated.extension,
 		});
@@ -165,8 +175,8 @@ export async function POST(request: Request) {
 		const file = await prisma.fileObject.create({
 			data: {
 				id: fileId,
-				userId: session.user.id,
-				organizationId: null,
+				userId: workspace.userId,
+				organizationId: workspace.organizationId,
 				storageProvider: storedFile.storageProvider,
 				storageKey: storedFile.storageKey,
 				kind: validated.kind,
@@ -200,7 +210,8 @@ export async function POST(request: Request) {
 				stage: "file_upload",
 				contentHash: hashModeratedContent(buffer),
 				contentLength: validated.sizeBytes,
-				userId: session.user.id,
+				userId: workspace.userId,
+				organizationId: workspace.organizationId,
 				fileObjectId: file.id,
 				metadata: {
 					filenameHash: hashModeratedContent(validated.filename),
@@ -215,7 +226,7 @@ export async function POST(request: Request) {
 			? null
 			: await enqueueUploadedFileProcessingJob({
 					fileId: file.id,
-					userId: session.user.id,
+					userId: workspace.userId,
 				});
 		const body = {
 			attachment: serializeFileObjectForAttachmentClient(file),
@@ -231,7 +242,7 @@ export async function POST(request: Request) {
 
 		logServerInfo("attachments", "upload_ready", {
 			fileId: file.id,
-			userId: session.user.id,
+			userId: workspace.userId,
 			kind: file.kind,
 			sizeBytes: validated.sizeBytes,
 			queued: !isImage,

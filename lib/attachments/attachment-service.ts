@@ -121,12 +121,14 @@ function toAttachmentKind(file: { kind: string }): "document" | "image" {
 
 export async function prepareMessageAttachments({
 	userId,
+	organizationId,
 	modelCapabilities,
 	attachments,
 	ragFileIds,
 	prismaClient,
 }: {
 	userId: string;
+	organizationId?: string | null;
 	modelCapabilities: ModelCapabilities;
 	attachments?: AttachmentRequestInput[];
 	ragFileIds?: string[];
@@ -152,6 +154,7 @@ export async function prepareMessageAttachments({
 		where: {
 			id: { in: ids },
 			userId,
+			organizationId: organizationId ?? null,
 		},
 		select: {
 			id: true,
@@ -247,11 +250,13 @@ export async function prepareMessageAttachments({
 
 export async function loadPersistedMessageAttachments({
 	userId,
+	organizationId,
 	messageId,
 	modelCapabilities,
 	prismaClient,
 }: {
 	userId: string;
+	organizationId?: string | null;
 	messageId: string;
 	modelCapabilities: ModelCapabilities;
 	prismaClient: any;
@@ -263,6 +268,7 @@ export async function loadPersistedMessageAttachments({
 	const attachments = await prismaClient.messageAttachment.findMany({
 		where: {
 			userId,
+			organizationId: organizationId ?? null,
 			messageId,
 		},
 		orderBy: { displayOrder: "asc" },
@@ -334,12 +340,14 @@ export async function createMessageAttachmentRows({
 	messageId,
 	conversationId,
 	userId,
+	organizationId,
 	attachments,
 }: {
 	prismaClient: any;
 	messageId: string;
 	conversationId: string;
 	userId: string;
+	organizationId?: string | null;
 	attachments: PreparedMessageAttachment[];
 }) {
 	if (attachments.length === 0) {
@@ -351,6 +359,7 @@ export async function createMessageAttachmentRows({
 			messageId,
 			conversationId,
 			userId,
+			organizationId: organizationId ?? null,
 			fileObjectId: attachment.fileObjectId,
 			kind: attachment.kind,
 			promptUse: attachment.promptUse,

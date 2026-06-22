@@ -1,7 +1,8 @@
 import { prisma } from "@/lib/prisma";
 import { chunkDocumentText } from "@/lib/rag/chunking";
 import {
-	LocalHashEmbeddingProvider,
+	assertEmbeddingVector,
+	createEmbeddingProviderFromEnv,
 	serializeVector,
 	type EmbeddingProvider,
 } from "@/lib/rag/embedding-provider";
@@ -14,6 +15,13 @@ import { readStoredFileObject } from "@/lib/rag/storage";
 import { logServerInfo, logServerWarning } from "@/lib/server-safe-log";
 
 export interface ProcessUploadedFileInput {
+	fileId: string;
+	userId: string;
+	prismaClient?: any;
+	embeddingProvider?: EmbeddingProvider;
+}
+
+export interface ReindexFileEmbeddingsInput {
 	fileId: string;
 	userId: string;
 	prismaClient?: any;
@@ -38,8 +46,10 @@ export async function processUploadedFile({
 	fileId,
 	userId,
 	prismaClient = prisma,
-	embeddingProvider = new LocalHashEmbeddingProvider(),
+	embeddingProvider,
 }: ProcessUploadedFileInput) {
+	const provider =
+		embeddingProvider ?? (await createEmbeddingProviderFromEnv());
 	const file = await prismaClient.fileObject.findFirst({
 		where: {
 			id: fileId,
@@ -96,7 +106,7 @@ export async function processUploadedFile({
 		const embeddedChunks = await Promise.all(
 			chunks.map(async (chunk) => ({
 				chunk,
-				embedding: await embeddingProvider.embedText(chunk.content),
+				embedding: await provider.embedText(chunk.content),
 			}))
 		);
 		const parsedTextBytes = Buffer.byteLength(extracted.text, "utf8");
@@ -108,6 +118,12 @@ export async function processUploadedFile({
 			});
 
 			for (const { chunk, embedding } of embeddedChunks) {
+				assertEmbeddingVector(embedding, {
+					provider: provider.provider,
+					model: provider.model,
+					dimensions: provider.dimensions,
+					version: provider.version,
+				});
 				await transaction.documentChunk.create({
 					data: {
 						id: chunk.id,
@@ -157,6 +173,8 @@ export async function processUploadedFile({
 			fileId,
 			userId,
 			chunkCount: embeddedChunks.length,
+			embeddingProvider: provider.provider,
+			embeddingModel: provider.model,
 		});
 
 		return {
@@ -184,4 +202,96 @@ export async function processUploadedFile({
 
 		throw error;
 	}
+}
+
+export async function reindexFileEmbeddings({
+	fileId,
+	userId,
+	prismaClient = prisma,
+	embeddingProvider,
+}: ReindexFileEmbeddingsInput) {
+	const provider =
+		embeddingProvider ?? (await createEmbeddingProviderFromEnv());
+	const file = await prismaClient.fileObject.findFirst({
+		where: {
+			id: fileId,
+			userId,
+			status: "ready",
+		},
+		select: {
+			id: true,
+			userId: true,
+			organizationId: true,
+		},
+	});
+
+	if (!file) {
+		throw new Error("Ready file was not found for embedding reindex");
+	}
+
+	const chunks = await prismaClient.documentChunk.findMany({
+		where: {
+			fileId,
+			userId,
+			organizationId: file.organizationId ?? null,
+		},
+		orderBy: [{ chunkIndex: "asc" }],
+		select: {
+			id: true,
+			content: true,
+		},
+	});
+
+	let reindexedChunkCount = 0;
+	for (const chunk of chunks) {
+		const embedding = await provider.embedText(chunk.content);
+		assertEmbeddingVector(embedding, {
+			provider: provider.provider,
+			model: provider.model,
+			dimensions: provider.dimensions,
+			version: provider.version,
+		});
+
+		await prismaClient.$transaction(async (transaction: any) => {
+			await transaction.embedding.upsert({
+				where: { chunkId: chunk.id },
+				create: {
+					chunkId: chunk.id,
+					userId,
+					organizationId: file.organizationId ?? null,
+					provider: embedding.provider,
+					model: embedding.model,
+					dimensions: embedding.dimensions,
+					vectorJson: serializeVector(embedding.vector),
+				},
+				update: {
+					provider: embedding.provider,
+					model: embedding.model,
+					dimensions: embedding.dimensions,
+					vectorJson: serializeVector(embedding.vector),
+				},
+			});
+
+			await writeEmbeddingPgvector({
+				prismaClient: transaction,
+				chunkId: chunk.id,
+				vector: embedding.vector,
+			});
+		});
+		reindexedChunkCount += 1;
+	}
+
+	logServerInfo("rag/file-processing", "file_embeddings_reindexed", {
+		fileId,
+		userId,
+		chunkCount: reindexedChunkCount,
+		embeddingProvider: provider.provider,
+		embeddingModel: provider.model,
+	});
+
+	return {
+		fileId,
+		status: "ready" as const,
+		chunkCount: reindexedChunkCount,
+	};
 }

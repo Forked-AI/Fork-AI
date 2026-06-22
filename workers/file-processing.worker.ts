@@ -1,4 +1,7 @@
-import { processUploadedFile } from "@/lib/rag/processing-service";
+import {
+	processUploadedFile,
+	reindexFileEmbeddings,
+} from "@/lib/rag/processing-service";
 import { recordOperationalMetric } from "@/lib/operational-metrics";
 import { queueConnection } from "@/lib/queue/connection";
 import type {
@@ -15,11 +18,17 @@ export const fileProcessingWorker = new Worker<
 >(
 	"file-processing",
 	async (job) => {
-		if (job.name !== "process-uploaded-file") {
+		if (
+			job.name !== "process-uploaded-file" &&
+			job.name !== "reindex-file-embeddings"
+		) {
 			throw new Error(`Unknown file-processing job: ${job.name}`);
 		}
 
-		const result = await processUploadedFile(job.data);
+		const result =
+			job.name === "process-uploaded-file"
+				? await processUploadedFile(job.data)
+				: await reindexFileEmbeddings(job.data);
 		await recordOperationalMetric({
 			kind: "queue_job",
 			source: "file-processing",

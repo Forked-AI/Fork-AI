@@ -29,7 +29,9 @@ describe("queue baseline configuration", () => {
 			await import("@/lib/queue/account-export");
 
 		expect(accountExportQueue.name).toBe("account-export");
-		expect((accountExportQueue as any).options.defaultJobOptions).toMatchObject({
+		expect(
+			(accountExportQueue as any).options.defaultJobOptions
+		).toMatchObject({
 			attempts: 2,
 			backoff: {
 				type: "exponential",
@@ -70,7 +72,9 @@ describe("queue baseline configuration", () => {
 		const { conversationQueue } = await import("@/lib/queue/conversation");
 
 		expect(conversationQueue.name).toBe("conversation");
-		expect((conversationQueue as any).options.defaultJobOptions).toMatchObject({
+		expect(
+			(conversationQueue as any).options.defaultJobOptions
+		).toMatchObject({
 			attempts: 3,
 			backoff: {
 				type: "exponential",
@@ -97,18 +101,19 @@ describe("queue baseline configuration", () => {
 				conversationId: "conversation-1",
 			},
 			{
-				jobId: "summarize-conversation:user-1:conversation-1",
+				jobId: "summarize-conversation:user-1:personal:conversation-1",
 			}
 		);
 	});
 
 	it("configures file-processing queue retry and retention defaults", async () => {
-		const { fileProcessingQueue } = await import(
-			"@/lib/queue/file-processing"
-		);
+		const { fileProcessingQueue } =
+			await import("@/lib/queue/file-processing");
 
 		expect(fileProcessingQueue.name).toBe("file-processing");
-		expect((fileProcessingQueue as any).options.defaultJobOptions).toMatchObject({
+		expect(
+			(fileProcessingQueue as any).options.defaultJobOptions
+		).toMatchObject({
 			attempts: 3,
 			backoff: {
 				type: "exponential",
@@ -136,6 +141,27 @@ describe("queue baseline configuration", () => {
 			},
 			{
 				jobId: "process-uploaded-file:user-1:file-1",
+			}
+		);
+	});
+
+	it("enqueues file embedding reindex jobs with a stable file job id", async () => {
+		const { fileProcessingQueue, enqueueFileEmbeddingReindexJob } =
+			await import("@/lib/queue/file-processing");
+
+		await enqueueFileEmbeddingReindexJob({
+			userId: "user-1",
+			fileId: "file-1",
+		});
+
+		expect(fileProcessingQueue.add).toHaveBeenCalledWith(
+			"reindex-file-embeddings",
+			{
+				userId: "user-1",
+				fileId: "file-1",
+			},
+			{
+				jobId: "reindex-file-embeddings:user-1:file-1",
 			}
 		);
 	});

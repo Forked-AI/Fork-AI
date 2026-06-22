@@ -1,6 +1,7 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { abortR2MultipartUpload } from "@/lib/rag/storage";
+import { resolveWorkspaceContext } from "@/lib/organizations/context";
 import { logServerError, logServerInfo } from "@/lib/server-safe-log";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
@@ -22,6 +23,12 @@ export async function POST(request: Request) {
 				{ status: 401 }
 			);
 		}
+		const workspaceResult = await resolveWorkspaceContext({
+			session,
+			requiredPermission: "workspace:write",
+		});
+		if (!workspaceResult.ok) return workspaceResult.response;
+		const workspace = workspaceResult.workspace;
 
 		const parsed = abortDirectUploadSchema.safeParse(
 			await request.json().catch(() => null)
@@ -40,7 +47,8 @@ export async function POST(request: Request) {
 		const file = await prisma.fileObject.findFirst({
 			where: {
 				id: parsed.data.fileObjectId,
-				userId: session.user.id,
+				userId: workspace.userId,
+				organizationId: workspace.organizationId,
 			},
 			select: {
 				id: true,
@@ -91,7 +99,7 @@ export async function POST(request: Request) {
 
 		logServerInfo("attachments/direct", "upload_aborted", {
 			fileId: file.id,
-			userId: session.user.id,
+			userId: workspace.userId,
 		});
 
 		return NextResponse.json({
