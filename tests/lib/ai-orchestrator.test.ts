@@ -5,7 +5,7 @@ import {
 	normalizeModelId,
 	selectModelProvider,
 } from "@/lib/ai/orchestrator";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 const fakeProvider: ModelProvider = {
 	complete: vi.fn(),
@@ -13,6 +13,10 @@ const fakeProvider: ModelProvider = {
 };
 
 describe("AI orchestrator provider selection", () => {
+	afterEach(() => {
+		delete process.env.AI_MODEL_ROLLOUT_OVERRIDES;
+	});
+
 	it("normalizes supported Mistral model aliases", () => {
 		expect(normalizeModelId("mistral-large")).toBe("mistral-large-latest");
 		expect(normalizeModelId("mistral-medium")).toBe(
@@ -75,6 +79,37 @@ describe("AI orchestrator provider selection", () => {
 			})
 		).toBeNull();
 		expect(getSupportedModelAliases()).toContain("mistral-large");
+		expect(getSupportedModelAliases()).not.toContain("gpt-5.1");
+	});
+
+	it("selects OpenAI only after a controlled rollout override", () => {
+		const openaiProvider = {
+			complete: vi.fn(),
+			stream: vi.fn(),
+		};
+
+		expect(
+			selectModelProvider("gpt-5.1", { openai: openaiProvider })
+		).toBeNull();
+
+		process.env.AI_MODEL_ROLLOUT_OVERRIDES = "gpt-5.1=canary";
+		const selection = selectModelProvider("openai:gpt-5.1", {
+			openai: openaiProvider,
+		});
+
+		expect(selection).toMatchObject({
+			providerName: "openai",
+			provider: openaiProvider,
+			model: "gpt-5.1",
+			rolloutState: "canary",
+			routePolicyVersion: "ai-gateway-route-v1",
+			capabilities: {
+				supportsText: true,
+				supportsStreaming: true,
+				supportsStructuredOutput: true,
+			},
+		});
+		expect(getSupportedModelAliases()).toContain("openai:gpt-5.1");
 	});
 
 	it("returns only entitled capability-compatible fallback models", () => {

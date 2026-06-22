@@ -1,6 +1,15 @@
 import { randomUUID } from "node:crypto";
 import { normalizeProviderStreamError } from "@/lib/ai/errors";
 import type { ModelProvider } from "@/lib/ai/model-provider";
+import {
+	conversationTitleOutputSchema,
+	type ConversationTitleOutput,
+} from "@/lib/ai/output-validation/contracts";
+import {
+	recordOutputValidationMetric,
+	validateStructuredJsonText,
+	validateStructuredOutput,
+} from "@/lib/ai/output-validation/validator";
 import { selectModelProvider } from "@/lib/ai/orchestrator";
 import type { ProviderMessage } from "@/lib/chat-system-prompt";
 import { prisma } from "@/lib/prisma";
@@ -43,6 +52,7 @@ export async function getConversationTitleGenerationInput(
 	options: {
 		conversationId: string;
 		userId: string;
+		organizationId?: string | null;
 	},
 	prismaClient: TitlePrismaClient = prisma
 ) {
@@ -50,6 +60,9 @@ export async function getConversationTitleGenerationInput(
 		where: {
 			id: options.conversationId,
 			userId: options.userId,
+			...(options.organizationId !== undefined
+				? { organizationId: options.organizationId }
+				: {}),
 		},
 		include: {
 			messages: {
@@ -90,9 +103,28 @@ export function buildConversationTitleMessages(conversation: {
 	return [
 		{
 			role: "user",
-			content: `Based on the following conversation, generate a concise, descriptive title (3-6 words). The title should capture the main topic or purpose of the conversation. Only respond with the title, nothing else.\n\nConversation:\n${messageContext}\n\nTitle:`,
+			content: `Based on the following conversation, generate a concise, descriptive title (3-6 words). Return strict JSON only with this shape: {"title":"string"}.\n\nConversation:\n${messageContext}\n\nJSON:`,
 		},
 	];
+}
+
+function validateTitleResponse(content: string) {
+	const jsonValidation = validateStructuredJsonText(
+		conversationTitleOutputSchema,
+		content
+	);
+	if (jsonValidation.ok) return jsonValidation;
+
+	const fallbackTitle = content
+		.replace(/^["']|["']$/g, "")
+		.replace(/\n/g, " ")
+		.trim()
+		.slice(0, 100);
+
+	return validateStructuredOutput<ConversationTitleOutput>(
+		conversationTitleOutputSchema,
+		{ title: fallbackTitle }
+	);
 }
 
 export async function generateConversationTitle({
@@ -129,6 +161,7 @@ export async function generateConversationTitle({
 		prismaClient,
 		deduplicationKey,
 		userId,
+		organizationId: conversation.organizationId ?? null,
 		conversationId,
 		feature: "conversation_title",
 		provider: modelSelection.providerName,
@@ -142,12 +175,10 @@ export async function generateConversationTitle({
 			model: modelSelection.model,
 			messages,
 		});
-		const cleanTitle = response.content
-			.replace(/^["']|["']$/g, "")
-			.replace(/\n/g, " ")
-			.trim()
-			.slice(0, 100);
+		const validation = validateTitleResponse(response.content);
+		const cleanTitle = validation.value?.title ?? "";
 		const measurement = buildUsageMeasurement({
+			provider: modelSelection.providerName,
 			requestedModel: modelSelection.model,
 			resolvedModel: response.resolvedModel,
 			providerRequestId: response.providerRequestId,
@@ -167,12 +198,21 @@ export async function generateConversationTitle({
 		});
 
 		if (!cleanTitle) {
+			await recordOutputValidationMetric({
+				taskId: "conversation.title",
+				status: validation.status,
+				provider: modelSelection.providerName,
+				model: modelSelection.model,
+				userId,
+				conversationId,
+				issueCount: validation.issues?.length ?? 0,
+			});
 			await finalizeUsageEvent({
 				prismaClient,
 				deduplicationKey,
 				outcome: "failed",
 				measurement,
-				errorCode: "EMPTY_TITLE",
+				errorCode: validation.errorCode ?? "EMPTY_TITLE",
 			});
 			throw new ConversationTitleGenerationError(
 				"Title generation returned an empty title",
@@ -206,6 +246,7 @@ export async function generateConversationTitle({
 
 		const normalized = normalizeProviderStreamError(error);
 		const measurement = buildUsageMeasurement({
+			provider: modelSelection.providerName,
 			requestedModel: modelSelection.model,
 			resolvedModel: response?.resolvedModel,
 			providerRequestId:

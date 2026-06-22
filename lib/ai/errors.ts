@@ -109,6 +109,8 @@ export function normalizeProviderStreamError(
 	const providerRequestId =
 		getHeaderValue(providerHeaders, "mistral-correlation-id") ??
 		getHeaderValue(providerHeaders, "x-kong-request-id") ??
+		getHeaderValue(providerHeaders, "x-request-id") ??
+		getHeaderValue(providerHeaders, "openai-request-id") ??
 		undefined;
 
 	if (providerStatusCode === 429) {

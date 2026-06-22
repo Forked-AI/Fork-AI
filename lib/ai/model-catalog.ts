@@ -1,10 +1,16 @@
 export interface ModelCapabilities {
 	supportsText: boolean;
+	supportsStreaming: boolean;
+	supportsStructuredOutput: boolean;
 	supportsImages: boolean;
 	supportsAudioInput: boolean;
 	supportsAudioTranscription: boolean;
 	supportsImageGeneration: boolean;
 	supportsDocumentAttachments: boolean;
+	supportsEmbeddings: boolean;
+	supportsDocumentAi: boolean;
+	supportsModeration: boolean;
+	supportsPromptCaching: boolean;
 	supportsNativeWebSearch: boolean;
 	supportsFunctionCalling: boolean;
 	supportsProviderTools: boolean;
@@ -34,11 +40,17 @@ export const IMAGE_ATTACHMENT_ACCEPT =
 
 const TEXT_DOCUMENT_CAPABILITIES: ModelCapabilities = {
 	supportsText: true,
+	supportsStreaming: true,
+	supportsStructuredOutput: false,
 	supportsImages: false,
 	supportsAudioInput: false,
 	supportsAudioTranscription: false,
 	supportsImageGeneration: false,
 	supportsDocumentAttachments: true,
+	supportsEmbeddings: false,
+	supportsDocumentAi: false,
+	supportsModeration: false,
+	supportsPromptCaching: false,
 	supportsNativeWebSearch: false,
 	supportsFunctionCalling: false,
 	supportsProviderTools: false,
@@ -59,13 +71,26 @@ const TEXT_FC_CAPABILITIES: ModelCapabilities = {
 	supportsFunctionCalling: true,
 };
 
+const TEXT_STRUCTURED_FC_CAPABILITIES: ModelCapabilities = {
+	...TEXT_DOCUMENT_CAPABILITIES,
+	supportsStructuredOutput: true,
+	supportsFunctionCalling: true,
+	supportsPromptCaching: true,
+};
+
 const AUDIO_CHAT_CAPABILITIES: ModelCapabilities = {
 	supportsText: true,
+	supportsStreaming: true,
+	supportsStructuredOutput: false,
 	supportsImages: false,
 	supportsAudioInput: true,
 	supportsAudioTranscription: false,
 	supportsImageGeneration: false,
 	supportsDocumentAttachments: true,
+	supportsEmbeddings: false,
+	supportsDocumentAi: false,
+	supportsModeration: false,
+	supportsPromptCaching: false,
 	supportsNativeWebSearch: false,
 	supportsFunctionCalling: false,
 	supportsProviderTools: false,
@@ -78,11 +103,17 @@ const AUDIO_FC_CAPABILITIES: ModelCapabilities = {
 
 const AUDIO_TRANSCRIPTION_CAPABILITIES: ModelCapabilities = {
 	supportsText: false,
+	supportsStreaming: true,
+	supportsStructuredOutput: false,
 	supportsImages: false,
 	supportsAudioInput: true,
 	supportsAudioTranscription: true,
 	supportsImageGeneration: false,
 	supportsDocumentAttachments: false,
+	supportsEmbeddings: false,
+	supportsDocumentAi: false,
+	supportsModeration: false,
+	supportsPromptCaching: false,
 	supportsNativeWebSearch: false,
 	supportsFunctionCalling: false,
 	supportsProviderTools: false,
@@ -263,6 +294,21 @@ export const CHAT_MODELS: ChatModelMetadata[] = [
 		isFavorite: false,
 		capabilities: AUDIO_TRANSCRIPTION_CAPABILITIES,
 	},
+
+	// ── Controlled gateway expansion ─────────────────────────────────────────
+	{
+		id: "gpt-5.1",
+		resolvedId: "gpt-5.1",
+		name: "GPT-5.1",
+		description:
+			"OpenAI Responses model available only through AI Gateway rollout controls.",
+		provider: "OpenAI",
+		contextWindow: "provider configured",
+		version: "Phase 3 gateway",
+		isOpen: false,
+		isFavorite: false,
+		capabilities: TEXT_STRUCTURED_FC_CAPABILITIES,
+	},
 ];
 
 // ── Model alias map ────────────────────────────────────────────────────────
@@ -307,6 +353,9 @@ const MODEL_ALIAS_ENTRIES = [
 	["pixtral-large", "mistral-large-latest"],
 	["pixtral-large-latest", "mistral-large-latest"],
 	["mistral-large-2411", "mistral-large-2512"],
+	// Controlled gateway aliases
+	["gpt-5.1", "gpt-5.1"],
+	["openai:gpt-5.1", "gpt-5.1"],
 ] as const;
 
 // ── Capability lookup sets ─────────────────────────────────────────────────
@@ -398,6 +447,12 @@ export function getModelCapabilities(model: string): ModelCapabilities {
 		supportsAudioTranscription:
 			base.supportsAudioTranscription ||
 			AUDIO_TRANSCRIPTION_MODEL_IDS.has(normalizedModel),
+		supportsStreaming: base.supportsStreaming,
+		supportsStructuredOutput: base.supportsStructuredOutput,
+		supportsEmbeddings: base.supportsEmbeddings,
+		supportsDocumentAi: base.supportsDocumentAi,
+		supportsModeration: base.supportsModeration,
+		supportsPromptCaching: base.supportsPromptCaching,
 		supportsFunctionCalling:
 			base.supportsFunctionCalling ||
 			FUNCTION_CALLING_MODEL_IDS.has(normalizedModel),

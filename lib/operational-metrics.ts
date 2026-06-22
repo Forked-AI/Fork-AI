@@ -42,6 +42,7 @@ export async function recordOperationalMetric(options: {
 	errorCode?: string | null;
 	providerStatus?: number | null;
 	userId?: string | null;
+	organizationId?: string | null;
 	conversationId?: string | null;
 	traceId?: string | null;
 	metadata?: Record<string, unknown> | null;
@@ -64,6 +65,7 @@ export async function recordOperationalMetric(options: {
 				errorCode: options.errorCode ?? null,
 				providerStatus: options.providerStatus ?? null,
 				userId: options.userId ?? null,
+				organizationId: options.organizationId ?? null,
 				conversationId: options.conversationId ?? null,
 				traceId: options.traceId ?? null,
 				metadataJson: toJsonValue(options.metadata ?? null),

@@ -1,4 +1,4 @@
-export const USAGE_PRICING_VERSION = "mistral-2026-06-05";
+export const USAGE_PRICING_VERSION = "ai-gateway-2026-06-22";
 
 interface ModelPrice {
 	inputUsdPerMillionTokens: number;
@@ -88,6 +88,13 @@ const MODEL_PRICES: Record<string, ModelPrice> = {
 	},
 };
 
+const PROVIDER_MODEL_PRICES: Record<string, ModelPrice> = Object.fromEntries(
+	Object.entries(MODEL_PRICES).map(([model, price]) => [
+		`mistral:${model}`,
+		price,
+	])
+);
+
 export interface UsageCostEstimate {
 	estimatedCostUsd: string | null;
 	pricingVersion: string | null;
@@ -103,20 +110,34 @@ function normalizeTokenCount(value: number | null | undefined) {
 }
 
 export function estimateUsageCost({
+	provider,
 	requestedModel,
 	resolvedModel,
 	inputTokens,
 	outputTokens,
 }: {
+	provider?: string | null;
 	requestedModel: string;
 	resolvedModel?: string | null;
 	inputTokens: number;
 	outputTokens: number;
 }): UsageCostEstimate {
+	const providerPrefix = provider?.trim().toLowerCase();
 	const price =
+		(providerPrefix && resolvedModel
+			? PROVIDER_MODEL_PRICES[
+					`${providerPrefix}:${resolvedModel.toLowerCase()}`
+				]
+			: undefined) ??
+		(providerPrefix
+			? PROVIDER_MODEL_PRICES[
+					`${providerPrefix}:${requestedModel.toLowerCase()}`
+				]
+			: undefined) ??
 		(resolvedModel
 			? MODEL_PRICES[resolvedModel.toLowerCase()]
-			: undefined) ?? MODEL_PRICES[requestedModel.toLowerCase()];
+			: undefined) ??
+		MODEL_PRICES[requestedModel.toLowerCase()];
 
 	if (!price) {
 		return {

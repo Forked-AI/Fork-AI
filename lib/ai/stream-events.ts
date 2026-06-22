@@ -58,6 +58,15 @@ export type ChatStreamEvent =
 	| { type: "content"; content: string }
 	| { type: "citations"; citations: ChatStreamCitation[] }
 	| {
+			type: "progress";
+			step:
+				| "preparing_context"
+				| "retrieving_files"
+				| "running_tools"
+				| "generating_answer"
+				| "validating_output";
+	  }
+	| {
 			type: "done";
 			assistantMessageId?: string;
 			usage: ChatStreamUsage;

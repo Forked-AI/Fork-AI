@@ -43,4 +43,31 @@ describe("usage pricing", () => {
 			costIsEstimate: true,
 		});
 	});
+
+	it("uses provider-specific pricing keys before model-only fallbacks", () => {
+		expect(
+			estimateUsageCost({
+				provider: "mistral",
+				requestedModel: "mistral-small-latest",
+				inputTokens: 1_000_000,
+				outputTokens: 1_000_000,
+			})
+		).toMatchObject({
+			estimatedCostUsd: "0.75000000",
+			pricingVersion: USAGE_PRICING_VERSION,
+		});
+
+		expect(
+			estimateUsageCost({
+				provider: "openai",
+				requestedModel: "gpt-5.1",
+				inputTokens: 1_000_000,
+				outputTokens: 1_000_000,
+			})
+		).toEqual({
+			estimatedCostUsd: null,
+			pricingVersion: null,
+			costIsEstimate: true,
+		});
+	});
 });

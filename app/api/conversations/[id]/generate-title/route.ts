@@ -8,6 +8,7 @@ import {
 	withJsonIdempotency,
 } from "@/lib/idempotency";
 import { conversationQueue } from "@/lib/queue/conversation";
+import { resolveWorkspaceContext } from "@/lib/organizations/context";
 import { logServerError } from "@/lib/server-safe-log";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
@@ -31,18 +32,28 @@ export async function POST(
 
 		const { id: conversationId } = await params;
 		const userId = session.user.id;
+		const workspaceResult = await resolveWorkspaceContext({
+			session,
+			requiredPermission: "workspace:write",
+		});
+		if (!workspaceResult.ok) return workspaceResult.response;
+		const workspace = workspaceResult.workspace;
 
 		return await withJsonIdempotency(
 			request,
 			{
 				scope: "conversations:generate-title",
 				actorKey: getUserIdempotencyActorKey(userId),
-				requestInput: { conversationId },
+				requestInput: {
+					conversationId,
+					organizationId: workspace.organizationId,
+				},
 			},
 			async () => {
 				await getConversationTitleGenerationInput({
 					conversationId,
 					userId,
+					organizationId: workspace.organizationId,
 				});
 
 				const job = await conversationQueue.add(
@@ -50,9 +61,10 @@ export async function POST(
 					{
 						conversationId,
 						userId,
+						organizationId: workspace.organizationId,
 					},
 					{
-						jobId: `generate-title:${userId}:${conversationId}`,
+						jobId: `generate-title:${userId}:${workspace.organizationId ?? "personal"}:${conversationId}`,
 					}
 				);
 

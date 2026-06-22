@@ -1,6 +1,11 @@
 import { randomUUID } from "node:crypto";
 import { normalizeProviderStreamError } from "@/lib/ai/errors";
 import type { ModelProvider } from "@/lib/ai/model-provider";
+import { shareSummaryOutputSchema } from "@/lib/ai/output-validation/contracts";
+import {
+	recordOutputValidationMetric,
+	validateStructuredJsonText,
+} from "@/lib/ai/output-validation/validator";
 import { selectModelProvider } from "@/lib/ai/orchestrator";
 import type { ProviderMessage } from "@/lib/chat-system-prompt";
 import { prisma } from "@/lib/prisma";
@@ -23,21 +28,6 @@ const SUMMARY_MODEL = "ministral-3b-latest";
 const SUMMARY_PROMPT_VERSION = "share-summary-v1";
 
 type ShareSummaryPrismaClient = any;
-
-function extractJsonPayload(text: string) {
-	const firstBrace = text.indexOf("{");
-	const lastBrace = text.lastIndexOf("}");
-	if (firstBrace < 0 || lastBrace < 0 || lastBrace <= firstBrace) return null;
-
-	try {
-		return JSON.parse(text.slice(firstBrace, lastBrace + 1)) as {
-			overview?: unknown;
-			keyPoints?: unknown;
-		};
-	} catch {
-		return null;
-	}
-}
 
 function buildShareSummaryMessages(
 	messages: Array<{ role: "user" | "assistant"; content: string }>
@@ -133,21 +123,14 @@ export async function generateShareSummary(options: {
 			temperature: 0.2,
 		});
 
-		const payload = extractJsonPayload(response.content);
-		const overview =
-			typeof payload?.overview === "string"
-				? payload.overview.trim()
-				: "";
-		const keyPoints = Array.isArray(payload?.keyPoints)
-			? payload.keyPoints
-					.filter(
-						(value): value is string => typeof value === "string"
-					)
-					.map((value) => value.trim())
-					.filter(Boolean)
-					.slice(0, 4)
-			: [];
+		const validation = validateStructuredJsonText(
+			shareSummaryOutputSchema,
+			response.content
+		);
+		const overview = validation.value?.overview ?? "";
+		const keyPoints = validation.value?.keyPoints ?? [];
 		const measurement = buildUsageMeasurement({
+			provider: modelSelection.providerName,
 			requestedModel: modelSelection.model,
 			resolvedModel: response.resolvedModel,
 			providerRequestId: response.providerRequestId,
@@ -166,13 +149,22 @@ export async function generateShareSummary(options: {
 			hasPartialOutput: Boolean(response.content),
 		});
 
-		if (!overview) {
+		if (!validation.ok) {
+			await recordOutputValidationMetric({
+				taskId: "share.summary",
+				status: validation.status,
+				provider: modelSelection.providerName,
+				model: modelSelection.model,
+				userId: options.userId,
+				conversationId: options.conversationId,
+				issueCount: validation.issues?.length ?? 0,
+			});
 			await finalizeUsageEvent({
 				prismaClient,
 				deduplicationKey,
 				outcome: "failed",
 				measurement,
-				errorCode: "INVALID_SHARE_SUMMARY",
+				errorCode: validation.errorCode ?? "INVALID_SHARE_SUMMARY",
 			});
 			return {
 				summary: null,
@@ -203,6 +195,7 @@ export async function generateShareSummary(options: {
 			deduplicationKey,
 			outcome: "failed",
 			measurement: buildUsageMeasurement({
+				provider: modelSelection.providerName,
 				requestedModel: modelSelection.model,
 				resolvedModel: response?.resolvedModel,
 				providerRequestId:

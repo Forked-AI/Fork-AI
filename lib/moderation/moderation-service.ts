@@ -86,6 +86,7 @@ export interface ModerationEventInput {
 	contentHash?: string | null;
 	contentLength?: number | null;
 	userId?: string | null;
+	organizationId?: string | null;
 	conversationId?: string | null;
 	messageId?: string | null;
 	fileObjectId?: string | null;
@@ -99,6 +100,7 @@ export interface AbuseSignalInput {
 	severity: ModerationSeverity;
 	action: ModerationAction;
 	userId?: string | null;
+	organizationId?: string | null;
 	conversationId?: string | null;
 	actorHash?: string | null;
 	count?: number;
@@ -344,6 +346,7 @@ export async function recordModerationEvent({
 	contentHash,
 	contentLength,
 	userId,
+	organizationId,
 	conversationId,
 	messageId,
 	fileObjectId,
@@ -363,7 +366,7 @@ export async function recordModerationEvent({
 		return await prismaClient.moderationEvent.create({
 			data: {
 				userId: userId ?? null,
-				organizationId: null,
+				organizationId: organizationId ?? null,
 				conversationId: conversationId ?? null,
 				messageId: messageId ?? null,
 				fileObjectId: fileObjectId ?? null,
@@ -402,6 +405,7 @@ export async function recordAbuseSignal({
 	severity,
 	action,
 	userId,
+	organizationId,
 	conversationId,
 	actorHash,
 	count = 1,
@@ -415,7 +419,7 @@ export async function recordAbuseSignal({
 		return await prismaClient.abuseSignal.create({
 			data: {
 				userId: userId ?? null,
-				organizationId: null,
+				organizationId: organizationId ?? null,
 				conversationId: conversationId ?? null,
 				signalType,
 				severity,
@@ -444,11 +448,13 @@ export async function moderateUserMessage({
 	prismaClient = prisma,
 	content,
 	userId,
+	organizationId,
 	conversationId,
 }: {
 	prismaClient?: ModerationPrismaClient;
 	content: string;
 	userId?: string | null;
+	organizationId?: string | null;
 	conversationId?: string | null;
 }) {
 	const decision = evaluateTextModeration({
@@ -463,6 +469,7 @@ export async function moderateUserMessage({
 		stage: "pre_generation",
 		content,
 		userId,
+		organizationId,
 		conversationId,
 		metadata: {
 			flow: "chat_stream",
@@ -476,6 +483,7 @@ export async function moderateUserMessage({
 			severity: decision.severity,
 			action: "block",
 			userId,
+			organizationId,
 			conversationId,
 			metadata: {
 				category: decision.category,

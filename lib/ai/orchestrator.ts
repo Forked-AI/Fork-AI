@@ -3,31 +3,56 @@ import type { ModelCapabilities } from "@/lib/ai/model-catalog";
 export type { ModelCapabilities } from "@/lib/ai/model-catalog";
 import {
 	getModelCapabilities,
-	getSupportedModelAliases as getCatalogSupportedModelAliases,
 	normalizeModelId as normalizeCatalogModelId,
 } from "@/lib/ai/model-catalog";
+import {
+	AI_GATEWAY_ROUTE_POLICY_VERSION,
+	getSupportedGatewayModelAliases,
+	resolveModelRouteDecision,
+} from "@/lib/ai/gateway/registry";
+import type { ModelProviderName } from "@/lib/ai/gateway/types";
 import { MistralProvider } from "@/lib/ai/providers/mistral-provider";
+import { OpenAIProvider } from "@/lib/ai/providers/openai-provider";
+import type { AiTaskId } from "@/lib/ai/version-taxonomy";
 import type { ModelAccessTier } from "@/lib/model-entitlements";
 import { isModelIncludedInPlan } from "@/lib/model-entitlements";
-
-export type ModelProviderName = "mistral";
 
 export interface ModelProviderSelection {
 	providerName: ModelProviderName;
 	provider: ModelProvider;
 	model: string;
 	capabilities: ModelCapabilities;
+	routePolicyVersion: string;
+	rolloutState: string;
 }
 
 let defaultMistralProvider: ModelProvider | null = null;
+let defaultOpenAIProvider: ModelProvider | null = null;
 
 function getDefaultMistralProvider(): ModelProvider {
 	defaultMistralProvider ??= new MistralProvider();
 	return defaultMistralProvider;
 }
 
+function getDefaultOpenAIProvider(): ModelProvider {
+	defaultOpenAIProvider ??= new OpenAIProvider();
+	return defaultOpenAIProvider;
+}
+
+function getDefaultProvider(providerName: ModelProviderName): ModelProvider {
+	if (providerName === "mistral") {
+		return getDefaultMistralProvider();
+	}
+
+	if (providerName === "openai") {
+		return getDefaultOpenAIProvider();
+	}
+
+	throw new Error(`Provider ${providerName} is not implemented`);
+}
+
 export function getSupportedModelAliases(): string[] {
-	return getCatalogSupportedModelAliases();
+	return getSupportedGatewayModelAliases();
 }
 
 export function normalizeModelId(model: string): string | null {
@@ -36,19 +61,28 @@ export function normalizeModelId(model: string): string | null {
 
 export function selectModelProvider(
 	model: string,
-	providers: Partial<Record<ModelProviderName, ModelProvider>> = {}
+	providers: Partial<Record<ModelProviderName, ModelProvider>> = {},
+	options: { taskId?: AiTaskId } = {}
 ): ModelProviderSelection | null {
-	const normalizedModel = normalizeModelId(model);
-
-	if (!normalizedModel) {
+	const decision = resolveModelRouteDecision({
+		model,
+		taskId: options.taskId ?? "chat.general",
+	});
+	if (!decision) {
 		return null;
 	}
 
+	const provider =
+		providers[decision.providerName] ??
+		getDefaultProvider(decision.providerName);
+
 	return {
-		providerName: "mistral",
-		provider: providers.mistral ?? getDefaultMistralProvider(),
-		model: normalizedModel,
-		capabilities: getModelCapabilities(normalizedModel),
+		providerName: decision.providerName,
+		provider,
+		model: decision.providerModel,
+		capabilities: decision.capabilities,
+		routePolicyVersion: AI_GATEWAY_ROUTE_POLICY_VERSION,
+		rolloutState: decision.rolloutState,
 	};
 }
 
@@ -71,7 +105,15 @@ export function getModelFallbackCandidates(options: {
 	requiredCapabilities: ModelCapabilities;
 }) {
 	const normalizedModel = normalizeModelId(options.model);
-	if (!normalizedModel || !isFallbackEligibleModel(normalizedModel)) {
+	const decision = normalizedModel
+		? resolveModelRouteDecision({ model: normalizedModel })
+		: null;
+	if (
+		!normalizedModel ||
+		!decision ||
+		decision.providerName !== "mistral" ||
+		!isFallbackEligibleModel(normalizedModel)
+	) {
 		return [];
 	}
 
