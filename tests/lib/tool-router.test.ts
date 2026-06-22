@@ -94,7 +94,10 @@ function createPrismaMock() {
 			toolExecution: delegate,
 			conversation: {
 				findFirst: vi.fn(async ({ where }) =>
-					where.id === "conversation-1" && where.userId === "user-1"
+					where.id === "conversation-1" &&
+					where.userId === "user-1" &&
+					((where.organizationId ?? null) === null ||
+						where.organizationId === "org-1")
 						? { id: "conversation-1" }
 						: null
 				),
@@ -381,6 +384,7 @@ describe("tool router", () => {
 				context: {
 					userId: "user-1",
 					organizationId: "org-spoofed",
+					conversationId: "conversation-1",
 				},
 			},
 			{ prismaClient, registry }
@@ -398,7 +402,7 @@ describe("tool router", () => {
 		expect(organizationResult).toMatchObject({
 			ok: false,
 			status: 403,
-			errorCode: "TOOL_ORGANIZATION_CONTEXT_UNSUPPORTED",
+			errorCode: "TOOL_CONTEXT_UNAUTHORIZED",
 		});
 		expect(safeTool.execute).not.toHaveBeenCalled();
 	});

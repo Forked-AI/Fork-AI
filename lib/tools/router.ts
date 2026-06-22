@@ -133,18 +133,12 @@ async function authorizeExecutionContext(
 	prismaClient: ToolPrismaClient,
 	context: ToolExecutionContext
 ) {
-	if (context.organizationId) {
-		return {
-			ok: false as const,
-			errorCode: "TOOL_ORGANIZATION_CONTEXT_UNSUPPORTED",
-		};
-	}
-
 	if (context.conversationId) {
 		const conversation = await prismaClient.conversation.findFirst({
 			where: {
 				id: context.conversationId,
 				userId: context.userId,
+				organizationId: context.organizationId ?? null,
 			},
 			select: { id: true },
 		});

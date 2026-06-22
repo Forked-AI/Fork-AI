@@ -5,6 +5,7 @@ import {
 } from "@/lib/idempotency";
 import { proposeToolExecution } from "@/lib/tools/router";
 import { checkToolExecuteRateLimit } from "@/lib/tools/http";
+import { resolveWorkspaceContext } from "@/lib/organizations/context";
 import { logServerError } from "@/lib/server-safe-log";
 import { NextResponse } from "next/server";
 import { z } from "zod";
@@ -31,6 +32,12 @@ export async function POST(request: Request) {
 				{ status: 401 }
 			);
 		}
+		const workspaceResult = await resolveWorkspaceContext({
+			session,
+			requiredPermission: "workspace:write",
+		});
+		if (!workspaceResult.ok) return workspaceResult.response;
+
 		const rateLimit = await checkToolExecuteRateLimit(
 			request,
 			session.user.id
@@ -58,7 +65,8 @@ export async function POST(request: Request) {
 					input: parsed.data.input,
 					context: {
 						userId: session.user.id,
-						organizationId: null,
+						organizationId:
+							workspaceResult.workspace.organizationId,
 						conversationId: parsed.data.conversationId ?? null,
 						messageId: parsed.data.messageId ?? null,
 					},
