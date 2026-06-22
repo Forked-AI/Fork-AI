@@ -4,6 +4,7 @@ import {
 	type ChatContextBuildResult,
 	type ChatContextMetadata,
 } from "@/lib/ai/context-builder";
+import { getAiArtifactVersionsForTask } from "@/lib/ai/version-taxonomy";
 import { normalizeProviderStreamError } from "@/lib/ai/errors";
 import { DEFAULT_MODEL_CAPABILITIES } from "@/lib/ai/model-catalog";
 import type { ModelProvider, ModelUsage } from "@/lib/ai/model-provider";
@@ -103,7 +104,11 @@ export interface ChatRateLimitState {
 interface ChatServicePrismaClient extends MessageHistoryPrismaClient {
 	conversation: {
 		findFirst(_args: {
-			where: { id: string; userId: string };
+			where: {
+				id: string;
+				userId: string;
+				organizationId?: string | null;
+			};
 			include: {
 				messages: {
 					orderBy: { createdAt: "asc" };
@@ -112,7 +117,11 @@ interface ChatServicePrismaClient extends MessageHistoryPrismaClient {
 			};
 		}): Promise<{ id: string } | null>;
 		create(_args: {
-			data: { title: string; userId: string };
+			data: {
+				title: string;
+				userId: string;
+				organizationId?: string | null;
+			};
 			include: { messages: true };
 		}): Promise<{ id: string }>;
 		update(_args: {
@@ -165,6 +174,7 @@ export interface CreateChatStreamResponseInput {
 	model: string;
 	providerName: string;
 	provider: ModelProvider;
+	organizationId?: string | null;
 	conversationId?: string | null;
 	parentMessageId?: string | null;
 	retryAssistantMessageId?: string | null;
@@ -247,12 +257,14 @@ async function applyAttachmentContext({
 async function runEnabledToolContext({
 	enabledTools,
 	userId,
+	organizationId,
 	conversationId,
 	message,
 	prismaClient,
 }: {
 	enabledTools: Array<"web.search"> | undefined;
 	userId: string;
+	organizationId?: string | null;
 	conversationId: string;
 	message: string;
 	prismaClient: ChatServicePrismaClient;
@@ -270,6 +282,7 @@ async function runEnabledToolContext({
 			},
 			context: {
 				userId,
+				organizationId: organizationId ?? null,
 				conversationId,
 			},
 		},
@@ -412,6 +425,7 @@ function emptySkillTrace(): ActiveSkillTrace {
 
 async function loadRagContext({
 	userId,
+	organizationId,
 	message,
 	ragFileIds,
 	prismaClient,
@@ -419,6 +433,7 @@ async function loadRagContext({
 	conversationId,
 }: {
 	userId: string;
+	organizationId?: string | null;
 	message: string;
 	ragFileIds: string[] | undefined;
 	prismaClient: ChatServicePrismaClient;
@@ -433,6 +448,7 @@ async function loadRagContext({
 	const startedAt = Date.now();
 	const chunks = await retrieveDocumentContext({
 		userId,
+		organizationId: organizationId ?? null,
 		query: message,
 		fileIds,
 		prismaClient,
@@ -447,9 +463,13 @@ async function loadRagContext({
 		conversationId: conversationId ?? null,
 		traceId,
 		metadata: {
+			aiTaskId: "rag.qa",
+			...getAiArtifactVersionsForTask("rag.qa"),
 			requestedFileCount: fileIds.length,
 			selectedChunkCount: chunks.length,
 			selectedChunkIds: chunks.map((chunk) => chunk.chunkId),
+			confidenceLabels: chunks.map((chunk) => chunk.confidence),
+			matchSources: chunks.map((chunk) => chunk.attribution.matchSource),
 		},
 	});
 	return chunks;
@@ -528,6 +548,7 @@ async function prepareAuthenticatedChat(
 			where: {
 				id: input.conversationId,
 				userId: input.userId,
+				organizationId: input.organizationId ?? null,
 			},
 			include: {
 				messages: {
@@ -551,6 +572,7 @@ async function prepareAuthenticatedChat(
 		try {
 			preparedAttachments = await prepareMessageAttachments({
 				userId: input.userId,
+				organizationId: input.organizationId ?? null,
 				modelCapabilities: getInputModelCapabilities(input),
 				attachments: input.attachments,
 				ragFileIds: input.ragFileIds,
@@ -569,6 +591,7 @@ async function prepareAuthenticatedChat(
 			data: {
 				title: buildConversationTitle(input.message),
 				userId: input.userId,
+				organizationId: input.organizationId ?? null,
 			},
 			include: {
 				messages: true,
@@ -581,6 +604,7 @@ async function prepareAuthenticatedChat(
 		try {
 			preparedAttachments = await prepareMessageAttachments({
 				userId: input.userId,
+				organizationId: input.organizationId ?? null,
 				modelCapabilities: getInputModelCapabilities(input),
 				attachments: input.attachments,
 				ragFileIds: input.ragFileIds,
@@ -611,6 +635,7 @@ async function prepareAuthenticatedChat(
 	);
 	const ragContext = await loadRagContext({
 		userId: input.userId,
+		organizationId: input.organizationId ?? null,
 		message: input.message,
 		ragFileIds: ragAttachmentFileIds,
 		prismaClient,
@@ -620,6 +645,7 @@ async function prepareAuthenticatedChat(
 	const toolResults = await runEnabledToolContext({
 		enabledTools: input.enabledTools,
 		userId: input.userId,
+		organizationId: input.organizationId ?? null,
 		conversationId: conversation.id,
 		message: input.message,
 		prismaClient,
@@ -675,7 +701,8 @@ async function prepareAuthenticatedChat(
 	logPromptContextMetadata(context.metadata);
 	const tokenBudgetCheck = await checkTokenBudgetBeforeRequest(
 		input.userId,
-		context.providerMessages
+		context.providerMessages,
+		input.organizationId ?? null
 	);
 
 	if (!tokenBudgetCheck.allowed) {
@@ -690,6 +717,7 @@ async function prepareAuthenticatedChat(
 			severity: tokenBudgetCheck.usagePercent >= 100 ? "high" : "medium",
 			action: "block",
 			userId: input.userId,
+			organizationId: input.organizationId ?? null,
 			conversationId: conversation.id,
 			metadata: {
 				planTier: tokenBudgetCheck.tier,
@@ -767,11 +795,13 @@ async function prepareAuthenticatedChat(
 		messageId: userMessage.id,
 		conversationId: conversation.id,
 		userId: input.userId,
+		organizationId: input.organizationId ?? null,
 		attachments: attachmentsForMessage,
 	});
 	const generationAttempt = await createGenerationAttempt({
 		prismaClient,
 		userId: input.userId,
+		organizationId: input.organizationId ?? null,
 		conversationId: conversation.id,
 		userMessageId: userMessage.id,
 		provider: input.providerName,
@@ -814,6 +844,7 @@ async function prepareAuthenticatedRetryChat(
 			role: "assistant",
 			conversation: {
 				userId: input.userId,
+				organizationId: input.organizationId ?? null,
 			},
 		},
 		select: {
@@ -871,6 +902,7 @@ async function prepareAuthenticatedRetryChat(
 		prismaClient,
 		content: userMessage.content,
 		userId: input.userId,
+		organizationId: input.organizationId ?? null,
 		conversationId: targetAssistantMessage.conversationId,
 	});
 	if (isBlockingModerationDecision(moderationDecision)) {
@@ -893,6 +925,7 @@ async function prepareAuthenticatedRetryChat(
 	try {
 		persistedAttachments = await loadPersistedMessageAttachments({
 			userId: input.userId,
+			organizationId: input.organizationId ?? null,
 			messageId: userMessage.id,
 			modelCapabilities: getInputModelCapabilities(input),
 			prismaClient,
@@ -914,6 +947,7 @@ async function prepareAuthenticatedRetryChat(
 		getRagFileIdsFromAttachments(persistedAttachments);
 	const ragContext = await loadRagContext({
 		userId: input.userId,
+		organizationId: input.organizationId ?? null,
 		message: userMessage.content,
 		ragFileIds: ragAttachmentFileIds,
 		prismaClient,
@@ -953,7 +987,8 @@ async function prepareAuthenticatedRetryChat(
 	logPromptContextMetadata(context.metadata);
 	const tokenBudgetCheck = await checkTokenBudgetBeforeRequest(
 		input.userId,
-		context.providerMessages
+		context.providerMessages,
+		input.organizationId ?? null
 	);
 
 	if (!tokenBudgetCheck.allowed) {
@@ -963,6 +998,7 @@ async function prepareAuthenticatedRetryChat(
 			severity: tokenBudgetCheck.usagePercent >= 100 ? "high" : "medium",
 			action: "block",
 			userId: input.userId,
+			organizationId: input.organizationId ?? null,
 			conversationId: targetAssistantMessage.conversationId,
 			metadata: {
 				planTier: tokenBudgetCheck.tier,
@@ -1013,6 +1049,7 @@ async function prepareAuthenticatedRetryChat(
 	const generationAttempt = await createGenerationAttempt({
 		prismaClient,
 		userId: input.userId,
+		organizationId: input.organizationId ?? null,
 		conversationId: targetAssistantMessage.conversationId,
 		userMessageId: userMessage.id,
 		provider: input.providerName,
@@ -1190,6 +1227,11 @@ export async function createChatStreamResponse(
 					});
 				}
 
+				enqueueSseEvent(controller, encoder, {
+					type: "progress",
+					step: "preparing_context",
+				});
+
 				if (!input.isGuest && userMessage) {
 					enqueueSseEvent(controller, encoder, {
 						type: "messageId",
@@ -1207,12 +1249,32 @@ export async function createChatStreamResponse(
 				}
 
 				if (
+					context.metadata.contextComponentCounts
+						.retrievedDocumentChunks > 0
+				) {
+					enqueueSseEvent(controller, encoder, {
+						type: "progress",
+						step: "retrieving_files",
+					});
+				}
+
+				if (
 					!input.isGuest &&
 					context.metadata.ragCitations.length > 0
 				) {
 					enqueueSseEvent(controller, encoder, {
 						type: "citations",
 						citations: context.metadata.ragCitations,
+					});
+				}
+
+				if (
+					context.metadata.contextComponentCounts
+						.toolResultExecutions > 0
+				) {
+					enqueueSseEvent(controller, encoder, {
+						type: "progress",
+						step: "running_tools",
 					});
 				}
 
@@ -1289,6 +1351,11 @@ export async function createChatStreamResponse(
 					},
 				});
 
+				enqueueSseEvent(controller, encoder, {
+					type: "progress",
+					step: "generating_answer",
+				});
+
 				for await (const chunk of stream) {
 					retryCount = Math.max(retryCount, chunk.retryCount ?? 0);
 					fallbackCount = Math.max(
@@ -1356,12 +1423,18 @@ export async function createChatStreamResponse(
 					resolvedModel = chunk.resolvedModel ?? resolvedModel;
 				}
 
+				enqueueSseEvent(controller, encoder, {
+					type: "progress",
+					step: "validating_output",
+				});
+
 				const finalModerationDecision =
 					outputModerationDecision ??
 					evaluateAssistantOutputModeration(fullResponse);
 				const outputForUsage = providerOutputForUsage || fullResponse;
 
 				const usage = buildUsageMeasurement({
+					provider: input.providerName,
 					requestedModel: input.model,
 					resolvedModel,
 					providerRequestId,
@@ -1674,6 +1747,7 @@ export async function createChatStreamResponse(
 					},
 				});
 				const usage = buildUsageMeasurement({
+					provider: input.providerName,
 					requestedModel: input.model,
 					resolvedModel,
 					providerRequestId:

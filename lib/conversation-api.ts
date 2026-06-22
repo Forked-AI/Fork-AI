@@ -1,3 +1,5 @@
+import type { MessageTrustTrace } from "@/lib/ai/trust-trace";
+
 export const conversationDetailQueryKey = (conversationId: string | null) =>
 	["conversation", conversationId] as const;
 
@@ -47,6 +49,7 @@ interface ConversationMessagePayload {
 	ragCitationData?: string | null;
 	activeSkillTraceJson?: unknown;
 	promptSkillHash?: string | null;
+	trustTrace?: MessageTrustTrace | null;
 	attachments?: MessageAttachmentPayload[];
 }
 

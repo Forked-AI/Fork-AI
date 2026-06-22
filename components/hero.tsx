@@ -1,17 +1,22 @@
 'use client'
 import { Button } from '@/components/ui/button'
+import { useAuth } from '@/contexts/auth-context'
 import { geist } from '@/lib/fonts'
 import { createRafThrottle } from '@/lib/rate-limit'
 import { cn } from '@/lib/utils'
 import { useGSAP } from '@gsap/react'
-import { AnimatePresence, motion } from 'framer-motion'
+import { motion } from 'framer-motion'
 import gsap from 'gsap'
 import { ScrollTrigger } from 'gsap/ScrollTrigger'
 import { MoveRight, Play } from 'lucide-react'
 import Link from 'next/link'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef } from 'react'
 
 gsap.registerPlugin(ScrollTrigger)
+
+interface HeroProps {
+	showGlowSphere?: boolean
+}
 
 // ── Word split helper ──────────────────────────────────────────────────────
 function SplitWords({ text, className }: { text: string; className?: string }) {
@@ -30,9 +35,8 @@ function SplitWords({ text, className }: { text: string; className?: string }) {
 	)
 }
 
-export default function Hero() {
-	const [flipIndex, setFlipIndex] = useState(0)
-	const flipWords = ['AI', 'Chats', 'Ideas', 'Everything']
+export default function Hero({ showGlowSphere = true }: HeroProps) {
+	const { isAuthenticated } = useAuth()
 	const containerRef = useRef<HTMLDivElement>(null)
 	const hasTopFallbackResetRef = useRef(false)
 	const heroResetTargets = [
@@ -41,6 +45,7 @@ export default function Hero() {
 		'.hero-primary-cta',
 		'.hero-roles',
 		'.hero-scroll-indicator',
+		'.hero-glow-sphere',
 		'.hero-bg-text',
 	].join(', ')
 
@@ -148,7 +153,7 @@ export default function Hero() {
 				})
 
 				// ── 3. Scroll-pinned exit (offground pattern — section 2 slides over) ─
-				// Hero content flies UP as you scroll, section 2 comes from BELOW
+				// Hero content flies UP as you scroll, glow exits top, section 2 comes from BELOW
 				const exitTl = gsap.timeline({
 					scrollTrigger: {
 						trigger: containerRef.current,
@@ -192,6 +197,11 @@ export default function Hero() {
 						{ y: -90, opacity: 0, ease: 'power2.in' },
 						0.1
 					)
+					.to(
+						'.hero-glow-sphere',
+						{ y: -220, scale: 1.08, opacity: 0, ease: 'power1.in' },
+						0.15
+					)
 					// BG text exits slowest (layer 1 continues its drift)
 					.to(
 						'.hero-bg-text',
@@ -216,14 +226,6 @@ export default function Hero() {
 		{ scope: containerRef }
 	)
 
-	useEffect(() => {
-		const t = setInterval(
-			() => setFlipIndex((p) => (p + 1) % flipWords.length),
-			2500
-		)
-		return () => clearInterval(t)
-	}, [])
-
 	return (
 		<div
 			id="hero-section"
@@ -241,44 +243,38 @@ export default function Hero() {
 				</div>
 			</div>
 
-			{/* ── Layer 2: Foreground content (fastest exit) ── */}
+			{/* ── Layer 2: Soft glowing sphere (medium speed, offground-style) ── */}
+			{showGlowSphere && (
+				<div className="hero-glow-sphere absolute inset-0 pointer-events-none z-[1] will-change-transform">
+					<div
+						className="absolute left-1/2 top-[44%] h-[72rem] w-[72rem] max-h-[92vw] max-w-[92vw] -translate-x-1/2 -translate-y-1/2 rounded-full"
+						style={{
+							background:
+								'radial-gradient(circle, rgba(226, 232, 240, 0.28) 0%, rgba(180, 205, 211, 0.22) 18%, rgba(108, 132, 139, 0.14) 38%, rgba(30, 41, 59, 0.08) 58%, rgba(15, 23, 42, 0) 76%)',
+							boxShadow:
+								'inset 0 0 90px rgba(226, 232, 240, 0.08), 0 0 180px rgba(148, 163, 184, 0.18)',
+							opacity: 0.9,
+						}}
+						aria-hidden="true"
+					/>
+				</div>
+			)}
+
+			{/* ── Layer 3: Foreground content (fastest exit) ── */}
 			<div className="container mx-auto px-4 2xl:max-w-[1400px] relative z-10">
 				{/* Headline — split into word spans for stagger */}
 				<div className="hero-headline mx-auto mt-8 max-w-4xl text-center">
 					<h1
 						className={cn(
-							'text-center text-5xl font-bold tracking-tight text-white sm:text-6xl xl:text-7xl/none flex flex-wrap justify-center',
+							'flex flex-col items-center justify-center gap-4 text-center text-5xl font-bold tracking-tight text-white sm:text-6xl xl:text-7xl/none',
 							geist.className
 						)}
 					>
-						<SplitWords text="Your AI sucks." />
-						<span className="w-full block h-2" />
-						<SplitWords text="Fork your" />
-						<span
-							className="hero-word inline-block overflow-hidden"
-							// style={{ marginLeft: '0.3em' }}
-						>
-							<span className="hero-word-inner inline-block">
-								<span className="inline-flex items-center justify-center min-w-[140px] md:min-w-[220px]">
-									<AnimatePresence mode="wait">
-										<motion.span
-											key={flipIndex}
-											initial={{ rotateX: 90, opacity: 0 }}
-											animate={{ rotateX: 0, opacity: 1 }}
-											exit={{ rotateX: -90, opacity: 0 }}
-											transition={{
-												duration: 0.4,
-												type: 'spring',
-												stiffness: 120,
-											}}
-											className="inline-block bg-gradient-to-r from-white via-[#f8fafc] to-white text-black px-4 py-1 rounded-xl transform -rotate-1 shadow-2xl"
-											style={{ transformStyle: 'preserve-3d' }}
-										>
-											{flipWords[flipIndex]}
-										</motion.span>
-									</AnimatePresence>
-								</span>
-							</span>
+						<span className="block">
+							<SplitWords text="Your AI sucks." />
+						</span>
+						<span className="block">
+							<SplitWords text="Fork your" />
 						</span>
 					</h1>
 				</div>
@@ -295,9 +291,10 @@ export default function Hero() {
 
 				{/* CTAs */}
 				<div className="hero-primary-cta mt-10 flex flex-col sm:flex-row justify-center gap-4 items-center">
-					<Link prefetch={false} href="/prelaunch">
+					<Link prefetch={false} href={isAuthenticated ? '/chat' : '/prelaunch'}>
 						<Button className="bg-gradient-to-r from-white to-[#f8fafc] text-black hover:from-[#f8fafc] hover:to-white rounded-full px-8 py-6 text-lg font-medium transition-all hover:scale-105 hover:shadow-2xl hover:shadow-white/20">
-							Get Early Access <MoveRight className="ml-2 h-5 w-5" />
+							{isAuthenticated ? 'Open Chat' : 'Get Early Access'}{' '}
+							<MoveRight className="ml-2 h-5 w-5" />
 						</Button>
 					</Link>
 					<Link prefetch={false} href="/demo">

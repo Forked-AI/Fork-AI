@@ -692,6 +692,7 @@ describe("/api/chat/stream route", () => {
 				where: {
 					id: "conversation-1",
 					userId: "user-1",
+					organizationId: null,
 				},
 			})
 		);
@@ -922,6 +923,7 @@ describe("/api/chat/stream route", () => {
 					messageId: "user-1",
 					conversationId: "conversation-1",
 					userId: "user-1",
+					organizationId: null,
 					fileObjectId: "file-image-1",
 					kind: "image",
 					promptUse: "vision",

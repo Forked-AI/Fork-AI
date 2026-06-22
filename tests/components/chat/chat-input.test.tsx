@@ -108,6 +108,39 @@ describe('ChatInput', () => {
 		expect(textbox).toHaveFocus()
 	})
 
+	it('inserts context chat drafts with removable source chips', async () => {
+		const user = userEvent.setup()
+		const onSendMessage = vi.fn().mockResolvedValue(undefined)
+
+		render(
+			<ChatInput
+				onSendMessage={onSendMessage}
+				contextDraftInsertion={{
+					id: 'context-draft-1',
+					text: 'Context source: Project plan\n\n> User: Launch plan\n\nUsing the context above, ',
+					sources: [{ id: 'conversation-1', title: 'Project plan' }],
+				}}
+			/>
+		)
+
+		const textbox = screen.getByRole('textbox')
+
+		expect(screen.getByText('Context sources')).toBeInTheDocument()
+		expect(screen.getByText('Project plan')).toBeInTheDocument()
+		expect(textbox).toHaveValue(
+			'Context source: Project plan\n\n> User: Launch plan\n\nUsing the context above, \n\n'
+		)
+
+		await user.click(
+			screen.getByRole('button', {
+				name: 'Remove context from Project plan',
+			})
+		)
+
+		expect(screen.queryByText('Context sources')).not.toBeInTheDocument()
+		expect(textbox).toHaveValue('')
+	})
+
 	it('sends the web search tool when toggled for a message', async () => {
 		const user = userEvent.setup()
 		const onSendMessage = vi.fn().mockResolvedValue(undefined)

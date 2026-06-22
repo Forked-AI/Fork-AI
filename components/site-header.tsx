@@ -149,6 +149,12 @@ export function SiteHeader() {
 							<span className="text-sm text-white">
 								Welcome, {session.user.name}
 							</span>
+							<Link
+								href="/chat"
+								className="rounded-full font-bold relative cursor-pointer hover:-translate-y-0.5 transition-all duration-200 inline-block text-center bg-gradient-to-r from-[#e2e8f0] to-white text-black shadow-xl shadow-white/20 hover:shadow-2xl hover:shadow-white/30 px-6 py-2 text-sm shimmer-hover"
+							>
+								Open Chat
+							</Link>
 							<button
 								onClick={async () => {
 									try {
@@ -249,6 +255,13 @@ export function SiteHeader() {
 										<span className="px-4 py-3 text-lg font-medium text-white">
 											Welcome, {session.user.name}
 										</span>
+										<Link
+											href="/chat"
+											onClick={() => setIsMobileMenuOpen(false)}
+											className="px-4 py-3 text-lg font-bold text-center bg-gradient-to-r from-[#e2e8f0] to-white text-black rounded-full shadow-xl hover:shadow-2xl hover:-translate-y-0.5 transition-all duration-200"
+										>
+											Open Chat
+										</Link>
 										<button
 											onClick={async () => {
 												try {

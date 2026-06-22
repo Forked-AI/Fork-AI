@@ -1,6 +1,7 @@
 'use client'
 
 import { CollectionsModal } from '@/components/chat/collections-modal'
+import { ForkPlaygroundModal } from '@/components/chat/fork-playground-modal'
 import { PlaceholderModal } from '@/components/chat/placeholder-modal'
 import { SearchModal } from '@/components/chat/search-modal'
 import { SelectiveShareModal } from '@/components/chat/selective-share-modal'
@@ -15,25 +16,23 @@ import {
 	DialogTitle,
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
-import { GitBranch, History } from 'lucide-react'
+import { History } from 'lucide-react'
 import type { Dispatch, SetStateAction } from 'react'
 import type { ShareDialogState } from './use-sidebar-conversation-actions'
 
+export type SidebarLibraryModal = 'history' | 'collections' | 'branches'
+
 interface SidebarDialogsProps {
-	branchesOpen: boolean
 	closeRenameDialog: () => void
-	collectionsOpen: boolean
 	compactMode: boolean
-	historyOpen: boolean
 	isRenameUnchanged: boolean
 	isUpdating: boolean
+	libraryModal: SidebarLibraryModal | null
+	onLibraryModalChange: (modal: SidebarLibraryModal | null) => void
 	renameDialog: { id: string; title: string } | null
 	renameTitle: string
 	searchOpen: boolean
-	setBranchesOpen: (open: boolean) => void
-	setCollectionsOpen: (open: boolean) => void
 	setCompactMode: Dispatch<SetStateAction<boolean>>
-	setHistoryOpen: (open: boolean) => void
 	setRenameTitle: (title: string) => void
 	setSearchOpen: (open: boolean) => void
 	setSettingsOpen: (open: boolean) => void
@@ -42,24 +41,23 @@ interface SidebarDialogsProps {
 	shareDialog: ShareDialogState | null
 	onAutoCompletePairs: (messageIds: string[]) => void
 	onCompactModeChange: (compact: boolean) => void
+	onOpenForkView: (conversationId: string) => void
 	onSaveRename: () => Promise<void>
+	activeConversationId: string | null
+	activeConversationTitle?: string | null
 }
 
 export function SidebarDialogs({
-	branchesOpen,
 	closeRenameDialog,
-	collectionsOpen,
 	compactMode,
-	historyOpen,
 	isRenameUnchanged,
 	isUpdating,
+	libraryModal,
+	onLibraryModalChange,
 	renameDialog,
 	renameTitle,
 	searchOpen,
-	setBranchesOpen,
-	setCollectionsOpen,
 	setCompactMode,
-	setHistoryOpen,
 	setRenameTitle,
 	setSearchOpen,
 	setSettingsOpen,
@@ -68,7 +66,10 @@ export function SidebarDialogs({
 	shareDialog,
 	onAutoCompletePairs,
 	onCompactModeChange,
+	onOpenForkView,
 	onSaveRename,
+	activeConversationId,
+	activeConversationTitle,
 }: SidebarDialogsProps) {
 	return (
 		<>
@@ -83,22 +84,28 @@ export function SidebarDialogs({
 				}}
 			/>
 			<PlaceholderModal
-				open={historyOpen}
-				onOpenChange={setHistoryOpen}
+				open={libraryModal === 'history'}
+				onOpenChange={(open) => {
+					onLibraryModalChange(open ? 'history' : null)
+				}}
 				title="History"
 				description="View your conversation history"
 				icon={History}
 			/>
 			<CollectionsModal
-				open={collectionsOpen}
-				onOpenChange={setCollectionsOpen}
+				open={libraryModal === 'collections'}
+				onOpenChange={(open) => {
+					onLibraryModalChange(open ? 'collections' : null)
+				}}
 			/>
-			<PlaceholderModal
-				open={branchesOpen}
-				onOpenChange={setBranchesOpen}
-				title="Branches"
-				description="View and manage conversation branches"
-				icon={GitBranch}
+			<ForkPlaygroundModal
+				open={libraryModal === 'branches'}
+				onOpenChange={(open) => {
+					onLibraryModalChange(open ? 'branches' : null)
+				}}
+				conversationId={activeConversationId}
+				conversationTitle={activeConversationTitle}
+				onOpenForkView={onOpenForkView}
 			/>
 
 			<Dialog

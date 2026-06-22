@@ -44,10 +44,10 @@ vi.mock('@/components/ui/aurora-background', () => ({
 
 vi.mock('@/components/hero', () => ({
 	__esModule: true,
-	default: ({ showParticleSphere }: { showParticleSphere?: boolean }) => (
+	default: ({ showGlowSphere }: { showGlowSphere?: boolean }) => (
 		<div
 			data-testid="hero"
-			data-show-particle-sphere={String(Boolean(showParticleSphere))}
+			data-show-glow-sphere={String(Boolean(showGlowSphere))}
 		/>
 	),
 }))
@@ -91,12 +91,12 @@ describe('HomePageContent', () => {
 		})
 	})
 
-	it('disables the heavy particle sphere on home', () => {
+	it('enables the glowing sphere on desktop with full effects', () => {
 		render(<HomePageContent />)
 
 		expect(screen.getByTestId('hero')).toHaveAttribute(
-			'data-show-particle-sphere',
-			'false'
+			'data-show-glow-sphere',
+			'true'
 		)
 	})
 
@@ -115,6 +115,10 @@ describe('HomePageContent', () => {
 
 		render(<HomePageContent />)
 
+		expect(screen.getByTestId('hero')).toHaveAttribute(
+			'data-show-glow-sphere',
+			'false'
+		)
 		expect(screen.queryByTestId('scroll-canvas')).not.toBeInTheDocument()
 		expect(screen.getByTestId('aurora')).toHaveAttribute(
 			'data-reduced-effects',
@@ -148,6 +152,10 @@ describe('HomePageContent', () => {
 		await waitFor(() => {
 			expect(screen.queryByTestId('scroll-canvas')).not.toBeInTheDocument()
 		})
+		expect(screen.getByTestId('hero')).toHaveAttribute(
+			'data-show-glow-sphere',
+			'false'
+		)
 		expect(screen.getByTestId('aurora')).toHaveAttribute(
 			'data-reduced-effects',
 			'true'
@@ -159,6 +167,10 @@ describe('HomePageContent', () => {
 
 		render(<HomePageContent />)
 
+		expect(screen.getByTestId('hero')).toHaveAttribute(
+			'data-show-glow-sphere',
+			'false'
+		)
 		expect(mockCreatePerformanceMonitor).not.toHaveBeenCalled()
 	})
 })

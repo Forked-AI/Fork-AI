@@ -1,6 +1,11 @@
 import { auth } from "@/lib/auth";
+import { buildMessageTrustTrace } from "@/lib/ai/trust-trace";
 import { markStaleGenerationsFailed } from "@/lib/chat/generation-service";
 import { prisma } from "@/lib/prisma";
+import {
+	recordOrganizationAuditLog,
+	resolveWorkspaceContext,
+} from "@/lib/organizations/context";
 import { logServerError } from "@/lib/server-safe-log";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
@@ -34,6 +39,12 @@ export async function GET(
 		}
 
 		const userId = session.user.id;
+		const workspaceResult = await resolveWorkspaceContext({
+			session,
+			requiredPermission: "workspace:read",
+		});
+		if (!workspaceResult.ok) return workspaceResult.response;
+		const workspace = workspaceResult.workspace;
 		const { id: conversationId } = await params;
 		await markStaleGenerationsFailed({ userId, conversationId });
 
@@ -41,6 +52,7 @@ export async function GET(
 			where: {
 				id: conversationId,
 				userId: userId,
+				organizationId: workspace.organizationId,
 			},
 			include: {
 				messages: {
@@ -61,6 +73,11 @@ export async function GET(
 						completedAt: true,
 						cancelledAt: true,
 						lastChunkAt: true,
+						promptVersion: true,
+						contextSummaryId: true,
+						contextEstimatedTokens: true,
+						contextRecentMessageCount: true,
+						contextTotalMessageCount: true,
 						ragContextChunkIds: true,
 						ragCitationData: true,
 						activeSkillTraceJson: true,
@@ -88,6 +105,39 @@ export async function GET(
 								},
 							},
 						},
+						generationAsAssistantMessage: {
+							select: {
+								id: true,
+								provider: true,
+								model: true,
+								status: true,
+								promptVersion: true,
+								contextSummaryId: true,
+								contextEstimatedTokens: true,
+								contextRecentMessageCount: true,
+								contextTotalMessageCount: true,
+								usageEvent: {
+									select: {
+										resolvedModel: true,
+										providerRequestId: true,
+									},
+								},
+								userMessage: {
+									select: {
+										toolExecutions: {
+											orderBy: { createdAt: "asc" },
+											select: {
+												id: true,
+												toolName: true,
+												status: true,
+												riskLevel: true,
+												requiresConfirmation: true,
+											},
+										},
+									},
+								},
+							},
+						},
 					},
 				},
 				collection: {
@@ -107,7 +157,26 @@ export async function GET(
 			);
 		}
 
-		return NextResponse.json({ conversation });
+		const messages = conversation.messages.map((message) => {
+			const { generationAsAssistantMessage, ...safeMessage } = message;
+			return {
+				...safeMessage,
+				trustTrace:
+					message.role === "assistant"
+						? buildMessageTrustTrace({
+								...safeMessage,
+								generationAsAssistantMessage,
+							})
+						: null,
+			};
+		});
+
+		return NextResponse.json({
+			conversation: {
+				...conversation,
+				messages,
+			},
+		});
 	} catch (error) {
 		logServerError("conversations", "fetch_failed", error);
 		return NextResponse.json(
@@ -134,6 +203,12 @@ export async function PATCH(
 		}
 
 		const userId = session.user.id;
+		const workspaceResult = await resolveWorkspaceContext({
+			session,
+			requiredPermission: "workspace:write",
+		});
+		if (!workspaceResult.ok) return workspaceResult.response;
+		const workspace = workspaceResult.workspace;
 		const { id: conversationId } = await params;
 		const body = await request.json();
 
@@ -149,7 +224,11 @@ export async function PATCH(
 
 		// Check conversation ownership
 		const existing = await prisma.conversation.findFirst({
-			where: { id: conversationId, userId },
+			where: {
+				id: conversationId,
+				userId,
+				organizationId: workspace.organizationId,
+			},
 		});
 
 		if (!existing) {
@@ -217,6 +296,14 @@ export async function PATCH(
 			where: { id: conversationId },
 			data: updateData,
 		});
+		await recordOrganizationAuditLog({
+			workspace,
+			action: "conversation.update",
+			targetType: "conversation",
+			targetId: conversationId,
+			request,
+			metadata: { changedFields: Object.keys(updateData) },
+		});
 
 		return NextResponse.json({ conversation });
 	} catch (error) {
@@ -246,11 +333,21 @@ export async function DELETE(
 		}
 
 		const userId = session.user.id;
+		const workspaceResult = await resolveWorkspaceContext({
+			session,
+			requiredPermission: "workspace:write",
+		});
+		if (!workspaceResult.ok) return workspaceResult.response;
+		const workspace = workspaceResult.workspace;
 		const { id: conversationId } = await params;
 
 		// Check ownership
 		const existing = await prisma.conversation.findFirst({
-			where: { id: conversationId, userId },
+			where: {
+				id: conversationId,
+				userId,
+				organizationId: workspace.organizationId,
+			},
 		});
 
 		if (!existing) {
@@ -263,6 +360,13 @@ export async function DELETE(
 		// Delete conversation (messages cascade delete due to schema)
 		await prisma.conversation.delete({
 			where: { id: conversationId },
+		});
+		await recordOrganizationAuditLog({
+			workspace,
+			action: "conversation.delete",
+			targetType: "conversation",
+			targetId: conversationId,
+			request,
 		});
 
 		return NextResponse.json({ success: true });

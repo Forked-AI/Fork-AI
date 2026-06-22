@@ -24,6 +24,7 @@ import {
 	type JsonValue,
 } from "@/lib/idempotency";
 import { prisma } from "@/lib/prisma";
+import { resolveWorkspaceContext } from "@/lib/organizations/context";
 import { logServerError } from "@/lib/server-safe-log";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
@@ -149,6 +150,12 @@ export async function POST(
 				{ status: 401 }
 			);
 		}
+		const workspaceResult = await resolveWorkspaceContext({
+			session,
+			requiredPermission: "workspace:write",
+		});
+		if (!workspaceResult.ok) return workspaceResult.response;
+		const workspace = workspaceResult.workspace;
 
 		const { id } = await params;
 		const rawBody = await request.json().catch(() => ({}));
@@ -169,6 +176,7 @@ export async function POST(
 				role: "assistant",
 				conversation: {
 					userId: session.user.id,
+					organizationId: workspace.organizationId,
 				},
 			},
 			select: {
@@ -221,6 +229,7 @@ export async function POST(
 			requestInput: {
 				assistantMessageId: id,
 				model: modelSelection.model,
+				organizationId: workspace.organizationId,
 				systemPrompt: parseResult.data.systemPrompt ?? "",
 			},
 			lockSeconds: 10 * 60,
@@ -244,6 +253,7 @@ export async function POST(
 		return createChatStreamResponse({
 			userId: session.user.id,
 			isGuest: false,
+			organizationId: workspace.organizationId,
 			message: "",
 			model: modelSelection.model,
 			providerName: modelSelection.providerName,

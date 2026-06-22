@@ -56,6 +56,11 @@ export function useChatAreaGraph({
 		setShowGraphView((current) => !current)
 	}, [clearBranchContext, showGraphView])
 
+	const openGraphView = useCallback(() => {
+		clearBranchContext()
+		setShowGraphView(true)
+	}, [clearBranchContext])
+
 	const handleGraphAction = useCallback(
 		(action: string, nodeId?: string) => {
 			switch (action) {
@@ -130,6 +135,7 @@ export function useChatAreaGraph({
 		selectedNodes,
 		setSelectedNodeIds,
 		showGraphView,
+		openGraphView,
 		toggleGraphView,
 	}
 }

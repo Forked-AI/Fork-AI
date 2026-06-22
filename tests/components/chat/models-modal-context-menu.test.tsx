@@ -11,11 +11,17 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const textCapabilities = {
 	supportsText: true,
+	supportsStreaming: true,
+	supportsStructuredOutput: false,
 	supportsImages: false,
 	supportsAudioInput: false,
 	supportsAudioTranscription: false,
 	supportsImageGeneration: false,
 	supportsDocumentAttachments: true,
+	supportsEmbeddings: false,
+	supportsDocumentAi: false,
+	supportsModeration: false,
+	supportsPromptCaching: false,
 	supportsNativeWebSearch: false,
 	supportsFunctionCalling: false,
 	supportsProviderTools: false,

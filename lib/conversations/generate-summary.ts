@@ -275,6 +275,7 @@ export async function generateConversationSummary({
 		});
 		const content = response.content.trim().slice(0, getMaxSummaryChars());
 		const measurement = buildUsageMeasurement({
+			provider: modelSelection.providerName,
 			requestedModel: modelSelection.model,
 			resolvedModel: response.resolvedModel,
 			providerRequestId: response.providerRequestId,
@@ -372,6 +373,7 @@ export async function generateConversationSummary({
 
 		const normalized = normalizeProviderStreamError(error);
 		const measurement = buildUsageMeasurement({
+			provider: modelSelection.providerName,
 			requestedModel: modelSelection.model,
 			resolvedModel: response?.resolvedModel,
 			providerRequestId:

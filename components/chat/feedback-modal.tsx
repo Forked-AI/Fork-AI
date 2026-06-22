@@ -1,26 +1,15 @@
 'use client'
 
 import { cn } from '@/lib/utils'
+import { FEEDBACK_REASONS } from '@/lib/feedback/reasons'
 import { X } from 'lucide-react'
 import { useState } from 'react'
 
 interface FeedbackModalProps {
 	isOpen: boolean
 	onClose: () => void
-	onSubmit: (reasons: string[], comment: string) => void
+	onSubmit: (reasons: string[], comment: string, correction: string) => void
 }
-
-const FEEDBACK_REASONS = [
-	'Incorrect information',
-	'Not helpful',
-	'Unsafe or harmful content',
-	'Factually wrong',
-	'Poor formatting',
-	'Too verbose',
-	'Too short',
-	'Off-topic',
-	'Other',
-]
 
 export function FeedbackModal({
 	isOpen,
@@ -29,6 +18,7 @@ export function FeedbackModal({
 }: FeedbackModalProps) {
 	const [selectedReasons, setSelectedReasons] = useState<string[]>([])
 	const [comment, setComment] = useState('')
+	const [correction, setCorrection] = useState('')
 	const [isSubmitting, setIsSubmitting] = useState(false)
 
 	if (!isOpen) return null
@@ -42,15 +32,16 @@ export function FeedbackModal({
 	}
 
 	const handleSubmit = async () => {
-		if (selectedReasons.length === 0 && !comment.trim()) {
+		if (selectedReasons.length === 0 && !comment.trim() && !correction.trim()) {
 			return
 		}
 
 		setIsSubmitting(true)
 		try {
-			await onSubmit(selectedReasons, comment)
+			await onSubmit(selectedReasons, comment, correction)
 			setSelectedReasons([])
 			setComment('')
+			setCorrection('')
 			onClose()
 		} catch (err) {
 			console.error('Failed to submit feedback:', err)
@@ -62,6 +53,7 @@ export function FeedbackModal({
 	const handleClose = () => {
 		setSelectedReasons([])
 		setComment('')
+		setCorrection('')
 		onClose()
 	}
 
@@ -90,19 +82,31 @@ export function FeedbackModal({
 						<div className="flex flex-wrap gap-2">
 							{FEEDBACK_REASONS.map((reason) => (
 								<button
-									key={reason}
-									onClick={() => handleReasonToggle(reason)}
+									key={reason.id}
+									onClick={() => handleReasonToggle(reason.id)}
 									className={cn(
 										'px-3 py-1.5 text-xs rounded-lg border transition-colors',
-										selectedReasons.includes(reason)
+										selectedReasons.includes(reason.id)
 											? 'bg-primary/10 border-primary text-primary'
 											: 'bg-background/30 border-border/50 text-muted-foreground hover:text-foreground hover:border-border'
 									)}
 								>
-									{reason}
+									{reason.label}
 								</button>
 							))}
 						</div>
+					</div>
+
+					<div>
+						<label className="block text-sm font-medium text-foreground mb-2">
+							Correct answer (optional)
+						</label>
+						<textarea
+							value={correction}
+							onChange={(e) => setCorrection(e.target.value)}
+							placeholder="Write the answer you expected or the correction Fork AI should learn from."
+							className="w-full h-24 px-3 py-2 bg-background/30 border border-border/50 rounded-lg text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary resize-none"
+						/>
 					</div>
 
 					<div>
@@ -129,11 +133,17 @@ export function FeedbackModal({
 					<button
 						onClick={handleSubmit}
 						disabled={
-							isSubmitting || (selectedReasons.length === 0 && !comment.trim())
+							isSubmitting ||
+							(selectedReasons.length === 0 &&
+								!comment.trim() &&
+								!correction.trim())
 						}
 						className={cn(
 							'px-4 py-2 text-sm font-medium rounded-lg transition-colors',
-							isSubmitting || (selectedReasons.length === 0 && !comment.trim())
+							isSubmitting ||
+								(selectedReasons.length === 0 &&
+									!comment.trim() &&
+									!correction.trim())
 								? 'bg-primary/20 text-primary/50 cursor-not-allowed'
 								: 'bg-primary/10 text-primary hover:bg-primary/20'
 						)}

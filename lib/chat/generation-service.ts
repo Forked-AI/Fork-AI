@@ -41,6 +41,7 @@ type GenerationPrismaClient = any;
 export interface CreateGenerationAttemptInput {
 	prismaClient?: GenerationPrismaClient;
 	userId: string;
+	organizationId?: string | null;
 	conversationId: string;
 	userMessageId: string;
 	provider: string;
@@ -66,6 +67,7 @@ export interface GenerationAttempt {
 export async function createGenerationAttempt({
 	prismaClient = prisma,
 	userId,
+	organizationId,
 	conversationId,
 	userMessageId,
 	provider,
@@ -108,6 +110,7 @@ export async function createGenerationAttempt({
 			const generation = await transaction.generation.create({
 				data: {
 					userId,
+					organizationId: organizationId ?? null,
 					conversationId,
 					userMessageId,
 					assistantMessageId: assistantMessage.id,
@@ -138,6 +141,7 @@ export async function createGenerationAttempt({
 				prismaClient: transaction,
 				deduplicationKey: `generation:${generation.id}`,
 				userId,
+				organizationId: organizationId ?? null,
 				conversationId,
 				messageId: assistantMessage.id,
 				generationId: generation.id,
@@ -477,6 +481,7 @@ export async function cancelGenerationByAssistantMessage({
 
 	const measurement = generation
 		? buildUsageMeasurement({
+				provider: generation.provider,
 				requestedModel: generation.model,
 				estimatedInputTokens: generation.contextEstimatedTokens,
 				estimatedOutputTokens: estimateOutputTokens({
@@ -613,6 +618,7 @@ export async function markStaleGenerationsFailed({
 	await Promise.all(
 		staleGenerations.map((generation) => {
 			const measurement = buildUsageMeasurement({
+				provider: generation.provider,
 				requestedModel: generation.model,
 				estimatedInputTokens: generation.contextEstimatedTokens,
 				estimatedOutputTokens: estimateOutputTokens({

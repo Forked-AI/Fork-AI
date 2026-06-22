@@ -6,6 +6,7 @@ import {
 	type MessageAttachmentPayload,
 	type ConversationDetailPayload,
 } from "@/lib/conversation-api";
+import type { MessageTrustTrace } from "@/lib/ai/trust-trace";
 import { createIdempotencyHeaders } from "@/lib/idempotency-client";
 import type {
 	ActiveSkillTrace,
@@ -46,6 +47,8 @@ export interface Message {
 	attachments?: MessageAttachment[];
 	activeSkillTrace?: ActiveSkillTrace | null;
 	promptSkillHash?: string | null;
+	trustTrace?: MessageTrustTrace | null;
+	progressStep?: string | null;
 }
 
 export interface ChatAttachmentInput {
@@ -210,6 +213,7 @@ function mapConversationDetailMessages(
 			? msg.activeSkillTraceJson
 			: null,
 		promptSkillHash: msg.promptSkillHash ?? null,
+		trustTrace: msg.trustTrace ?? null,
 	}));
 }
 
@@ -722,6 +726,22 @@ export function useChat(options: UseChatOptions = {}): UseChatReturn {
 								break;
 							}
 
+							case "progress": {
+								if (typeof data.step !== "string") return;
+								setMessages((prev) =>
+									prev.map((msg) =>
+										msg.id === tempAssistantMessageId ||
+										msg.id === realAssistantMessageId
+											? {
+													...msg,
+													progressStep: data.step,
+												}
+											: msg
+									)
+								);
+								break;
+							}
+
 							case "done": {
 								const nextAssistantMessageId =
 									typeof data.assistantMessageId === "string"
@@ -751,6 +771,7 @@ export function useChat(options: UseChatOptions = {}): UseChatReturn {
 														completionTokens:
 															data.usage
 																?.completionTokens,
+														progressStep: null,
 													}
 												: msg
 									);

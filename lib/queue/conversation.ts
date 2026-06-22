@@ -8,11 +8,13 @@ export type ConversationQueueJobName =
 export interface GenerateTitleJobData {
 	conversationId: string;
 	userId: string;
+	organizationId?: string | null;
 }
 
 export interface SummarizeConversationJobData {
 	conversationId: string;
 	userId: string;
+	organizationId?: string | null;
 }
 
 export type ConversationQueueJobData =
@@ -40,6 +42,6 @@ export function enqueueConversationSummaryJob(
 	options: SummarizeConversationJobData
 ) {
 	return conversationQueue.add("summarize-conversation", options, {
-		jobId: `summarize-conversation:${options.userId}:${options.conversationId}`,
+		jobId: `summarize-conversation:${options.userId}:${options.organizationId ?? "personal"}:${options.conversationId}`,
 	});
 }

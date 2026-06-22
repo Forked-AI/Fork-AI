@@ -1,4 +1,5 @@
 import { Sidebar } from '@/components/chat/sidebar'
+import { clearConversationDetailCache } from '@/lib/conversation-api'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import {
 	act,
@@ -22,6 +23,7 @@ const mockUpdateConversation = vi.fn()
 const mockInvalidateConversations = vi.fn()
 const mockToast = vi.fn()
 const selectiveShareModalSpy = vi.fn()
+const forkPlaygroundModalSpy = vi.fn()
 const mockUseConversations = vi.fn()
 let mockCompactMode = false
 
@@ -139,6 +141,25 @@ vi.mock('@/hooks/use-collections', () => ({
 
 vi.mock('@/hooks/use-conversations', () => ({
 	useConversations: (options?: unknown) => mockUseConversations(options),
+	useConversation: (conversationId: string | null) => {
+		const conversation = [
+			pinnedConversation,
+			...recentConversations,
+			{
+				id: 'conversation-outside-list',
+				title: 'Loaded outside list',
+			},
+		].find((item) => item.id === conversationId)
+
+		return {
+			data: conversation
+				? {
+						id: conversation.id,
+						title: conversation.title,
+					}
+				: null,
+		}
+	},
 }))
 
 vi.mock('@/hooks/use-toast', () => ({
@@ -158,11 +179,64 @@ vi.mock('@/components/chat/chat-ui-provider', () => ({
 }))
 
 vi.mock('@/components/chat/collections-modal', () => ({
-	CollectionsModal: () => null,
+	CollectionsModal: (props: {
+		open: boolean
+		onOpenChange: (open: boolean) => void
+	}) =>
+		props.open ? (
+			<div data-testid="collections-modal">
+				<button onClick={() => props.onOpenChange(false)}>
+					Close collections
+				</button>
+			</div>
+		) : null,
 }))
 
 vi.mock('@/components/chat/placeholder-modal', () => ({
-	PlaceholderModal: () => null,
+	PlaceholderModal: (props: {
+		open: boolean
+		title: string
+		onOpenChange: (open: boolean) => void
+	}) =>
+		props.open ? (
+			<div data-testid={`${props.title.toLowerCase()}-modal`}>
+				<button onClick={() => props.onOpenChange(false)}>
+					Close {props.title}
+				</button>
+			</div>
+		) : null,
+}))
+
+vi.mock('@/components/chat/fork-playground-modal', () => ({
+	ForkPlaygroundModal: (props: {
+		open: boolean
+		conversationId: string | null
+		conversationTitle?: string | null
+		onOpenChange: (open: boolean) => void
+		onOpenForkView: (conversationId: string) => void
+	}) => {
+		forkPlaygroundModalSpy(props)
+
+		if (!props.open) return null
+
+		return (
+			<div data-testid="fork-playground-modal">
+				<span>{props.conversationTitle ?? 'Untitled active chat'}</span>
+				<button onClick={() => props.onOpenChange(false)}>
+					Close branches
+				</button>
+				<button
+					onClick={() => {
+						if (props.conversationId) {
+							props.onOpenForkView(props.conversationId)
+						}
+					}}
+				>
+					Open Fork view
+				</button>
+			</div>
+		)
+	},
 }))
 
 vi.mock('@/components/chat/search-modal', () => ({
@@ -251,6 +325,9 @@ describe('Sidebar context menus', () => {
 		mockInvalidateConversations.mockReset()
 		mockToast.mockReset()
 		selectiveShareModalSpy.mockReset()
+		forkPlaygroundModalSpy.mockReset()
+		window.sessionStorage.clear()
+		clearConversationDetailCache()
 		vi.unstubAllGlobals()
 
 		mockUseConversations.mockImplementation(
@@ -293,6 +370,7 @@ describe('Sidebar context menus', () => {
 			'Open chat',
 			'Rename',
 			'Share',
+			'Start chat with context',
 			'Move to...',
 			'Pin chat',
 			'Delete chat',
@@ -308,6 +386,7 @@ describe('Sidebar context menus', () => {
 			'Open chat',
 			'Rename',
 			'Share',
+			'Start chat with context',
 			'Move to...',
 			'Pin chat',
 			'Delete chat',
@@ -354,6 +433,7 @@ describe('Sidebar context menus', () => {
 			'Open chat',
 			'Rename',
 			'Share',
+			'Start chat with context',
 			'Move to...',
 			'Pin chat',
 			'Delete chat',
@@ -368,6 +448,7 @@ describe('Sidebar context menus', () => {
 			'Open chat',
 			'Rename',
 			'Share',
+			'Start chat with context',
 			'Move to...',
 			'Pin chat',
 			'Delete chat',
@@ -411,6 +492,7 @@ describe('Sidebar context menus', () => {
 			'Open chat',
 			'Rename',
 			'Share',
+			'Start chat with context',
 			'Move to...',
 			'Pin chat',
 			'Delete chat',
@@ -423,6 +505,7 @@ describe('Sidebar context menus', () => {
 			'Open chat',
 			'Rename',
 			'Share',
+			'Start chat with context',
 			'Move to...',
 			'Pin chat',
 			'Delete chat',
@@ -584,6 +667,74 @@ describe('Sidebar context menus', () => {
 		})
 	})
 
+	it('starts a normal chat with visible source context from a prior conversation', async () => {
+		const user = userEvent.setup()
+		const fetchMock = vi.fn().mockResolvedValue({
+			ok: true,
+			json: async () => ({
+				conversation: {
+					id: 'conversation-1',
+					title: 'Project plan',
+					messages: [
+						{
+							id: 'message-1',
+							role: 'user',
+							content: 'What is the launch plan?',
+							parentMessageId: null,
+							createdAt: '2025-01-01T00:00:00.000Z',
+						},
+						{
+							id: 'message-2',
+							role: 'assistant',
+							content: 'Ship it in three phases.',
+							parentMessageId: 'message-1',
+							createdAt: '2025-01-01T00:01:00.000Z',
+						},
+					],
+				},
+			}),
+		})
+		vi.stubGlobal('fetch', fetchMock)
+
+		renderSidebar()
+
+		await user.click(
+			screen.getByRole('button', { name: 'More actions for Project plan' })
+		)
+		await user.click(
+			within(getLastMenu()!).getByRole('menuitem', {
+				name: 'Start chat with context',
+			})
+		)
+
+		await waitFor(() => {
+			expect(fetchMock).toHaveBeenCalledWith(
+				'/api/conversations/conversation-1',
+				{ credentials: 'include' }
+			)
+			expect(mockRouterReplace).toHaveBeenCalledWith(
+				expect.stringMatching(/^\/chat\?contextDraft=conversation-1-/),
+				{ scroll: false }
+			)
+		})
+
+		const route = mockRouterReplace.mock.calls.at(-1)?.[0] as string
+		const draftId = new URLSearchParams(route.split('?')[1]).get('contextDraft')
+		expect(draftId).toBeTruthy()
+
+		const storedDraft = JSON.parse(
+			window.sessionStorage.getItem(`fork-context-chat:${draftId}`) ?? '{}'
+		)
+		expect(storedDraft.sources).toEqual([
+			{ id: 'conversation-1', title: 'Project plan' },
+		])
+		expect(storedDraft.text).toContain('Context source: Project plan')
+		expect(storedDraft.text).toContain('> User: What is the launch plan?')
+		expect(storedDraft.text).toContain(
+			'> Assistant: Ship it in three phases.'
+		)
+	})
+
 	it('opens a chat from the context menu', async () => {
 		const user = userEvent.setup()
 
@@ -598,6 +749,76 @@ describe('Sidebar context menus', () => {
 		expect(mockRouterReplace).toHaveBeenCalledWith('/chat?c=conversation-1', {
 			scroll: false,
 		})
+	})
+
+	it('opens Branches without changing the active conversation row and routes to fork view', async () => {
+		const user = userEvent.setup()
+		mockSearchParams.value = 'c=conversation-1'
+
+		renderSidebar()
+
+		const projectRow = screen.getByText('Project plan').closest('[role="button"]')
+		expect(projectRow).toBeTruthy()
+		expect(projectRow?.className).toContain('bg-sidebar-accent/50')
+
+		await user.click(screen.getByRole('button', { name: 'Branches' }))
+
+		expect(screen.getByTestId('fork-playground-modal')).toHaveTextContent(
+			'Project plan'
+		)
+		expect(forkPlaygroundModalSpy).toHaveBeenLastCalledWith(
+			expect.objectContaining({
+				open: true,
+				conversationId: 'conversation-1',
+				conversationTitle: 'Project plan',
+			})
+		)
+		expect(projectRow?.className).toContain('bg-sidebar-accent/50')
+
+		await user.click(screen.getByRole('button', { name: 'Open Fork view' }))
+
+		expect(mockRouterReplace).toHaveBeenCalledWith(
+			'/chat?c=conversation-1&view=fork',
+			{ scroll: false }
+		)
+	})
+
+	it('keeps library modal state separate from route and conversation active state', async () => {
+		const user = userEvent.setup()
+		mockSearchParams.value = 'c=conversation-1'
+
+		renderSidebar()
+
+		const projectRow = screen.getByText('Project plan').closest('[role="button"]')
+		expect(projectRow?.className).toContain('bg-sidebar-accent/50')
+
+		await user.click(screen.getByRole('button', { name: 'History' }))
+		expect(screen.getByTestId('history-modal')).toBeInTheDocument()
+		expect(screen.getByRole('button', { name: 'History' }).className).toContain(
+			'bg-primary/10'
+		)
+		expect(projectRow?.className).toContain('bg-sidebar-accent/50')
+		await user.click(screen.getByRole('button', { name: 'Close History' }))
+
+		await user.click(screen.getByRole('button', { name: 'Collections' }))
+		expect(screen.getByTestId('collections-modal')).toBeInTheDocument()
+		expect(
+			screen.getByRole('button', { name: 'Collections' }).className
+		).toContain('bg-primary/10')
+		expect(projectRow?.className).toContain('bg-sidebar-accent/50')
+		await user.click(screen.getByRole('button', { name: 'Close collections' }))
+
+		await user.click(screen.getByRole('button', { name: 'Branches' }))
+		expect(screen.getByTestId('fork-playground-modal')).toBeInTheDocument()
+		expect(screen.getByRole('button', { name: 'Branches' }).className).toContain(
+			'bg-primary/10'
+		)
+		await user.click(screen.getByRole('button', { name: 'Close branches' }))
+
+		expect(screen.getByRole('button', { name: 'Shares' })).not.toHaveAttribute(
+			'aria-current'
+		)
+		expect(projectRow?.className).toContain('bg-sidebar-accent/50')
 	})
 
 	it('routes to the shares page and highlights the library item', async () => {

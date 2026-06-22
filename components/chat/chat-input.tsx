@@ -26,6 +26,7 @@ import {
 	ImageIcon,
 	ListOrdered,
 	Loader2,
+	MessageSquare,
 	Mic,
 	Paperclip,
 	Pause,
@@ -359,6 +360,11 @@ interface ChatInputProps {
 		id: string
 		text: string
 	} | null
+	contextDraftInsertion?: {
+		id: string
+		text: string
+		sources: Array<{ id: string; title: string }>
+	} | null
 	onFocus?: () => void
 }
 
@@ -381,6 +387,7 @@ export const ChatInput = forwardRef<HTMLTextAreaElement, ChatInputProps>(
 			branchContext,
 			onClearBranchContext,
 			quoteInsertion,
+			contextDraftInsertion,
 			onFocus,
 		},
 		ref
@@ -389,6 +396,7 @@ export const ChatInput = forwardRef<HTMLTextAreaElement, ChatInputProps>(
 		const textareaRef = useRef<HTMLTextAreaElement | null>(null)
 		const fileInputRef = useRef<HTMLInputElement | null>(null)
 		const handledQuoteInsertionRef = useRef<string | null>(null)
+		const handledContextDraftInsertionRef = useRef<string | null>(null)
 		const objectUrlsRef = useRef<Set<string>>(new Set())
 		const uploadingFileFingerprintsRef = useRef<Set<string>>(new Set())
 		const [isSubmitCoolingDown, setIsSubmitCoolingDown] = useState(false)
@@ -402,6 +410,11 @@ export const ChatInput = forwardRef<HTMLTextAreaElement, ChatInputProps>(
 		const [modelsModalOpen, setModelsModalOpen] = useState(false)
 		const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>([])
 		const [webSearchEnabled, setWebSearchEnabled] = useState(false)
+		const [contextDraft, setContextDraft] = useState<{
+			id: string
+			text: string
+			sources: Array<{ id: string; title: string }>
+		} | null>(null)
 		const { settings } = useSettings()
 
 		const favoriteModels = models.filter((m) => m.isFavorite)
@@ -529,6 +542,44 @@ export const ChatInput = forwardRef<HTMLTextAreaElement, ChatInputProps>(
 				textareaRef.current?.setSelectionRange(length, length)
 			}, 0)
 		}, [quoteInsertion, resizeTextarea])
+
+		useEffect(() => {
+			if (
+				!contextDraftInsertion ||
+				handledContextDraftInsertionRef.current === contextDraftInsertion.id
+			) {
+				return
+			}
+
+			handledContextDraftInsertionRef.current = contextDraftInsertion.id
+			setContextDraft(contextDraftInsertion)
+			setMessage((currentMessage) => {
+				const existingDraft = currentMessage.trimStart()
+				return existingDraft
+					? `${contextDraftInsertion.text}\n\n${existingDraft}`
+					: `${contextDraftInsertion.text}\n\n`
+			})
+
+			window.setTimeout(() => {
+				resizeTextarea()
+				textareaRef.current?.focus()
+				const length = textareaRef.current?.value.length ?? 0
+				textareaRef.current?.setSelectionRange(length, length)
+			}, 0)
+		}, [contextDraftInsertion, resizeTextarea])
+
+		const handleRemoveContextDraft = useCallback(() => {
+			if (!contextDraft) return
+
+			setMessage((currentMessage) =>
+				currentMessage.replace(contextDraft.text, '').trimStart()
+			)
+			setContextDraft(null)
+			window.setTimeout(() => {
+				resizeTextarea()
+				textareaRef.current?.focus()
+			}, 0)
+		}, [contextDraft, resizeTextarea])
 
 		useEffect(() => {
 			resizeTextarea()
@@ -895,6 +946,32 @@ export const ChatInput = forwardRef<HTMLTextAreaElement, ChatInputProps>(
 										className="rounded p-0.5 hover:bg-primary/20"
 										aria-label={`Remove ${skill.title}`}
 										title={`Remove ${skill.title}`}
+									>
+										<X className="h-3 w-3" />
+									</button>
+								</span>
+							))}
+						</div>
+					) : null}
+
+					{contextDraft ? (
+						<div className="mb-3 flex flex-wrap items-center gap-2 px-1">
+							<span className="text-xs font-medium text-muted-foreground">
+								Context sources
+							</span>
+							{contextDraft.sources.map((source) => (
+								<span
+									key={source.id}
+									className="inline-flex max-w-full items-center gap-1.5 rounded-lg border border-primary/30 bg-primary/10 px-2 py-1 text-xs text-primary"
+								>
+									<MessageSquare className="h-3 w-3 flex-shrink-0" />
+									<span className="max-w-40 truncate">{source.title}</span>
+									<button
+										type="button"
+										onClick={handleRemoveContextDraft}
+										className="rounded p-0.5 hover:bg-primary/20"
+										aria-label={`Remove context from ${source.title}`}
+										title={`Remove context from ${source.title}`}
 									>
 										<X className="h-3 w-3" />
 									</button>

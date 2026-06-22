@@ -32,6 +32,7 @@ import {
 	moderateUserMessage,
 	recordAbuseSignal,
 } from "@/lib/moderation/moderation-service";
+import { resolveWorkspaceContext } from "@/lib/organizations/context";
 import { logServerError, logServerWarning } from "@/lib/server-safe-log";
 import { recordOperationalMetric } from "@/lib/operational-metrics";
 import { skillActivationSchema } from "@/lib/skills/catalog";
@@ -190,6 +191,17 @@ export async function POST(request: Request) {
 		});
 		const userId = session?.user?.id || null;
 		const isGuest = !userId;
+		const workspaceResult = isGuest
+			? null
+			: await resolveWorkspaceContext({
+					session,
+					requiredPermission: "workspace:write",
+				});
+		if (workspaceResult && !workspaceResult.ok) {
+			return workspaceResult.response;
+		}
+		const organizationId =
+			workspaceResult?.workspace.organizationId ?? null;
 
 		const body = await request.json();
 		const parseResult = sendMessageSchema.safeParse(body);
@@ -283,6 +295,7 @@ export async function POST(request: Request) {
 				parentMessageId,
 				ragFileIds: ragFileIds ?? [],
 				attachments: attachments ?? [],
+				organizationId,
 				history: history ?? [],
 				systemPrompt: userCustomInstructions,
 				activeSkills: activeSkills ?? [],
@@ -406,6 +419,7 @@ export async function POST(request: Request) {
 				route: "/api/chat/stream",
 				errorCode: "MODERATION_BLOCKED",
 				userId,
+				organizationId,
 				conversationId: conversationId ?? null,
 				traceId,
 				metadata: {
@@ -423,6 +437,7 @@ export async function POST(request: Request) {
 		return createChatStreamResponse({
 			userId,
 			isGuest,
+			organizationId,
 			message,
 			model: modelSelection.model,
 			providerName: modelSelection.providerName,

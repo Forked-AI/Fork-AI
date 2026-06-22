@@ -1,5 +1,5 @@
 import { SiteHeader } from '@/components/site-header'
-import { render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import React from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -61,5 +61,42 @@ describe('SiteHeader', () => {
 		})
 		expect(screen.getAllByText('Fork AI').length).toBeGreaterThan(0)
 		expect(screen.getAllByText('Features').length).toBeGreaterThan(0)
+	})
+
+	it('shows a direct chat link for signed-in users on desktop', async () => {
+		authClientMocks.getSession.mockResolvedValue({
+			data: {
+				user: { name: 'Ada' },
+			},
+		})
+
+		render(<SiteHeader />)
+
+		expect(await screen.findByText('Welcome, Ada')).toBeInTheDocument()
+		expect(screen.getByRole('link', { name: 'Open Chat' })).toHaveAttribute(
+			'href',
+			'/chat'
+		)
+	})
+
+	it('shows a direct chat link for signed-in users in the mobile menu', async () => {
+		authClientMocks.getSession.mockResolvedValue({
+			data: {
+				user: { name: 'Ada' },
+			},
+		})
+
+		render(<SiteHeader />)
+
+		await screen.findByText('Welcome, Ada')
+		fireEvent.click(screen.getByRole('button', { name: 'Toggle menu' }))
+
+		expect(screen.getAllByRole('link', { name: 'Open Chat' })).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					href: expect.stringContaining('/chat'),
+				}),
+			])
+		)
 	})
 })

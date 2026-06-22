@@ -13,10 +13,6 @@ vi.mock('@/hooks/use-settings', () => ({
 	}),
 }))
 
-vi.mock('@/components/chat/feedback-modal', () => ({
-	FeedbackModal: () => null,
-}))
-
 vi.mock('@/components/chat/markdown-renderer', () => ({
 	MarkdownRenderer: ({ content }: { content: string }) => (
 		<div data-testid="markdown-renderer">{content}</div>
@@ -36,6 +32,13 @@ function createMessage(overrides: Partial<Message>): Message {
 describe('MessageBubble', () => {
 	beforeEach(() => {
 		vi.restoreAllMocks()
+		vi.stubGlobal(
+			'fetch',
+			vi.fn().mockResolvedValue({
+				ok: true,
+				json: async () => ({ success: true }),
+			})
+		)
 	})
 
 	it('allows editing a user message and resending it', async () => {
@@ -163,5 +166,176 @@ describe('MessageBubble', () => {
 			screen.queryByPlaceholderText('Edit your message...')
 		).not.toBeInTheDocument()
 		getSelection.mockRestore()
+	})
+
+	it('shows run details with sources, tools, fallback, and trace metadata', async () => {
+		const user = userEvent.setup()
+
+		render(
+			<MessageBubble
+				message={createMessage({
+					role: 'assistant',
+					content: 'Assistant output',
+					model: 'mistral-large-latest',
+					citations: [
+						{
+							index: 1,
+							chunkId: 'chunk-1',
+							fileId: 'file-1',
+							sourceLabel: 'policy.md#1',
+							pageNumber: null,
+							score: 0.72,
+						},
+					],
+					trustTrace: {
+						traceId: 'provider-request-1',
+						generationId: 'generation-1',
+						providerRequestId: 'provider-request-1',
+						provider: 'mistral',
+						selectedModel: 'mistral-large-latest',
+						resolvedModel: 'mistral-small-latest',
+						fallbackUsed: true,
+						promptVersion: 'chat-context-v1',
+						generationStatus: 'completed',
+						evidenceState: 'grounded',
+						citationCount: 1,
+						citations: [],
+						usedTools: [
+							{
+								id: 'tool-1',
+								name: 'web.search',
+								status: 'succeeded',
+								riskLevel: 'medium',
+								requiresConfirmation: false,
+							},
+						],
+						activeSkills: [
+							{
+								title: 'Research',
+								templateId: 'skill-1',
+								versionId: 'version-1',
+								source: 'first_party',
+							},
+						],
+						context: {
+							estimatedTokens: 120,
+							recentMessageCount: 2,
+							totalMessageCount: 4,
+							summaryUsed: true,
+						},
+					},
+				})}
+				onRetry={vi.fn()}
+				onStop={vi.fn()}
+				onEdit={vi.fn()}
+				isStreaming={false}
+			/>
+		)
+
+		expect(screen.getByText('Fallback')).toBeInTheDocument()
+		expect(screen.getByText('Grounded')).toBeInTheDocument()
+
+		await user.click(screen.getByText('Run details'))
+
+		expect(
+			screen.getByText('Resolved to mistral-small-latest')
+		).toBeInTheDocument()
+		expect(screen.getByText('provider-request-1')).toBeInTheDocument()
+		expect(screen.getAllByText('policy.md#1').length).toBeGreaterThan(0)
+		expect(screen.getByText('web.search · succeeded')).toBeInTheDocument()
+		expect(screen.getByText('Research')).toBeInTheDocument()
+	})
+
+	it('submits structured feedback reasons and a correction', async () => {
+		const user = userEvent.setup()
+		const fetchMock = vi.mocked(fetch)
+
+		render(
+			<MessageBubble
+				message={createMessage({
+					id: 'assistant-1',
+					role: 'assistant',
+					content: 'Assistant output',
+					model: 'gpt-5',
+				})}
+				onRetry={vi.fn()}
+				onStop={vi.fn()}
+				onEdit={vi.fn()}
+				isStreaming={false}
+			/>
+		)
+
+		await user.click(screen.getByTitle('Bad response'))
+		await user.click(screen.getByText('Unsupported by source'))
+		await user.type(
+			screen.getByPlaceholderText(
+				'Write the answer you expected or the correction Fork AI should learn from.'
+			),
+			'Use the uploaded policy.'
+		)
+		await user.type(
+			screen.getByPlaceholderText('Tell us more about what went wrong...'),
+			'Citation was unrelated.'
+		)
+		await user.click(screen.getByText('Submit Feedback'))
+
+		expect(fetchMock).toHaveBeenCalledWith(
+			'/api/chat/feedback',
+			expect.objectContaining({
+				method: 'POST',
+				body: JSON.stringify({
+					messageId: 'assistant-1',
+					type: 'bad',
+					reasons: ['unsupported_by_source'],
+					comment: 'Citation was unrelated.',
+					correction: 'Use the uploaded policy.',
+				}),
+			})
+		)
+	})
+
+	it('shows a compact no-file-evidence caveat for model-only answers', () => {
+		render(
+			<MessageBubble
+				message={createMessage({
+					id: 'assistant-2',
+					role: 'assistant',
+					content: 'Model-only answer',
+					model: 'gpt-5',
+					trustTrace: {
+						traceId: 'generation-2',
+						generationId: 'generation-2',
+						providerRequestId: null,
+						provider: 'openai',
+						selectedModel: 'gpt-5',
+						resolvedModel: 'gpt-5',
+						fallbackUsed: false,
+						promptVersion: 'chat-context-v1',
+						generationStatus: 'completed',
+						evidenceState: 'model_only',
+						citationCount: 0,
+						citations: [],
+						usedTools: [],
+						activeSkills: [],
+						context: {
+							estimatedTokens: 100,
+							recentMessageCount: 1,
+							totalMessageCount: 1,
+							summaryUsed: false,
+						},
+					},
+				})}
+				onRetry={vi.fn()}
+				onStop={vi.fn()}
+				onEdit={vi.fn()}
+				isStreaming={false}
+			/>
+		)
+
+		expect(
+			screen.getByText(
+				'No file evidence was found for this answer. Ask a follow-up or retry with web search when available.'
+			)
+		).toBeInTheDocument()
 	})
 })

@@ -28,7 +28,7 @@ import {
 } from '@/hooks/use-skills'
 import { AlertCircle, Reply, X } from 'lucide-react'
 import dynamic from 'next/dynamic'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ChatInput } from './chat-input'
 import { ChatTOC } from './ChatTOC'
@@ -207,6 +207,7 @@ function readActiveQuoteSelection(container: HTMLElement) {
 
 export function ChatArea() {
 	const router = useRouter()
+	const searchParams = useSearchParams()
 	const { startTitleGeneration, finishTitleGeneration } = useChatUI()
 	const inputRef = useRef<HTMLTextAreaElement>(null)
 	const selectionReplyToolbarRef = useRef<HTMLDivElement>(null)
@@ -239,6 +240,11 @@ export function ChatArea() {
 	const [quoteInsertion, setQuoteInsertion] = useState<{
 		id: string
 		text: string
+	} | null>(null)
+	const [contextDraftInsertion, setContextDraftInsertion] = useState<{
+		id: string
+		text: string
+		sources: Array<{ id: string; title: string }>
 	} | null>(null)
 	const [selectedReplyContext, setSelectedReplyContext] = useState<{
 		messageId: string
@@ -629,6 +635,11 @@ export function ChatArea() {
 		[clearSelectedReplyContext, hasQueuedWork, scrollToMessage]
 	)
 
+	const handleClearGraphBranchContext = useCallback(() => {
+		setBranchFromMessageId(null)
+		clearSelectedReplyContext()
+	}, [clearSelectedReplyContext])
+
 	const {
 		attachMode,
 		graphNodes,
@@ -639,15 +650,13 @@ export function ChatArea() {
 		selectedNodes,
 		setSelectedNodeIds,
 		showGraphView,
+		openGraphView,
 		toggleGraphView,
 	} = useChatAreaGraph({
 		messages,
 		isAuthenticated: !!user,
 		interactionsLocked: hasQueuedWork,
-		clearBranchContext: () => {
-			setBranchFromMessageId(null)
-			clearSelectedReplyContext()
-		},
+		clearBranchContext: handleClearGraphBranchContext,
 		onFocusMessage: scrollToMessage,
 		onRequireSignIn: () => setShowSignInModal(true),
 		onStartBranch: handleBranchFromMessage,
@@ -658,6 +667,73 @@ export function ChatArea() {
 
 		clearQuoteSelection()
 	}, [clearQuoteSelection, showGraphView])
+
+	useEffect(() => {
+		if (searchParams.get('view') !== 'fork' || !conversationId) {
+			return
+		}
+
+		openGraphView()
+		const focusMessageId = searchParams.get('focus')
+		if (focusMessageId) {
+			setSelectedNodeIds((currentSelection) =>
+				currentSelection.size === 1 && currentSelection.has(focusMessageId)
+					? currentSelection
+					: new Set([focusMessageId])
+			)
+		}
+	}, [conversationId, openGraphView, searchParams, setSelectedNodeIds])
+
+	useEffect(() => {
+		const draftId = searchParams.get('contextDraft')
+		if (!draftId || typeof window === 'undefined') {
+			return
+		}
+
+		const storageKey = `fork-context-chat:${draftId}`
+		const rawDraft = window.sessionStorage.getItem(storageKey)
+		if (!rawDraft) {
+			return
+		}
+
+		try {
+			const parsed = JSON.parse(rawDraft) as {
+				text?: unknown
+				sources?: unknown
+			}
+			if (typeof parsed.text !== 'string' || !Array.isArray(parsed.sources)) {
+				return
+			}
+
+			const sources = parsed.sources
+				.map((source) => {
+					if (
+						typeof source === 'object' &&
+						source !== null &&
+						typeof (source as { id?: unknown }).id === 'string' &&
+						typeof (source as { title?: unknown }).title === 'string'
+					) {
+						return {
+							id: (source as { id: string }).id,
+							title: (source as { title: string }).title,
+						}
+					}
+					return null
+				})
+				.filter((source): source is { id: string; title: string } =>
+					Boolean(source)
+				)
+
+			setContextDraftInsertion({
+				id: draftId,
+				text: parsed.text,
+				sources,
+			})
+			window.sessionStorage.removeItem(storageKey)
+		} catch {
+			return
+		}
+	}, [searchParams])
 
 	useEffect(() => {
 		const handleKeyDown = (event: KeyboardEvent) => {
@@ -1135,6 +1211,7 @@ export function ChatArea() {
 
 			{!showGraphView ? (
 				<ConversationMessageList
+					conversationId={conversationId}
 					displayedMessages={displayedMessages}
 					messagesContainerRef={messagesContainerRef}
 					messagesEndRef={messagesEndRef}
@@ -1324,6 +1401,7 @@ export function ChatArea() {
 						branchContext={branchContext}
 						onClearBranchContext={handleClearBranchContext}
 						quoteInsertion={quoteInsertion}
+						contextDraftInsertion={contextDraftInsertion}
 						onFocus={clearQuoteSelection}
 					/>
 				</div>

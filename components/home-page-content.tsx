@@ -93,7 +93,7 @@ export function HomePageContent() {
 			>
 				<div className="min-h-screen w-full relative">
 					{/* Hero Section */}
-					<Hero />
+					<Hero showGlowSphere={!isMobile && !shouldReduceEffects} />
 
 					{/* Wipe curtain between Hero → Features */}
 					<SectionWipe

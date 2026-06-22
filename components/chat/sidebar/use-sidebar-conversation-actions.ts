@@ -21,6 +21,7 @@ import {
 	Pin,
 	PinOff,
 	Share2,
+	Sparkles,
 	Trash2,
 } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
@@ -63,7 +64,7 @@ function mapMessageAttachment(attachment: MessageAttachmentPayload) {
 }
 
 interface UseSidebarConversationActionsOptions {
-	activeItem: string | null;
+	activeConversationId: string | null;
 	collections: Collection[] | undefined;
 	deleteConversation: (conversationId: string) => Promise<unknown>;
 	handleChatClick: (conversationId: string) => void;
@@ -75,15 +76,22 @@ interface UseSidebarConversationActionsOptions {
 		collectionId?: string | null;
 		isPinned?: boolean;
 	}) => Promise<unknown>;
+	startContextChat: (draftId: string, draft: ContextChatDraft) => void;
+}
+
+export interface ContextChatDraft {
+	text: string;
+	sources: Array<{ id: string; title: string }>;
 }
 
 export function useSidebarConversationActions({
-	activeItem,
+	activeConversationId,
 	collections,
 	deleteConversation,
 	handleChatClick,
 	handleNewChat,
 	isDeleting,
+	startContextChat,
 	updateConversation,
 }: UseSidebarConversationActionsOptions) {
 	const { toast } = useToast();
@@ -97,6 +105,7 @@ export function useSidebarConversationActions({
 		null
 	);
 	const [shareLoadingId, setShareLoadingId] = useState<string | null>(null);
+	const [contextLoadingId, setContextLoadingId] = useState<string | null>(null);
 	const [openConversationMenu, setOpenConversationMenu] = useState<{
 		id: string;
 		surface: ConversationMenuSurface;
@@ -121,7 +130,7 @@ export function useSidebarConversationActions({
 
 			try {
 				await deleteConversation(conversationId);
-				if (activeItem === conversationId) {
+				if (activeConversationId === conversationId) {
 					handleNewChat();
 				}
 			} catch (error) {
@@ -133,7 +142,13 @@ export function useSidebarConversationActions({
 				});
 			}
 		},
-		[activeItem, deleteConversation, handleNewChat, isDeleting, toast]
+		[
+			activeConversationId,
+			deleteConversation,
+			handleNewChat,
+			isDeleting,
+			toast,
+		]
 	);
 
 	const handleStartRename = useCallback(
@@ -337,6 +352,76 @@ export function useSidebarConversationActions({
 		});
 	}, []);
 
+	const handleStartContextChat = useCallback(
+		async (conversation: ConversationPreview) => {
+			if (contextLoadingId) return;
+
+			setContextLoadingId(conversation.id);
+			try {
+				const cachedConversation =
+					queryClient.getQueryData<ConversationDetailPayload | null>(
+						conversationDetailQueryKey(conversation.id)
+					);
+
+				const conversationDetail =
+					cachedConversation ??
+					(await fetchConversationDetail(conversation.id));
+
+				const sourceMessages = conversationDetail.messages
+					.filter(
+						(message: { role: string }) =>
+							message.role === "user" ||
+							message.role === "assistant"
+					)
+					.slice(-8);
+
+				if (sourceMessages.length === 0) {
+					toast({
+						title: "No usable context",
+						description:
+							"This chat does not have user or assistant messages yet.",
+						variant: "destructive",
+					});
+					return;
+				}
+
+				const title = conversationDetail.title ?? conversation.title;
+				const contextLines = sourceMessages.map((message) => {
+					const role = message.role === "assistant" ? "Assistant" : "User";
+					return `> ${role}: ${message.content.replace(/\s+/g, " ").trim()}`;
+				});
+				const draftText = [
+					`Context source: ${title} (${conversation.id})`,
+					"",
+					...contextLines,
+					"",
+					"Using the context above, ",
+				].join("\n");
+				const draftId = `${conversation.id}-${Date.now()}`;
+
+				startContextChat(draftId, {
+					text: draftText,
+					sources: [{ id: conversation.id, title }],
+				});
+
+				toast({
+					title: "Context chat ready",
+					description: `"${title}" was added as removable context.`,
+				});
+			} catch (error) {
+				console.error("Failed to start context chat:", error);
+				toast({
+					title: "Failed to start context chat",
+					description: getErrorMessage(error, "Please try again."),
+					variant: "destructive",
+				});
+			} finally {
+				setContextLoadingId(null);
+			}
+		},
+		[contextLoadingId, queryClient, startContextChat, toast]
+	);
+
 	const getConversationActions = useCallback(
 		(conversation: ConversationPreview): MenuAction[] => [
 			{
@@ -366,6 +451,20 @@ export function useSidebarConversationActions({
 				onSelect: () => handleOpenShareDialog(conversation),
 				disabled:
 					conversation.messageCount === 0 || shareLoadingId !== null,
+			},
+			{
+				type: "item",
+				key: "start-context-chat",
+				label:
+					contextLoadingId === conversation.id
+						? "Preparing context..."
+						: "Start chat with context",
+				icon: contextLoadingId === conversation.id ? Loader2 : Sparkles,
+				iconClassName:
+					contextLoadingId === conversation.id ? "animate-spin" : "",
+				onSelect: () => handleStartContextChat(conversation),
+				disabled:
+					conversation.messageCount === 0 || contextLoadingId !== null,
 			},
 			{
 				type: "submenu",
@@ -418,8 +517,10 @@ export function useSidebarConversationActions({
 			handleDeleteConversation,
 			handleMoveConversation,
 			handleOpenShareDialog,
+			handleStartContextChat,
 			handleStartRename,
 			handleTogglePin,
+			contextLoadingId,
 			shareLoadingId,
 		]
 	);
@@ -451,6 +552,7 @@ export function useSidebarConversationActions({
 		shareDialog,
 		setShareDialog,
 		shareLoadingId,
+		contextLoadingId,
 		openConversationMenu,
 		getConversationActions,
 		handleConversationMenuOpenChange,

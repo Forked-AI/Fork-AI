@@ -8,31 +8,40 @@ import { useSidebarConversationActions } from '@/components/chat/sidebar/use-sid
 import { useAuth } from '@/contexts/auth-context'
 import { type Collection, useCollections } from '@/hooks/use-collections'
 import {
-    type ConversationPreview,
-    useConversations,
+	type ConversationPreview,
+	useConversation,
+	useConversations,
 } from '@/hooks/use-conversations'
 import { useSettings } from '@/hooks/use-settings'
 import {
-    Folder,
-    GitBranch,
-    History,
-    Loader2,
-    PanelLeftClose,
-    PanelLeftOpen,
-    Plus,
-    Search,
-    Settings,
-    Share2,
+	Folder,
+	GitBranch,
+	History,
+	Loader2,
+	PanelLeftClose,
+	PanelLeftOpen,
+	Plus,
+	Search,
+	Settings,
+	Share2,
 } from 'lucide-react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { useCallback, useEffect, useState } from 'react'
+import type { ContextChatDraft } from './sidebar/use-sidebar-conversation-actions'
+
+type LibraryModal = 'history' | 'collections' | 'branches'
+type LibraryItemId = LibraryModal | 'shares'
 
 const featureItems = [
-	{ id: 'history', label: 'History', icon: History, action: 'modal' as const },
-	{ id: 'folder', label: 'Collections', icon: Folder, action: 'modal' as const },
-	{ id: 'branch', label: 'Branches', icon: GitBranch, action: 'modal' as const },
-	{ id: 'shares', label: 'Shares', icon: Share2, action: 'route' as const },
-]
+	{ id: 'history', label: 'History', icon: History },
+	{ id: 'collections', label: 'Collections', icon: Folder },
+	{ id: 'branches', label: 'Branches', icon: GitBranch },
+	{ id: 'shares', label: 'Shares', icon: Share2 },
+] satisfies Array<{
+	id: LibraryItemId
+	label: string
+	icon: typeof History
+}>
 
 function formatTimestamp(dateString: string) {
 	const date = new Date(dateString)
@@ -52,13 +61,13 @@ export function Sidebar() {
 	const router = useRouter()
 	const searchParams = useSearchParams()
 	const { settingsOpen, setSettingsOpen, generatingTitleIds } = useChatUI()
-	const [activeItem, setActiveItem] = useState<string | null>(null)
+	const [openLibraryModal, setOpenLibraryModal] = useState<LibraryModal | null>(
+		null
+	)
 	const [searchOpen, setSearchOpen] = useState(false)
-	const [historyOpen, setHistoryOpen] = useState(false)
-	const [collectionsOpen, setCollectionsOpen] = useState(false)
-	const [branchesOpen, setBranchesOpen] = useState(false)
 	const { settings, updateSettings, isLoaded } = useSettings()
 	const { user } = useAuth()
+	const currentConversationId = searchParams.get('c')
 	const { data: collections } = useCollections({ enabled: !!user })
 	const [compactMode, setCompactMode] = useState(false)
 	const [isHovered, setIsHovered] = useState(false)
@@ -76,6 +85,9 @@ export function Sidebar() {
 		updateConversation,
 		isUpdating,
 	} = useConversations({ limit: 10, pinned: false, enabled: !!user })
+	const { data: activeConversationDetail } = useConversation(
+		currentConversationId
+	)
 
 	useEffect(() => {
 		if (!isLoaded) return
@@ -84,15 +96,6 @@ export function Sidebar() {
 		const initialCompact = settings.compactMode || isMobile
 		setCompactMode(initialCompact)
 	}, [isLoaded, settings.compactMode])
-
-	useEffect(() => {
-		if (pathname?.startsWith('/chat/shares')) {
-			setActiveItem('shares')
-			return
-		}
-
-		setActiveItem(searchParams.get('c'))
-	}, [pathname, searchParams])
 
 	useEffect(() => {
 		const handleKeyDown = (event: KeyboardEvent) => {
@@ -109,15 +112,28 @@ export function Sidebar() {
 	const handleChatClick = useCallback(
 		(conversationId: string) => {
 			router.replace(`/chat?c=${conversationId}`, { scroll: false })
-			setActiveItem(conversationId)
 		},
 		[router]
 	)
 
 	const handleNewChat = useCallback(() => {
-		setActiveItem(null)
 		router.replace('/chat', { scroll: false })
 	}, [router])
+
+	const handleStartContextChat = useCallback(
+		(draftId: string, draft: ContextChatDraft) => {
+			if (typeof window !== 'undefined') {
+				window.sessionStorage.setItem(
+					`fork-context-chat:${draftId}`,
+					JSON.stringify(draft)
+				)
+			}
+			router.replace(`/chat?contextDraft=${encodeURIComponent(draftId)}`, {
+				scroll: false,
+			})
+		},
+		[router]
+	)
 
 	const {
 		renameDialog,
@@ -133,12 +149,13 @@ export function Sidebar() {
 		handleConversationMenuOpenChange,
 		handleAutoCompleteSharePairs,
 	} = useSidebarConversationActions({
-		activeItem,
+		activeConversationId: currentConversationId,
 		collections: collections as Collection[] | undefined,
 		deleteConversation,
 		handleChatClick,
 		handleNewChat,
 		isDeleting,
+		startContextChat: handleStartContextChat,
 		updateConversation,
 	})
 
@@ -148,19 +165,29 @@ export function Sidebar() {
 		updateSettings({ compactMode: newCompact })
 	}
 
-	const handleFeatureClick = (itemId: string) => {
-		setActiveItem(itemId)
-		if (itemId === 'history') setHistoryOpen(true)
-		else if (itemId === 'folder') setCollectionsOpen(true)
-		else if (itemId === 'branch') setBranchesOpen(true)
-		else if (itemId === 'shares') router.replace('/chat/shares', { scroll: false })
+	const handleLibraryItemClick = (itemId: LibraryItemId) => {
+		if (itemId === 'shares') {
+			setOpenLibraryModal(null)
+			router.replace('/chat/shares', { scroll: false })
+			return
+		}
+
+		setOpenLibraryModal(itemId)
 	}
+
+	const handleOpenForkView = useCallback(
+		(conversationId: string) => {
+			setOpenLibraryModal(null)
+			router.replace(`/chat?c=${conversationId}&view=fork`, { scroll: false })
+		},
+		[router]
+	)
 
 	const renderConversationRow = (conversation: ConversationPreview) => (
 		<SidebarConversationRow
 			key={conversation.id}
 			conversation={conversation}
-			isActive={activeItem === conversation.id}
+			isActive={currentConversationId === conversation.id}
 			isGeneratingTitle={generatingTitleIds.has(conversation.id)}
 			menuActions={getConversationActions(conversation)}
 			menuOpen={
@@ -175,6 +202,12 @@ export function Sidebar() {
 
 	const hasPinnedConversations = pinnedConversations.length > 0
 	const hasRecentConversations = recentConversations.length > 0
+	const activeConversation =
+		[...pinnedConversations, ...recentConversations].find(
+			(conversation) => conversation.id === currentConversationId
+		) ?? null
+	const activeConversationTitle =
+		activeConversationDetail?.title ?? activeConversation?.title ?? null
 	const showConversationLoader =
 		(pinnedLoading || recentLoading) &&
 		!hasPinnedConversations &&
@@ -183,6 +216,11 @@ export function Sidebar() {
 	const isSidebarCollapsed =
 		compactMode && !isHovered && !hasOpenConversationMenu
 	const isSidebarExpanded = !isSidebarCollapsed
+	const activeLibraryItem: LibraryItemId | null = pathname?.startsWith(
+		'/chat/shares'
+	)
+		? 'shares'
+		: openLibraryModal
 
 	return (
 		<>
@@ -284,38 +322,39 @@ export function Sidebar() {
 						) : null}
 						<div className="space-y-0.5">
 							{featureItems.map((item) => {
-								const isActive =
-									item.action === 'route'
-										? pathname?.startsWith('/chat/shares')
-										: activeItem === item.id
+								const isActive = activeLibraryItem === item.id
 
 								return (
-								<button
-									key={item.id}
-									onClick={() => handleFeatureClick(item.id)}
-									className={`group flex w-full items-center rounded-md text-sm transition-all ${
-										isActive
-											? 'bg-primary/10 text-primary'
-											: 'text-muted-foreground hover:bg-primary/5 hover:text-primary'
-									} ${
-										isSidebarCollapsed ? 'justify-center p-2' : 'gap-3 px-3 py-2'
-									}`}
-									title={isSidebarCollapsed ? item.label : undefined}
-									aria-current={isActive && item.action === 'route' ? 'page' : undefined}
-								>
-									<item.icon
-										className={`h-4 w-4 stroke-[1.5] transition-colors ${
+									<button
+										key={item.id}
+										onClick={() => handleLibraryItemClick(item.id)}
+										className={`group flex w-full items-center rounded-md text-sm transition-all ${
 											isActive
-												? 'text-primary'
-												: 'text-muted-foreground/70 group-hover:text-primary'
+												? 'bg-primary/10 text-primary'
+												: 'text-muted-foreground hover:bg-primary/5 hover:text-primary'
+										} ${
+											isSidebarCollapsed
+												? 'justify-center p-2'
+												: 'gap-3 px-3 py-2'
 										}`}
-									/>
-									{isSidebarExpanded ? (
-										<span className="opacity-100 transition-opacity duration-300">
-											{item.label}
-										</span>
-									) : null}
-								</button>
+										title={isSidebarCollapsed ? item.label : undefined}
+										aria-current={
+											isActive && item.id === 'shares' ? 'page' : undefined
+										}
+									>
+										<item.icon
+											className={`h-4 w-4 stroke-[1.5] transition-colors ${
+												isActive
+													? 'text-primary'
+													: 'text-muted-foreground/70 group-hover:text-primary'
+											}`}
+										/>
+										{isSidebarExpanded ? (
+											<span className="opacity-100 transition-opacity duration-300">
+												{item.label}
+											</span>
+										) : null}
+									</button>
 								)
 							})}
 						</div>
@@ -372,20 +411,18 @@ export function Sidebar() {
 			</aside>
 
 			<SidebarDialogs
-				branchesOpen={branchesOpen}
+				activeConversationId={currentConversationId}
+				activeConversationTitle={activeConversationTitle}
 				closeRenameDialog={closeRenameDialog}
-				collectionsOpen={collectionsOpen}
 				compactMode={compactMode}
-				historyOpen={historyOpen}
 				isRenameUnchanged={isRenameUnchanged}
 				isUpdating={isUpdating}
+				libraryModal={openLibraryModal}
+				onLibraryModalChange={setOpenLibraryModal}
 				renameDialog={renameDialog}
 				renameTitle={renameTitle}
 				searchOpen={searchOpen}
-				setBranchesOpen={setBranchesOpen}
-				setCollectionsOpen={setCollectionsOpen}
 				setCompactMode={setCompactMode}
-				setHistoryOpen={setHistoryOpen}
 				setRenameTitle={setRenameTitle}
 				setSearchOpen={setSearchOpen}
 				setSettingsOpen={setSettingsOpen}
@@ -393,7 +430,10 @@ export function Sidebar() {
 				settingsOpen={settingsOpen}
 				shareDialog={shareDialog}
 				onAutoCompletePairs={handleAutoCompleteSharePairs}
-				onCompactModeChange={(compact) => updateSettings({ compactMode: compact })}
+				onCompactModeChange={(compact) =>
+					updateSettings({ compactMode: compact })
+				}
+				onOpenForkView={handleOpenForkView}
 				onSaveRename={handleSaveRename}
 			/>
 		</>

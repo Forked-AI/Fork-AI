@@ -19,6 +19,7 @@ interface SiblingNav {
 }
 
 interface ConversationMessageListProps {
+	conversationId?: string | null
 	displayedMessages: Message[]
 	messagesContainerRef: RefObject<HTMLDivElement | null>
 	messagesEndRef: RefObject<HTMLDivElement | null>
@@ -100,6 +101,7 @@ function readQuoteSelection(
 }
 
 export function ConversationMessageList({
+	conversationId = null,
 	displayedMessages,
 	messagesContainerRef,
 	messagesEndRef,
@@ -168,6 +170,7 @@ export function ConversationMessageList({
 							onEditParent={onEditParent}
 							editHandlersRef={editHandlersRef}
 							disableMutatingActions={disableMutatingActions}
+							conversationId={conversationId}
 						/>
 					))}
 					<div ref={messagesEndRef} />
