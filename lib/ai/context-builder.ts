@@ -11,8 +11,9 @@ import {
 } from "@/lib/ai/token-estimator";
 import { formatToolResultForContext } from "@/lib/tools/sanitizer";
 import type { ToolJsonValue } from "@/lib/tools/types";
+import { AI_ARTIFACT_VERSIONS } from "@/lib/ai/version-taxonomy";
 
-export const CHAT_CONTEXT_PROMPT_VERSION = "chat-context-v1";
+export const CHAT_CONTEXT_PROMPT_VERSION = AI_ARTIFACT_VERSIONS.promptVersion;
 
 const DEFAULT_RECENT_MESSAGE_LIMIT = 24;
 const DEFAULT_MIN_RECENT_MESSAGES = 6;
