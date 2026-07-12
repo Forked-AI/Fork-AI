@@ -25,4 +25,4 @@ generated
 *.png
 *.jpg
 docs/
-# *.md
+*.md
