@@ -14,6 +14,15 @@ export interface ShadowRunRequest {
 	conversationId?: string | null;
 	taskId: string;
 	promptLength: number;
+	promptVersion?: string | null;
+	retrievalConfigVersion?: string | null;
+	embeddingConfigVersion?: string | null;
+	toolRegistryVersion?: string | null;
+	safetyPolicyVersion?: string | null;
+	modelRoutePolicyVersion?: string | null;
+	retrievalConfidence?: string | null;
+	citationValidationFailureCount?: number;
+	fallbackUsed?: boolean;
 	model: string;
 	provider: string;
 	requestId?: string;
@@ -32,7 +41,16 @@ export async function planShadowRun(input: ShadowRunRequest) {
 	const trace = buildPrivacySafeEvalTrace({
 		taskId: input.taskId,
 		promptLength: input.promptLength,
-		modelRoutePolicyVersion: AI_SHADOW_RUN_POLICY_VERSION,
+		promptVersion: input.promptVersion,
+		retrievalConfigVersion: input.retrievalConfigVersion,
+		embeddingConfigVersion: input.embeddingConfigVersion,
+		toolRegistryVersion: input.toolRegistryVersion,
+		safetyPolicyVersion: input.safetyPolicyVersion,
+		modelRoutePolicyVersion:
+			input.modelRoutePolicyVersion ?? AI_SHADOW_RUN_POLICY_VERSION,
+		retrievalConfidence: input.retrievalConfidence,
+		citationValidationFailureCount: input.citationValidationFailureCount,
+		fallbackUsed: input.fallbackUsed,
 	});
 
 	await recordOperationalMetric({

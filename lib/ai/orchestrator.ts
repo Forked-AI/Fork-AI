@@ -10,6 +10,13 @@ import {
 	getSupportedGatewayModelAliases,
 	resolveModelRouteDecision,
 } from "@/lib/ai/gateway/registry";
+import {
+	AUTO_MODEL_ID,
+	type AutoModelRoutingReason,
+	type AutoModelRoutingSignals,
+	isAutoModelRequest,
+	resolveAutoModelRoute,
+} from "@/lib/ai/auto-model-routing";
 import type { ModelProviderName } from "@/lib/ai/gateway/types";
 import { MistralProvider } from "@/lib/ai/providers/mistral-provider";
 import { OpenAIProvider } from "@/lib/ai/providers/openai-provider";
@@ -24,6 +31,9 @@ export interface ModelProviderSelection {
 	capabilities: ModelCapabilities;
 	routePolicyVersion: string;
 	rolloutState: string;
+	requestedModel: string;
+	autoRouted: boolean;
+	autoRoutingReason?: AutoModelRoutingReason;
 }
 
 let defaultMistralProvider: ModelProvider | null = null;
@@ -52,7 +62,7 @@ function getDefaultProvider(providerName: ModelProviderName): ModelProvider {
 }
 
 export function getSupportedModelAliases(): string[] {
-	return getSupportedGatewayModelAliases();
+	return [AUTO_MODEL_ID, ...getSupportedGatewayModelAliases()];
 }
 
 export function normalizeModelId(model: string): string | null {
@@ -62,10 +72,19 @@ export function normalizeModelId(model: string): string | null {
 export function selectModelProvider(
 	model: string,
 	providers: Partial<Record<ModelProviderName, ModelProvider>> = {},
-	options: { taskId?: AiTaskId } = {}
+	options: { taskId?: AiTaskId; autoRouting?: AutoModelRoutingSignals } = {}
 ): ModelProviderSelection | null {
+	const autoRoutingDecision = isAutoModelRequest(model)
+		? resolveAutoModelRoute(
+				options.autoRouting ?? {
+					message: "",
+				}
+			)
+		: null;
+	const requestedModel = model;
+	const selectedModel = autoRoutingDecision?.model ?? model;
 	const decision = resolveModelRouteDecision({
-		model,
+		model: selectedModel,
 		taskId: options.taskId ?? "chat.general",
 	});
 	if (!decision) {
@@ -83,6 +102,9 @@ export function selectModelProvider(
 		capabilities: decision.capabilities,
 		routePolicyVersion: AI_GATEWAY_ROUTE_POLICY_VERSION,
 		rolloutState: decision.rolloutState,
+		requestedModel,
+		autoRouted: Boolean(autoRoutingDecision),
+		autoRoutingReason: autoRoutingDecision?.reason,
 	};
 }
 
