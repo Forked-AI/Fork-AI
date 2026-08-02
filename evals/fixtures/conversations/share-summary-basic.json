@@ -1,0 +1,13 @@
+{
+	"id": "share-summary-basic",
+	"messages": [
+		{
+			"role": "user",
+			"content": "Plan AI eval gates and retrieval quality work."
+		},
+		{
+			"role": "assistant",
+			"content": "Focus on eval gates, retrieval quality, and trust UX."
+		}
+	]
+}

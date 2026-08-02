@@ -1,0 +1,85 @@
+name: AI Evals
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/ai-evals.yml
+      - evals/**
+      - lib/ai/**
+      - lib/rag/**
+      - scripts/ai-evaluate.ts
+      - workers/eval.worker.ts
+      - package.json
+      - pnpm-lock.yaml
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/ai-evals.yml
+      - evals/**
+      - lib/ai/**
+      - lib/rag/**
+      - scripts/ai-evaluate.ts
+      - workers/eval.worker.ts
+      - package.json
+      - pnpm-lock.yaml
+  schedule:
+    - cron: '17 3 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CI: 'true'
+  NEXT_TELEMETRY_DISABLED: '1'
+  DATABASE_URL: postgresql://postgres:postgres@localhost:5432/fork_ai_eval
+  REDIS_URL: redis://localhost:6379
+  NEXT_PUBLIC_BASE_URL: http://localhost:3000
+  NEXT_PUBLIC_BETTER_AUTH_URL: http://localhost:3000
+  MISTRAL_API_KEY: ''
+  OPENAI_API_KEY: ''
+  RAG_EMBEDDING_PROVIDER: local
+  FILE_STORAGE_PROVIDER: local
+  AI_LIVE_EVAL_DAILY_BUDGET_USD: '0'
+
+jobs:
+  offline-regression:
+    name: Offline Regression Gate
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.31.0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: pnpm run prisma:generate
+
+      - name: Run AI evaluation gate
+        run: pnpm run ai:evaluate:ci
+
+      - name: Upload AI evaluation reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai-eval-reports
+          path: evals/reports/*.json
+          if-no-files-found: ignore

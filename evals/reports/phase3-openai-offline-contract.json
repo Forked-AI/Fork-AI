@@ -1,0 +1,21 @@
+{
+	"reportVersion": "phase3-openai-contract.v1",
+	"phase": "AI Layer Redesign Phase 3",
+	"provider": "openai",
+	"model": "gpt-5.1",
+	"mode": "offline-mocked",
+	"networkRequired": false,
+	"datasetVersion": "phase3-openai-contract.v1",
+	"routePolicyVersion": "ai-gateway-route-v1",
+	"results": {
+		"adapterContract": "passed",
+		"routingRequiresRolloutOverride": "passed",
+		"usageMapping": "passed",
+		"errorNormalization": "passed",
+		"nativeProviderToolsDisabled": "passed"
+	},
+	"notes": [
+		"This report proves request/response mapping, normalized usage, request id propagation, and controlled rollout behavior using mocked provider responses.",
+		"It does not prove live OpenAI quality, latency, availability, retention behavior, or current pricing. Live provider evals remain explicitly gated by provider keys and future live-eval work."
+	]
+}

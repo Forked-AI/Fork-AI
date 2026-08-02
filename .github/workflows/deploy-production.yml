@@ -1,0 +1,114 @@
+name: Production Deploy
+
+on:
+  workflow_run:
+    workflows:
+      - CI
+    types:
+      - completed
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  deployments: write
+
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
+
+env:
+  CI: 'true'
+  NEXT_TELEMETRY_DISABLED: '1'
+  RAG_EMBEDDING_PROVIDER: local
+  FILE_STORAGE_PROVIDER: local
+  AI_LIVE_EVAL_DAILY_BUDGET_USD: '0'
+
+jobs:
+  deploy:
+    name: Deploy to Vercel Production
+    runs-on: ubuntu-latest
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_branch == 'main')
+    environment:
+      name: production
+      url: ${{ steps.deploy.outputs.url }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.31.0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Validate deployment secrets
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        run: |
+          missing=0
+          for name in VERCEL_TOKEN VERCEL_ORG_ID VERCEL_PROJECT_ID; do
+            if [ -z "${!name}" ]; then
+              echo "::error title=Missing deployment secret::$name is required for production deployment"
+              missing=1
+            fi
+          done
+          exit "$missing"
+
+      - name: Install dependencies
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/fork_ai_deploy_build
+        run: pnpm install --frozen-lockfile
+
+      - name: Pull Vercel production environment
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        run: pnpm dlx vercel@latest pull --yes --environment=production --token="$VERCEL_TOKEN"
+
+      - name: Validate migration secret
+        if: ${{ vars.RUN_PRODUCTION_MIGRATIONS == 'true' }}
+        env:
+          PRODUCTION_DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
+        run: |
+          if [ -z "$PRODUCTION_DATABASE_URL" ]; then
+            echo "::error title=Missing migration secret::PRODUCTION_DATABASE_URL is required when RUN_PRODUCTION_MIGRATIONS is true"
+            exit 1
+          fi
+
+      - name: Run production migrations
+        if: ${{ vars.RUN_PRODUCTION_MIGRATIONS == 'true' }}
+        env:
+          DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
+        run: pnpm exec prisma migrate deploy
+
+      - name: Build Vercel production artifact
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        run: pnpm dlx vercel@latest build --prod --token="$VERCEL_TOKEN"
+
+      - name: Deploy Vercel production artifact
+        id: deploy
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        run: |
+          url="$(pnpm dlx vercel@latest deploy --prebuilt --prod --token="$VERCEL_TOKEN" | tail -n 1)"
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+          echo "Deployed $url"

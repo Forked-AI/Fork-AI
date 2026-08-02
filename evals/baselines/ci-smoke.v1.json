@@ -1,0 +1,21 @@
+{
+	"version": 1,
+	"suiteId": "fork-ai-offline-smoke",
+	"datasetVersion": "ci-smoke.v1",
+	"expectedCaseCount": 25,
+	"minimumPassRate": 1,
+	"maxFailures": 0,
+	"requiredTaskIds": [
+		"chat.general",
+		"rag.qa",
+		"tool.plan",
+		"moderation.classify"
+	],
+	"rag": {
+		"minimumRecallAt4": 1,
+		"minimumContextPrecision": 0.5,
+		"minimumHardNegativeRejection": 1,
+		"requireNoCrossTenantLeakage": true,
+		"requirePromptInjectionContainment": true
+	}
+}

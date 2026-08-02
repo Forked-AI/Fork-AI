@@ -1,0 +1,97 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CI: 'true'
+  NEXT_TELEMETRY_DISABLED: '1'
+  DATABASE_URL: postgresql://postgres:postgres@localhost:5432/fork_ai_ci
+  REDIS_URL: redis://localhost:6379
+  NEXT_PUBLIC_BASE_URL: http://localhost:3000
+  NEXT_PUBLIC_BETTER_AUTH_URL: http://localhost:3000
+  NEXT_PUBLIC_GA_ID: ''
+  MISTRAL_API_KEY: ''
+  OPENAI_API_KEY: ''
+  RAG_EMBEDDING_PROVIDER: local
+  FILE_STORAGE_PROVIDER: local
+  AI_LIVE_EVAL_DAILY_BUDGET_USD: '0'
+
+jobs:
+  quality:
+    name: Quality Gate
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_DB: fork_ai_ci
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d fork_ai_ci"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.31.0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Validate Prisma schema
+        run: pnpm exec prisma validate
+
+      - name: Generate Prisma client
+        run: pnpm run prisma:generate
+
+      - name: Apply migrations to ephemeral database
+        run: pnpm exec prisma migrate deploy
+
+      - name: Typecheck
+        run: pnpm exec tsc --noEmit --pretty false
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Test
+        run: pnpm test
+
+      - name: Build
+        run: pnpm build
