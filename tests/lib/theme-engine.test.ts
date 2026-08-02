@@ -62,14 +62,48 @@ describe('theme engine', () => {
 		])
 
 		expect(customTheme).toMatchObject({
-			themeBackground: '#123456',
-			themeChatBackground: '#123456',
-			themeCard: lightenColor('#123456', 5),
 			themePrimary: '#123456',
 			themeSecondary: '#abcdef',
 			themeTertiary: '#fedcba',
+			themeColors: ['#123456', '#abcdef', '#fedcba'],
 			activePreset: null,
 		})
+		expect(customTheme.themeBackground).not.toBe(customTheme.themePrimary)
+		expect(customTheme.themeCard).toBe(
+			lightenColor(customTheme.themeBackground as string, 5)
+		)
+		expect(customTheme.themeChatBackground).toContain(
+			'radial-gradient(circle at 50% 20%, #123456'
+		)
+	})
+
+	it('persists one to three custom colors and their gradient positions', () => {
+		const singleColor = buildCustomThemeFromColors(
+			['#57FCFF'],
+			[{ x: 0.25, y: 0.75 }]
+		)
+
+		expect(singleColor.themeColors).toEqual(['#57FCFF'])
+		expect(singleColor.themeColorPositions).toEqual([{ x: 0.25, y: 0.75 }])
+		expect(singleColor.themeChatBackground).toBe('#57FCFF')
+		expect(singleColor.themeSecondary).toBe('#57FCFF')
+
+		const threeColors = buildCustomThemeFromColors(
+			['#57FCFF', '#9B59B6', '#2ECC71'],
+			[
+				{ x: 0.1, y: 0.2 },
+				{ x: 0.7, y: 0.8 },
+				{ x: 0.9, y: 0.3 },
+			]
+		)
+
+		expect(threeColors.themeColorPositions).toEqual([
+			{ x: 0.1, y: 0.2 },
+			{ x: 0.7, y: 0.8 },
+			{ x: 0.9, y: 0.3 },
+		])
+		expect(threeColors.themeChatBackground).toContain('circle at 10% 20%')
+		expect(threeColors.themeChatBackground).toContain('circle at 90% 30%')
 	})
 
 	it('derives light mode from a custom palette while preserving accent colors', () => {
@@ -107,6 +141,19 @@ describe('theme engine', () => {
 		expect(normalized.themeChatBackground).toBe(
 			'linear-gradient(180deg, #0A2727 0%, #0C1110 100%)'
 		)
+		expect(normalized.themeColors).toEqual(['#57FCFF', '#9B59B6', '#2ECC71'])
+	})
+
+	it('migrates legacy custom settings to controlled color stops', () => {
+		const normalized = normalizeStoredThemeSettings({
+			activePreset: null,
+			themePrimary: '#123456',
+			themeSecondary: '#abcdef',
+			themeTertiary: '#fedcba',
+		})
+
+		expect(normalized.themeColors).toEqual(['#123456', '#abcdef', '#fedcba'])
+		expect(normalized.themeColorPositions).toHaveLength(3)
 	})
 
 	it.each([
@@ -145,7 +192,10 @@ describe('theme engine', () => {
 			},
 			'light'
 		)
-		const defaultLightPalette = resolveThemePalette(DEFAULT_THEME_SETTINGS, 'light')
+		const defaultLightPalette = resolveThemePalette(
+			DEFAULT_THEME_SETTINGS,
+			'light'
+		)
 
 		expect(palette.themeBackground).toBe(defaultLightPalette.themeBackground)
 		expect(palette.themeCard).toBe(defaultLightPalette.themeCard)

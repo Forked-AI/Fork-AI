@@ -123,9 +123,9 @@ describe('ThemeApplier', () => {
 
 		await waitFor(() => {
 			expect(mockSetTheme).not.toHaveBeenCalled()
-			expect(document.documentElement.style.getPropertyValue('--background')).toBe(
-				'#123456'
-			)
+			expect(
+				document.documentElement.style.getPropertyValue('--background')
+			).toBe('#123456')
 			expect(
 				document.documentElement.style.getPropertyValue('--chat-background')
 			).toBe('#654321')
@@ -136,9 +136,9 @@ describe('ThemeApplier', () => {
 
 		await waitFor(() => {
 			expect(mockSetTheme).toHaveBeenCalledWith('dark')
-			expect(document.documentElement.style.getPropertyValue('--background')).toBe(
-				resolveThemeTokens(mockSettings, 'dark')['--background']
-			)
+			expect(
+				document.documentElement.style.getPropertyValue('--background')
+			).toBe(resolveThemeTokens(mockSettings, 'dark')['--background'])
 		})
 	})
 
@@ -150,18 +150,18 @@ describe('ThemeApplier', () => {
 
 		await waitFor(() => {
 			expect(mockSetTheme).toHaveBeenCalledWith('system')
-			expect(document.documentElement.style.getPropertyValue('--background')).toBe(
-				'#654321'
-			)
+			expect(
+				document.documentElement.style.getPropertyValue('--background')
+			).toBe('#654321')
 		})
 
 		mockResolvedTheme = 'light'
 		rerender(<ThemeApplier />)
 
 		await waitFor(() => {
-			expect(document.documentElement.style.getPropertyValue('--background')).toBe(
-				resolveThemeTokens(mockSettings, 'light')['--background']
-			)
+			expect(
+				document.documentElement.style.getPropertyValue('--background')
+			).toBe(resolveThemeTokens(mockSettings, 'light')['--background'])
 		})
 	})
 
@@ -184,6 +184,21 @@ describe('ThemeApplier', () => {
 			expect(
 				document.documentElement.style.getPropertyValue('--chat-background')
 			).toBe(expectedTokens['--chat-background'])
+		})
+	})
+
+	it('publishes wave and noise settings as normalized global effect tokens', async () => {
+		mockSettings = createSettings({ waveIntensity: 40, noiseAmount: 25 })
+
+		render(<ThemeApplier />)
+
+		await waitFor(() => {
+			expect(
+				document.documentElement.style.getPropertyValue('--wave-intensity')
+			).toBe('0.4')
+			expect(
+				document.documentElement.style.getPropertyValue('--noise-amount')
+			).toBe('0.25')
 		})
 	})
 })

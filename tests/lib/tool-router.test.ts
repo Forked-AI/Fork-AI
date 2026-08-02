@@ -389,6 +389,18 @@ describe("tool router", () => {
 			},
 			{ prismaClient, registry }
 		);
+		const messageResult = await proposeToolExecution(
+			{
+				toolName: "safe.search",
+				input: { query: "hello" },
+				context: {
+					userId: "user-1",
+					organizationId: "org-spoofed",
+					messageId: "message-1",
+				},
+			},
+			{ prismaClient, registry }
+		);
 
 		expect(conversationResult).toMatchObject({
 			ok: false,
@@ -403,6 +415,21 @@ describe("tool router", () => {
 			ok: false,
 			status: 403,
 			errorCode: "TOOL_CONTEXT_UNAUTHORIZED",
+		});
+		expect(messageResult).toMatchObject({
+			ok: false,
+			status: 403,
+			errorCode: "TOOL_CONTEXT_UNAUTHORIZED",
+		});
+		expect(prismaClient.message.findFirst).toHaveBeenCalledWith({
+			where: {
+				id: "message-1",
+				conversation: {
+					userId: "user-1",
+					organizationId: "org-spoofed",
+				},
+			},
+			select: { id: true, conversationId: true },
 		});
 		expect(safeTool.execute).not.toHaveBeenCalled();
 	});

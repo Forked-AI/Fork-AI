@@ -1,6 +1,6 @@
 import type { Settings } from '@/hooks/use-settings'
 import { DEFAULT_THEME_SETTINGS } from '@/lib/theme-engine'
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import React from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -64,5 +64,48 @@ describe('ThemeCustomizationModal', () => {
 		expect(
 			screen.queryByText('Light mode is auto-derived from your saved palette.')
 		).not.toBeInTheDocument()
+	})
+
+	it('blocks an artistic preset when strict contrast mode is enabled', () => {
+		const updateSettings = vi.fn()
+		settings = createSettings({ strictContrastMode: true })
+
+		render(
+			<ThemeCustomizationModal
+				open
+				onOpenChange={vi.fn()}
+				settings={settings}
+				updateSettings={updateSettings}
+			/>
+		)
+
+		fireEvent.click(screen.getByText('Aurora'))
+
+		expect(updateSettings).not.toHaveBeenCalled()
+		expect(screen.getByRole('alert')).toHaveTextContent(
+			'Strict Contrast Mode blocked that palette'
+		)
+	})
+
+	it('applies a compliant preset and reports it as saved', () => {
+		const updateSettings = vi.fn()
+		const showSavedIndicator = vi.fn()
+
+		render(
+			<ThemeCustomizationModal
+				open
+				onOpenChange={vi.fn()}
+				settings={settings}
+				updateSettings={updateSettings}
+				showSavedIndicator={showSavedIndicator}
+			/>
+		)
+
+		fireEvent.click(screen.getByText('Ocean'))
+
+		expect(updateSettings).toHaveBeenCalledWith(
+			expect.objectContaining({ activePreset: 'ocean' })
+		)
+		expect(showSavedIndicator).toHaveBeenCalled()
 	})
 })
