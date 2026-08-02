@@ -1,3 +1,5 @@
+import { absoluteSiteUrl, SITE_URL } from '@/lib/site-config'
+
 interface JsonLdProps {
 	data: Record<string, unknown>
 }
@@ -6,55 +8,65 @@ export function JsonLd({ data }: JsonLdProps) {
 	return (
 		<script
 			type="application/ld+json"
-			dangerouslySetInnerHTML={{ __html: JSON.stringify(data) }}
+			dangerouslySetInnerHTML={{
+				__html: JSON.stringify(data).replace(/</g, '\\u003c'),
+			}}
 		/>
 	)
 }
 
-// Organization Schema
-export const organizationSchema = {
+export const homepageSchema = {
 	'@context': 'https://schema.org',
-	'@type': 'Organization',
-	name: 'Fork AI',
-	url: 'https://forkai.tech',
-	logo: 'https://forkai.tech/icon.svg',
-	description:
-		'Fork AI is a free multi-AI chat platform with smart branching, seamless model switching between ChatGPT, Claude, and Gemini, and privacy-first sharing.',
-	sameAs: [
-		// Add your social media URLs here when ready
-		// 'https://twitter.com/forkai',
-		// 'https://github.com/forkai',
-		// 'https://linkedin.com/company/forkai',
-	],
-	contactPoint: {
-		'@type': 'ContactPoint',
-		contactType: 'Customer Support',
-		// email: 'support@fork-ai.com',
-	},
-}
-
-// Software Application Schema
-export const softwareApplicationSchema = {
-	'@context': 'https://schema.org',
-	'@type': 'SoftwareApplication',
-	name: 'Fork AI',
-	applicationCategory: 'BusinessApplication',
-	operatingSystem: 'Web',
-	offers: {
-		'@type': 'Offer',
-		price: '0',
-		priceCurrency: 'USD',
-	},
-	// NOTE: Aggregate rating removed - add back when you have real reviews
-	// Having fake reviews violates Google's structured data guidelines
-	description:
-		'Free multi-AI chat platform with smart branching. Switch between ChatGPT, Claude, and Gemini without losing context. Branch conversations and organize AI chats effortlessly.',
-	featureList: [
-		'Branching conversations',
-		'Multi-AI model support',
-		'Side-by-side model comparison',
-		'Privacy-first sharing',
-		'Conversation forking',
-		'Real-time AI switching',
+	'@graph': [
+		{
+			'@type': 'Organization',
+			'@id': `${SITE_URL}/#organization`,
+			name: 'ForkAI',
+			alternateName: ['Fork AI', 'forkai.tech'],
+			url: absoluteSiteUrl('/'),
+			logo: {
+				'@type': 'ImageObject',
+				'@id': `${SITE_URL}/#logo`,
+				url: absoluteSiteUrl('/icon.svg'),
+				contentUrl: absoluteSiteUrl('/icon.svg'),
+			},
+		},
+		{
+			'@type': 'WebSite',
+			'@id': `${SITE_URL}/#website`,
+			name: 'ForkAI',
+			alternateName: ['Fork AI', 'forkai.tech'],
+			url: absoluteSiteUrl('/'),
+			publisher: { '@id': `${SITE_URL}/#organization` },
+			inLanguage: 'en',
+		},
+		{
+			'@type': 'WebApplication',
+			'@id': `${SITE_URL}/#app`,
+			name: 'ForkAI',
+			alternateName: 'Fork AI',
+			url: absoluteSiteUrl('/'),
+			applicationCategory: 'BusinessApplication',
+			operatingSystem: 'Any web browser',
+			browserRequirements: 'Requires JavaScript and a modern web browser',
+			description:
+				'A multi-AI chat workspace with branching conversations, seamless model switching between ChatGPT, Claude, and Gemini, and selective sharing.',
+			isAccessibleForFree: true,
+			offers: {
+				'@type': 'Offer',
+				price: '0',
+				priceCurrency: 'USD',
+				url: absoluteSiteUrl('/#pricing'),
+			},
+			featureList: [
+				'Branching conversations',
+				'Multi-AI model support',
+				'ChatGPT, Claude, and Gemini model comparison',
+				'Selective conversation sharing',
+				'Conversation summaries',
+				'Conversation export',
+			],
+			publisher: { '@id': `${SITE_URL}/#organization` },
+		},
 	],
 }
