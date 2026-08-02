@@ -15,12 +15,18 @@ export async function runNightlyEvalWorker(options: {
 
 	const budget = Number(process.env.AI_LIVE_EVAL_DAILY_BUDGET_USD ?? "0");
 	if (budget <= 0) {
-		throw new Error("Live eval budget is not configured");
+		throw new Error(
+			"Live provider evals are unavailable: AI_LIVE_EVAL_DAILY_BUDGET_USD must be greater than 0."
+		);
 	}
 
-	return runEvalSuite({
-		datasetPaths: [options.datasetPath ?? "evals/datasets"],
-		baselinePath: options.baselinePath,
-		live: true,
-	});
+	if (!process.env.MISTRAL_API_KEY?.trim()) {
+		throw new Error(
+			"Live provider evals are unavailable: MISTRAL_API_KEY is not configured."
+		);
+	}
+
+	throw new Error(
+		"Live provider evals are unavailable: the live runner is not implemented; offline evals remain the only non-networking gate."
+	);
 }

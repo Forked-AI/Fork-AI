@@ -1,6 +1,7 @@
 import "dotenv/config";
 import "./account-export.worker";
 import "./conversation.worker";
+import "./eval.worker";
 import "./file-processing.worker";
 import "./tool-execution.worker";
 
