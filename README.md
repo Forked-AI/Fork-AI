@@ -81,6 +81,7 @@ Developer docs:
 - [Testing](docs/developer-docs/TESTING.md)
 - [Usage and cost ledger](docs/developer-docs/USAGE-LEDGER.md)
 - [Commit lint guide](docs/development/COMMIT-LINT.md)
+- [CI/CD operations](docs/operations/CI-CD.md)
 
 Business analysis docs:
 
