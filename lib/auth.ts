@@ -10,6 +10,7 @@ import {
 } from "better-auth/plugins/organization/access";
 import nodeMailer from "nodemailer";
 import Stripe from "stripe";
+import { authorizeSubscriptionReference } from "./billing/subscription-reference";
 import {
 	checkOTPRateLimitByType,
 	recordOTPAttemptByType,
@@ -62,6 +63,21 @@ if (stripeSecretKey && stripeWebhookSecret && stripeProMonthlyPriceId) {
 		subscription: {
 			enabled: true,
 			requireEmailVerification: true,
+			authorizeReference: async (
+				{ user, session, referenceId, action },
+				ctx
+			) =>
+				authorizeSubscriptionReference({
+					user,
+					session,
+					referenceId,
+					customerType:
+						(ctx.body as { customerType?: string } | undefined)
+							?.customerType ??
+						(ctx.query as { customerType?: string } | undefined)
+							?.customerType,
+					action,
+				}),
 			plans: [
 				{
 					name: "pro",
@@ -80,6 +96,9 @@ if (stripeSecretKey && stripeWebhookSecret && stripeProMonthlyPriceId) {
 					},
 				},
 			],
+		},
+		organization: {
+			enabled: true,
 		},
 	});
 } else if (stripeSecretKey || stripeWebhookSecret || stripeProMonthlyPriceId) {

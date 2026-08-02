@@ -51,7 +51,11 @@ async function ownsConversation(
 	if (!conversationId) return true;
 
 	const conversation = await prisma.conversation.findFirst({
-		where: { id: conversationId, userId: context.userId },
+		where: {
+			id: conversationId,
+			userId: context.userId,
+			organizationId: context.organizationId ?? null,
+		},
 		select: { id: true },
 	});
 	return Boolean(conversation);
@@ -219,7 +223,11 @@ export const toolDefinitions: ToolDefinition[] = [
 		async execute(input: ConversationRenameInput, context, signal) {
 			signal.throwIfAborted();
 			const updated = await prisma.conversation.updateMany({
-				where: { id: input.conversationId, userId: context.userId },
+				where: {
+					id: input.conversationId,
+					userId: context.userId,
+					organizationId: context.organizationId ?? null,
+				},
 				data: { title: input.title },
 			});
 			if (updated.count !== 1) {
@@ -227,7 +235,11 @@ export const toolDefinitions: ToolDefinition[] = [
 			}
 
 			const conversation = await prisma.conversation.findFirst({
-				where: { id: input.conversationId, userId: context.userId },
+				where: {
+					id: input.conversationId,
+					userId: context.userId,
+					organizationId: context.organizationId ?? null,
+				},
 				select: {
 					id: true,
 					title: true,

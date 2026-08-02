@@ -157,7 +157,10 @@ async function authorizeExecutionContext(
 				...(context.conversationId
 					? { conversationId: context.conversationId }
 					: {}),
-				conversation: { userId: context.userId },
+				conversation: {
+					userId: context.userId,
+					organizationId: context.organizationId ?? null,
+				},
 			},
 			select: { id: true, conversationId: true },
 		});
