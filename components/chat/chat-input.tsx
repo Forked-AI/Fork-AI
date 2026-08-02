@@ -14,6 +14,7 @@ import {
 	IMAGE_ATTACHMENT_ACCEPT,
 	type ChatModelMetadata,
 } from '@/lib/ai/model-catalog'
+import { AUTO_MODEL_ID } from '@/lib/ai/auto-model-routing'
 import { CHAT_CONSTANTS } from '@/lib/constants'
 import { createIdempotencyHeaders } from '@/lib/idempotency-client'
 import type { ActiveChatSkill } from '@/hooks/use-skills'
@@ -53,7 +54,37 @@ import {
 import { ModelsModal, type Model } from './models-modal'
 import { SkillPicker } from './skill-picker'
 
-const ALL_MODELS: Model[] = CHAT_MODELS.map((model) => ({ ...model }))
+const AUTO_MODEL: Model = {
+	id: AUTO_MODEL_ID,
+	resolvedId: AUTO_MODEL_ID,
+	name: 'Auto',
+	description:
+		'Routes each message to a suitable model based on the prompt, files, and tools.',
+	provider: 'Fork AI',
+	contextWindow: 'Automatic',
+	isFavorite: true,
+	capabilities: {
+		supportsText: true,
+		supportsStreaming: true,
+		supportsStructuredOutput: false,
+		supportsImages: true,
+		supportsAudioInput: false,
+		supportsAudioTranscription: false,
+		supportsImageGeneration: false,
+		supportsDocumentAttachments: true,
+		supportsEmbeddings: false,
+		supportsDocumentAi: false,
+		supportsModeration: false,
+		supportsPromptCaching: false,
+		supportsNativeWebSearch: false,
+		supportsFunctionCalling: true,
+		supportsProviderTools: false,
+	},
+}
+const ALL_MODELS: Model[] = [
+	AUTO_MODEL,
+	...CHAT_MODELS.map((model) => ({ ...model })),
+]
 const MAX_PARALLEL_UPLOADS = 3
 const MAX_PARALLEL_DIRECT_PART_UPLOADS = 3
 const DIRECT_UPLOAD_MIN_BYTES = 5 * 1024 * 1024

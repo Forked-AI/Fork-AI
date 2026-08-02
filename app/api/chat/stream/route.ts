@@ -35,6 +35,7 @@ import {
 import { resolveWorkspaceContext } from "@/lib/organizations/context";
 import { logServerError, logServerWarning } from "@/lib/server-safe-log";
 import { recordOperationalMetric } from "@/lib/operational-metrics";
+import { prisma } from "@/lib/prisma";
 import { skillActivationSchema } from "@/lib/skills/catalog";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
@@ -84,6 +85,62 @@ const sendMessageSchema = z.object({
 	activeSkills: z.array(skillActivationSchema).max(8).optional(),
 	enabledTools: z.array(enabledToolSchema).max(4).optional(),
 });
+
+type AttachmentRoutingInput = z.infer<typeof attachmentInputSchema>;
+
+async function loadAttachmentRoutingHints({
+	userId,
+	organizationId,
+	attachments,
+	ragFileIds,
+}: {
+	userId: string | null;
+	organizationId: string | null;
+	attachments?: AttachmentRoutingInput[];
+	ragFileIds?: string[];
+}) {
+	const requestedIds = new Set<string>();
+	for (const attachment of attachments ?? []) {
+		requestedIds.add(attachment.fileObjectId);
+	}
+	for (const fileId of ragFileIds ?? []) {
+		requestedIds.add(fileId);
+	}
+
+	if (!userId || requestedIds.size === 0) {
+		return {
+			hasImageAttachments: false,
+			hasDocumentAttachments: (ragFileIds?.length ?? 0) > 0,
+		};
+	}
+
+	const fileObjects = await prisma.fileObject.findMany({
+		where: {
+			id: { in: Array.from(requestedIds) },
+			userId,
+			organizationId,
+		},
+		select: {
+			kind: true,
+			purpose: true,
+		},
+	});
+
+	return {
+		hasImageAttachments: fileObjects.some(
+			(fileObject) =>
+				fileObject.kind === "image" ||
+				fileObject.purpose === "vision_image"
+		),
+		hasDocumentAttachments:
+			(ragFileIds?.length ?? 0) > 0 ||
+			fileObjects.some(
+				(fileObject) =>
+					fileObject.kind !== "image" &&
+					fileObject.purpose !== "vision_image"
+			),
+	};
+}
 
 async function completeResponseIdempotency(
 	record: ActiveIdempotencyRecord,
@@ -249,17 +306,6 @@ export async function POST(request: Request) {
 			throw error;
 		}
 
-		const modelSelection = selectModelProvider(model);
-		if (!modelSelection) {
-			return NextResponse.json(
-				{
-					error: "Unsupported model",
-					supportedModels: getSupportedModelAliases(),
-				},
-				{ status: 400 }
-			);
-		}
-
 		if (
 			isGuest &&
 			((attachments?.length ?? 0) > 0 || (ragFileIds?.length ?? 0) > 0)
@@ -283,6 +329,35 @@ export async function POST(request: Request) {
 			);
 		}
 
+		const attachmentRoutingHints = await loadAttachmentRoutingHints({
+			userId,
+			organizationId,
+			attachments,
+			ragFileIds,
+		});
+		const modelSelection = selectModelProvider(model, {}, {
+			autoRouting: {
+				message,
+				hasImageAttachments:
+					attachmentRoutingHints.hasImageAttachments,
+				hasDocumentAttachments:
+					attachmentRoutingHints.hasDocumentAttachments,
+				hasRagContext: (ragFileIds?.length ?? 0) > 0,
+				enabledTools: enabledTools ?? [],
+				activeSkillCount: activeSkills?.length ?? 0,
+				isGuest,
+			},
+		});
+		if (!modelSelection) {
+			return NextResponse.json(
+				{
+					error: "Unsupported model",
+					supportedModels: getSupportedModelAliases(),
+				},
+				{ status: 400 }
+			);
+		}
+
 		const idempotency = await beginIdempotency(request, {
 			scope: "chat:stream",
 			actorKey: userId
@@ -291,6 +366,9 @@ export async function POST(request: Request) {
 			requestInput: {
 				message,
 				model: modelSelection.model,
+				requestedModel: model,
+				autoRouted: modelSelection.autoRouted,
+				autoRoutingReason: modelSelection.autoRoutingReason ?? null,
 				conversationId,
 				parentMessageId,
 				ragFileIds: ragFileIds ?? [],
@@ -310,6 +388,31 @@ export async function POST(request: Request) {
 		}
 		const streamIdempotency = idempotency.record;
 		activeIdempotency = streamIdempotency;
+
+		if (modelSelection.autoRouted) {
+			await recordOperationalMetric({
+				kind: "ai_model_route",
+				source: "chat_stream",
+				status: "resolved",
+				route: "/api/chat/stream",
+				provider: modelSelection.providerName,
+				model: modelSelection.model,
+				userId,
+				organizationId,
+				conversationId: conversationId ?? null,
+				traceId,
+				metadata: {
+					requestedModel: modelSelection.requestedModel,
+					reason: modelSelection.autoRoutingReason ?? null,
+					hasImageAttachments:
+						attachmentRoutingHints.hasImageAttachments,
+					hasDocumentAttachments:
+						attachmentRoutingHints.hasDocumentAttachments,
+					enabledToolCount: enabledTools?.length ?? 0,
+					activeSkillCount: activeSkills?.length ?? 0,
+				},
+			});
+		}
 
 		let rateLimit: ChatRateLimitState | null = null;
 		if (isGuest) {

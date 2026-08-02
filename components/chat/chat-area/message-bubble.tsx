@@ -17,16 +17,13 @@ import {
 	Copy,
 	FileText,
 	ImageIcon,
-	Info,
 	Pencil,
 	RefreshCw,
-	ShieldCheck,
 	Square,
 	Sparkles,
 	ThumbsDown,
 	ThumbsUp,
 	Store,
-	Wrench,
 	X,
 } from 'lucide-react'
 import {
@@ -89,63 +86,6 @@ function StreamingText({ content }: { content: string }) {
 	)
 }
 
-const EVIDENCE_LABELS: Record<string, string> = {
-	grounded: 'Grounded',
-	partially_grounded: 'Partially grounded',
-	no_file_evidence: 'No file evidence',
-	model_only: 'Model-only',
-	used_web_search: 'Used web search',
-}
-
-const PROGRESS_LABELS: Record<string, string> = {
-	preparing_context: 'Preparing context',
-	retrieving_files: 'Retrieving files',
-	running_tools: 'Running tools',
-	generating_answer: 'Generating answer',
-	validating_output: 'Validating output',
-}
-
-function getEvidenceLabel(value: string | null | undefined) {
-	return value ? (EVIDENCE_LABELS[value] ?? value) : 'Model-only'
-}
-
-function getProgressLabel(value: string | null | undefined) {
-	return value ? (PROGRESS_LABELS[value] ?? value) : null
-}
-
-function getEvidenceCaveat(value: string | null | undefined) {
-	if (value === 'partially_grounded') {
-		return 'Partially grounded. Check the listed sources before relying on this answer.'
-	}
-	if (value === 'no_file_evidence' || value === 'model_only') {
-		return 'No file evidence was found for this answer. Ask a follow-up or retry with web search when available.'
-	}
-	return null
-}
-
-function getUniqueSources(
-	citations: Message['citations'] | undefined
-): Array<{ key: string; label: string; indexes: number[] }> {
-	const sources = new Map<
-		string,
-		{ key: string; label: string; indexes: number[] }
-	>()
-	for (const citation of citations ?? []) {
-		const key = `${citation.fileId}:${citation.sourceLabel}`
-		const existing = sources.get(key)
-		if (existing) {
-			existing.indexes.push(citation.index)
-			continue
-		}
-		sources.set(key, {
-			key,
-			label: citation.sourceLabel,
-			indexes: [citation.index],
-		})
-	}
-	return [...sources.values()]
-}
-
 export function MessageBubble({
 	message,
 	onRetry,
@@ -172,19 +112,8 @@ export function MessageBubble({
 	)
 	const [showFeedbackModal, setShowFeedbackModal] = useState(false)
 	const [showMarketplaceDialog, setShowMarketplaceDialog] = useState(false)
-	const [showRunDetails, setShowRunDetails] = useState(false)
 	const textareaRef = useRef<HTMLTextAreaElement>(null)
 	const { settings } = useSettings()
-	const trace = message.trustTrace
-	const progressLabel = getProgressLabel(message.progressStep)
-	const evidenceLabel = getEvidenceLabel(trace?.evidenceState)
-	const evidenceCaveat = getEvidenceCaveat(trace?.evidenceState)
-	const fallbackUsed = Boolean(trace?.fallbackUsed)
-	const resolvedModel =
-		trace?.resolvedModel && trace.resolvedModel !== message.model
-			? trace.resolvedModel
-			: null
-	const uniqueSources = getUniqueSources(message.citations)
 
 	useEffect(() => {
 		if (isUser && editHandlersRef) {
@@ -373,32 +302,6 @@ export function MessageBubble({
 									{message.activeSkillTrace.items.length === 1
 										? message.activeSkillTrace.items[0].title
 										: `${message.activeSkillTrace.items.length} skills`}
-								</span>
-							) : null}
-							{fallbackUsed ? (
-								<span
-									className="inline-flex items-center gap-1 rounded bg-amber-500/10 px-1.5 py-0.5 text-[10px] normal-case tracking-normal text-amber-300"
-									title={
-										resolvedModel
-											? `Resolved model: ${resolvedModel}`
-											: 'Provider fallback was used'
-									}
-								>
-									<RefreshCw className="h-3 w-3" />
-									Fallback
-								</span>
-							) : null}
-							<span
-								className="inline-flex items-center gap-1 rounded bg-background/40 px-1.5 py-0.5 text-[10px] normal-case tracking-normal text-muted-foreground"
-								title="Evidence state"
-							>
-								<ShieldCheck className="h-3 w-3" />
-								{evidenceLabel}
-							</span>
-							{progressLabel ? (
-								<span className="inline-flex items-center gap-1 rounded bg-primary/10 px-1.5 py-0.5 text-[10px] normal-case tracking-normal text-primary">
-									<Sparkles className="h-3 w-3" />
-									{progressLabel}
 								</span>
 							) : null}
 							{message.isStreaming ? (
@@ -594,134 +497,6 @@ export function MessageBubble({
 									</span>
 								</span>
 							))}
-						</div>
-					) : null}
-
-					{isAssistant && evidenceCaveat ? (
-						<div className="mt-3 rounded-md border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
-							{evidenceCaveat}
-						</div>
-					) : null}
-
-					{isAssistant && !message.isStreaming ? (
-						<div className="mt-3 border-t border-border/30 pt-3">
-							<button
-								type="button"
-								onClick={() => setShowRunDetails((value) => !value)}
-								className="inline-flex items-center gap-1.5 rounded px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-background/50 hover:text-foreground"
-								aria-expanded={showRunDetails}
-							>
-								<Info className="h-3.5 w-3.5" />
-								Run details
-								<ChevronDown
-									className={cn(
-										'h-3.5 w-3.5 transition-transform',
-										showRunDetails && 'rotate-180'
-									)}
-								/>
-							</button>
-							{showRunDetails ? (
-								<div className="mt-2 space-y-3 rounded-lg border border-border/40 bg-background/25 p-3 text-xs text-muted-foreground">
-									<div className="grid gap-2 sm:grid-cols-2">
-										<div>
-											<div className="text-[10px] uppercase tracking-wide text-muted-foreground/70">
-												Model
-											</div>
-											<div className="text-foreground">
-												{message.model ?? trace?.selectedModel ?? 'Unknown'}
-											</div>
-											{resolvedModel ? (
-												<div className="text-[11px] text-amber-300">
-													Resolved to {resolvedModel}
-												</div>
-											) : null}
-										</div>
-										<div>
-											<div className="text-[10px] uppercase tracking-wide text-muted-foreground/70">
-												Trace ID
-											</div>
-											<div className="font-mono text-[11px] text-foreground">
-												{trace?.traceId ?? trace?.generationId ?? 'Unavailable'}
-											</div>
-										</div>
-										<div>
-											<div className="text-[10px] uppercase tracking-wide text-muted-foreground/70">
-												Context
-											</div>
-											<div>
-												{trace?.promptVersion ?? 'Unknown prompt version'}
-												{trace?.context.summaryUsed ? ' with summary' : ''}
-											</div>
-										</div>
-										<div>
-											<div className="text-[10px] uppercase tracking-wide text-muted-foreground/70">
-												Status
-											</div>
-											<div>
-												{trace?.generationStatus ??
-													message.status ??
-													'completed'}
-											</div>
-										</div>
-									</div>
-
-									<div>
-										<div className="mb-1 text-[10px] uppercase tracking-wide text-muted-foreground/70">
-											Sources
-										</div>
-										{uniqueSources.length ? (
-											<div className="flex flex-wrap gap-1.5">
-												{uniqueSources.map((source) => (
-													<span
-														key={source.key}
-														className="inline-flex max-w-full items-center gap-1 rounded border border-border/40 bg-background/40 px-2 py-1"
-													>
-														<FileText className="h-3 w-3 shrink-0 text-primary" />
-														<span className="max-w-48 truncate text-foreground">
-															{source.label}
-														</span>
-														<span>[{source.indexes.join(', ')}]</span>
-													</span>
-												))}
-											</div>
-										) : (
-											<div>No file evidence found for this answer.</div>
-										)}
-									</div>
-
-									<div>
-										<div className="mb-1 text-[10px] uppercase tracking-wide text-muted-foreground/70">
-											Tools and skills
-										</div>
-										<div className="flex flex-wrap gap-1.5">
-											{trace?.usedTools.length ? (
-												trace.usedTools.map((tool) => (
-													<span
-														key={tool.id}
-														className="inline-flex items-center gap-1 rounded border border-border/40 bg-background/40 px-2 py-1"
-													>
-														<Wrench className="h-3 w-3 text-primary" />
-														{tool.name} · {tool.status}
-													</span>
-												))
-											) : (
-												<span>No tools used</span>
-											)}
-											{trace?.activeSkills.length
-												? trace.activeSkills.map((skill) => (
-														<span
-															key={`${skill.templateId}:${skill.versionId}`}
-															className="inline-flex items-center gap-1 rounded border border-border/40 bg-background/40 px-2 py-1"
-														>
-															<Sparkles className="h-3 w-3 text-primary" />
-															{skill.title}
-														</span>
-													))
-												: null}
-										</div>
-									</div>
-								</div>
-							) : null}
 						</div>
 					) : null}
 

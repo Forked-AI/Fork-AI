@@ -37,6 +37,10 @@
 	--sidebar-accent-foreground: #18181b;
 	--sidebar-border: #e4e4e7;
 	--sidebar-ring: #a1a1aa;
+	--theme-secondary: #9b59b6;
+	--theme-tertiary: #2ecc71;
+	--wave-intensity: 0;
+	--noise-amount: 0;
 
 	/* Font variables mapped from Next.js */
 	--font-sans: var(--font-sans);
@@ -127,4 +131,48 @@ body {
 	color: var(--foreground);
 	font-family: var(--font-sans);
 	-webkit-font-smoothing: antialiased;
+}
+
+body::before,
+body::after {
+	content: '';
+	position: fixed;
+	inset: 0;
+	z-index: 2147483646;
+	pointer-events: none;
+}
+
+body::before {
+	background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 240 240' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='.8'/%3E%3C/svg%3E");
+	mix-blend-mode: soft-light;
+	opacity: calc(var(--noise-amount, 0) * 0.16);
+}
+
+body::after {
+	background-image: repeating-radial-gradient(
+		ellipse at 50% 115%,
+		transparent 0 28px,
+		color-mix(in srgb, var(--theme-secondary) 55%, transparent) 29px 32px,
+		transparent 33px 62px,
+		color-mix(in srgb, var(--theme-tertiary) 40%, transparent) 63px 65px,
+		transparent 66px 96px
+	);
+	mix-blend-mode: soft-light;
+	opacity: calc(var(--wave-intensity, 0) * 0.28);
+	animation: theme-wave-drift 12s ease-in-out infinite alternate;
+}
+
+@keyframes theme-wave-drift {
+	from {
+		transform: translate3d(-1.5%, 1%, 0) scale(1.03);
+	}
+	to {
+		transform: translate3d(1.5%, -1%, 0) scale(1.06);
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	body::after {
+		animation: none;
+	}
 }

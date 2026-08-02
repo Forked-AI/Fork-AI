@@ -5,9 +5,20 @@ import {
 	type ChatContextMetadata,
 } from "@/lib/ai/context-builder";
 import { getAiArtifactVersionsForTask } from "@/lib/ai/version-taxonomy";
-import { normalizeProviderStreamError } from "@/lib/ai/errors";
+import {
+	normalizeProviderStreamError,
+	type NormalizedStreamError,
+} from "@/lib/ai/errors";
 import { DEFAULT_MODEL_CAPABILITIES } from "@/lib/ai/model-catalog";
 import type { ModelProvider, ModelUsage } from "@/lib/ai/model-provider";
+import {
+	validateFinalAssistantOutput,
+	validateStreamingAssistantOutput,
+	type RuntimeOutputValidationResult,
+	type RuntimeRagEvidence,
+} from "@/lib/ai/output-validation/runtime";
+import { recordOutputValidationMetric } from "@/lib/ai/output-validation/validator";
+import { planShadowRun } from "@/lib/ai/shadow-runs";
 import {
 	getModelFallbackCandidates,
 	type ModelCapabilities,
@@ -30,7 +41,10 @@ import {
 	type ChatStreamReplayBody,
 	toJsonValue,
 } from "@/lib/ai/stream-events";
-import type { ConversationMessage } from "@/lib/chat-system-prompt";
+import type {
+	ConversationMessage,
+	ProviderMessageContent,
+} from "@/lib/chat-system-prompt";
 import {
 	buildGuestMessageHistory,
 	loadMessageHistory,
@@ -83,7 +97,10 @@ import {
 	estimateOutputTokens,
 	finalizeUsageEvent,
 } from "@/lib/usage/usage-service";
-import { retrieveDocumentContext } from "@/lib/rag/retrieval";
+import {
+	retrieveDocumentContext,
+	type RetrievedDocumentContext,
+} from "@/lib/rag/retrieval";
 import {
 	buildModeratedOutputReplacement,
 	buildModerationBlockResponse,
@@ -198,6 +215,7 @@ interface PreparedAuthenticatedChat {
 	userMessage: { id: string };
 	generationAttempt: GenerationAttempt;
 	context: ChatContextBuildResult;
+	ragEvidence: RuntimeRagEvidence;
 	tokenBudgetCheck: TokenBudgetCheckResult;
 	skillTrace: ActiveSkillTrace;
 }
@@ -214,6 +232,23 @@ async function completeJsonIdempotency(
 
 function buildConversationTitle(message: string): string {
 	return message.slice(0, 100) + (message.length > 100 ? "..." : "");
+}
+
+function buildRuntimeRagEvidence({
+	requested,
+	chunks,
+}: {
+	requested: boolean;
+	chunks: RetrievedDocumentContext[];
+}): RuntimeRagEvidence {
+	return {
+		requested,
+		chunks: chunks.map((chunk) => ({
+			chunkId: chunk.chunkId,
+			content: chunk.content,
+			sourceLabel: chunk.sourceLabel,
+		})),
+	};
 }
 
 function getInputModelCapabilities(input: CreateChatStreamResponseInput) {
@@ -633,6 +668,7 @@ async function prepareAuthenticatedChat(
 	const ragAttachmentFileIds = getRagFileIdsFromAttachments(
 		attachmentsForMessage
 	);
+	const ragRequested = ragAttachmentFileIds.length > 0;
 	const ragContext = await loadRagContext({
 		userId: input.userId,
 		organizationId: input.organizationId ?? null,
@@ -825,6 +861,10 @@ async function prepareAuthenticatedChat(
 		userMessage,
 		generationAttempt,
 		context,
+		ragEvidence: buildRuntimeRagEvidence({
+			requested: ragRequested,
+			chunks: ragContext,
+		}),
 		tokenBudgetCheck,
 		skillTrace,
 	};
@@ -945,6 +985,7 @@ async function prepareAuthenticatedRetryChat(
 	];
 	const ragAttachmentFileIds =
 		getRagFileIdsFromAttachments(persistedAttachments);
+	const ragRequested = ragAttachmentFileIds.length > 0;
 	const ragContext = await loadRagContext({
 		userId: input.userId,
 		organizationId: input.organizationId ?? null,
@@ -1063,6 +1104,10 @@ async function prepareAuthenticatedRetryChat(
 		userMessage: { id: userMessage.id },
 		generationAttempt,
 		context,
+		ragEvidence: buildRuntimeRagEvidence({
+			requested: ragRequested,
+			chunks: ragContext,
+		}),
 		tokenBudgetCheck,
 		skillTrace: emptySkillTrace(),
 	};
@@ -1133,6 +1178,76 @@ function buildStreamHeaders(
 	};
 }
 
+function getProviderContentLength(content: ProviderMessageContent) {
+	if (typeof content === "string") {
+		return content.length;
+	}
+
+	return content.reduce((total, part) => {
+		if (part.type === "text") {
+			return total + part.text.length;
+		}
+		const imageUrl =
+			typeof part.imageUrl === "string"
+				? part.imageUrl
+				: part.imageUrl.url;
+		return total + imageUrl.length;
+	}, 0);
+}
+
+function getProviderPromptLength(context: ChatContextBuildResult) {
+	return context.providerMessages.reduce(
+		(total, message) => total + getProviderContentLength(message.content),
+		0
+	);
+}
+
+async function planAuthenticatedShadowRun({
+	input,
+	context,
+	conversationId,
+	traceId,
+}: {
+	input: CreateChatStreamResponseInput & { userId: string };
+	context: ChatContextBuildResult;
+	conversationId: string;
+	traceId: string;
+}) {
+	const taskId =
+		context.metadata.ragContextChunkIds.length > 0
+			? "rag.qa"
+			: "chat.general";
+	const versions = getAiArtifactVersionsForTask(taskId);
+
+	try {
+		await planShadowRun({
+			userId: input.userId,
+			organizationId: input.organizationId ?? null,
+			conversationId,
+			taskId,
+			promptLength: getProviderPromptLength(context),
+			promptVersion: context.metadata.promptVersion,
+			retrievalConfigVersion: versions.retrievalConfigVersion,
+			embeddingConfigVersion: versions.embeddingConfigVersion,
+			toolRegistryVersion: versions.toolRegistryVersion,
+			safetyPolicyVersion: versions.safetyPolicyVersion,
+			modelRoutePolicyVersion: versions.modelRoutePolicyVersion,
+			retrievalConfidence: null,
+			citationValidationFailureCount: 0,
+			fallbackUsed: false,
+			model: input.model,
+			provider: input.providerName,
+			requestId: traceId,
+		});
+	} catch (error) {
+		logServerWarning("chat/stream", "shadow_run_plan_failed", {
+			traceId,
+			taskId,
+			errorType: error instanceof Error ? error.name : typeof error,
+		});
+	}
+}
+
 export async function createChatStreamResponse(
 	input: CreateChatStreamResponseInput
 ): Promise<Response> {
@@ -1145,6 +1260,10 @@ export async function createChatStreamResponse(
 	let tokenBudgetCheck: TokenBudgetCheckResult | null = null;
 	let skillTrace: ActiveSkillTrace = emptySkillTrace();
 	let context: ChatContextBuildResult;
+	let ragEvidence: RuntimeRagEvidence = {
+		requested: false,
+		chunks: [],
+	};
 
 	if (!input.isGuest) {
 		if (!input.userId) {
@@ -1177,8 +1296,15 @@ export async function createChatStreamResponse(
 		userMessage = prepared.userMessage;
 		generationAttempt = prepared.generationAttempt;
 		context = prepared.context;
+		ragEvidence = prepared.ragEvidence;
 		tokenBudgetCheck = prepared.tokenBudgetCheck;
 		skillTrace = prepared.skillTrace;
+		await planAuthenticatedShadowRun({
+			input: { ...input, userId: input.userId },
+			context,
+			conversationId: conversation.id,
+			traceId: input.traceId,
+		});
 	} else {
 		const prepared = await prepareGuestChat(input);
 
@@ -1205,6 +1331,7 @@ export async function createChatStreamResponse(
 	let outputModerationDecision: ReturnType<
 		typeof evaluateAssistantOutputModeration
 	> | null = null;
+	let outputValidationFailure: RuntimeOutputValidationResult | null = null;
 	let lastFlushAt = 0;
 	let lastFlushLength = 0;
 	const guestUsageDeduplicationKey = input.isGuest
@@ -1372,6 +1499,17 @@ export async function createChatStreamResponse(
 							);
 						providerOutputForUsage = candidateResponse;
 
+						const candidateOutputValidation =
+							validateStreamingAssistantOutput(
+								candidateResponse
+							);
+						if (!candidateOutputValidation.ok) {
+							outputValidationFailure =
+								candidateOutputValidation;
+							abortController?.abort();
+							break;
+						}
+
 						if (
 							isBlockingModerationDecision(
 								candidateModerationDecision
@@ -1432,6 +1570,15 @@ export async function createChatStreamResponse(
 					outputModerationDecision ??
 					evaluateAssistantOutputModeration(fullResponse);
 				const outputForUsage = providerOutputForUsage || fullResponse;
+				const finalOutputValidation =
+					outputValidationFailure ??
+					validateFinalAssistantOutput({
+						answer: fullResponse,
+						ragEvidence,
+					});
+				const outputValidationTaskId = ragEvidence.requested
+					? "rag.qa"
+					: "chat.general";
 
 				const usage = buildUsageMeasurement({
 					provider: input.providerName,
@@ -1449,7 +1596,21 @@ export async function createChatStreamResponse(
 						finalModerationDecision
 					)
 						? "moderated"
+						: !finalOutputValidation.ok
+							? "failed"
 						: "completed",
+				});
+
+				await recordOutputValidationMetric({
+					taskId: outputValidationTaskId,
+					status: finalOutputValidation.status,
+					provider: input.providerName,
+					model: attemptedModel,
+					traceId: input.traceId,
+					userId: input.userId ?? null,
+					organizationId: input.organizationId ?? null,
+					conversationId: conversation?.id ?? null,
+					issueCount: finalOutputValidation.issueCount,
 				});
 
 				if (shouldPersistModerationDecision(finalModerationDecision)) {
@@ -1559,6 +1720,117 @@ export async function createChatStreamResponse(
 							planTier,
 							inputTokens: usage.inputTokens,
 							outputTokens: usage.outputTokens,
+						},
+					});
+					return;
+				}
+
+				if (!finalOutputValidation.ok) {
+					const validationError: NormalizedStreamError = {
+						message:
+							finalOutputValidation.message ??
+							"The response failed output validation.",
+						errorCode:
+							finalOutputValidation.errorCode ??
+							"AI_OUTPUT_VALIDATION_FAILED",
+						providerRequestId,
+					};
+					const replacementContent =
+						finalOutputValidation.replacementContent ??
+						"The response failed output validation.";
+
+					if (
+						!input.isGuest &&
+						conversation &&
+						generationAttempt
+					) {
+						await failGeneration({
+							prismaClient,
+							assistantMessageId:
+								generationAttempt.assistantMessage.id,
+							generationId: generationAttempt.generation.id,
+							content: replacementContent,
+							error: validationError,
+							usage,
+						});
+					} else if (
+						guestUsageDeduplicationKey &&
+						guestUsageAttemptCreated
+					) {
+						await finalizeUsageEvent({
+							prismaClient,
+							deduplicationKey: guestUsageDeduplicationKey,
+							outcome: "failed",
+							measurement: usage,
+							errorCode: validationError.errorCode,
+						});
+					}
+
+					await input.streamIdempotency.fail(
+						toJsonValue({
+							kind: "chat_stream_error",
+							conversationId: conversation?.id ?? null,
+							userMessageId: userMessage?.id ?? null,
+							assistantMessageId:
+								generationAttempt?.assistantMessage.id ?? null,
+							generationId:
+								generationAttempt?.generation.id ?? null,
+							error: validationError.message,
+							errorCode: validationError.errorCode,
+							providerRequestId:
+								validationError.providerRequestId,
+							partialContent: fullResponse.length > 0,
+							content: replacementContent,
+							replacementContent,
+						} satisfies ChatStreamErrorReplayBody),
+						{
+							status: 200,
+							resourceType: generationAttempt
+								? "message"
+								: undefined,
+							resourceId: generationAttempt?.assistantMessage.id,
+						}
+					);
+					enqueueSseEvent(controller, encoder, {
+						type: "error",
+						error: validationError.message,
+						errorCode: validationError.errorCode,
+						providerRequestId: validationError.providerRequestId,
+						partialContent: fullResponse.length > 0,
+						replacementContent,
+						traceId: input.traceId,
+						generationId,
+					});
+					await recordOperationalMetric({
+						kind: "ai_generation",
+						source: "chat_response",
+						status: "failed",
+						route: "/api/chat/stream",
+						provider: input.providerName,
+						model: attemptedModel,
+						durationMs: Date.now() - generationStartedAt,
+						ttftMs: firstTokenAt
+							? firstTokenAt - generationStartedAt
+							: null,
+						totalTokens: usage.billableUnits,
+						costTotal: usage.estimatedCostUsd
+							? Number(usage.estimatedCostUsd)
+							: null,
+						errorCode: validationError.errorCode,
+						userId: input.userId,
+						conversationId: conversation?.id ?? null,
+						traceId: input.traceId,
+						metadata: {
+							generationId,
+							retryCount,
+							fallbackCount,
+							planTier,
+							inputTokens: usage.inputTokens,
+							outputTokens: usage.outputTokens,
+							outputValidationStatus:
+								finalOutputValidation.status,
+							citationValidationFailureCount:
+								finalOutputValidation.citationValidationFailureCount,
 						},
 					});
 					return;
