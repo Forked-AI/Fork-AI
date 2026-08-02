@@ -78,8 +78,96 @@ describe("AI orchestrator provider selection", () => {
 				mistral: fakeProvider,
 			})
 		).toBeNull();
+		expect(getSupportedModelAliases()).toContain("auto");
 		expect(getSupportedModelAliases()).toContain("mistral-large");
 		expect(getSupportedModelAliases()).not.toContain("gpt-5.1");
+	});
+
+	it("auto-routes simple prompts to the fast model", () => {
+		const selection = selectModelProvider(
+			"auto",
+			{ mistral: fakeProvider },
+			{
+				autoRouting: {
+					message: "Summarize this",
+				},
+			}
+		);
+
+		expect(selection).toMatchObject({
+			providerName: "mistral",
+			provider: fakeProvider,
+			model: "ministral-8b-latest",
+			requestedModel: "auto",
+			autoRouted: true,
+			autoRoutingReason: "fast_simple",
+		});
+	});
+
+	it("auto-routes image and document prompts to the vision-capable reasoning model", () => {
+		const imageSelection = selectModelProvider(
+			"auto",
+			{ mistral: fakeProvider },
+			{
+				autoRouting: {
+					message: "Describe this image",
+					hasImageAttachments: true,
+				},
+			}
+		);
+		const documentSelection = selectModelProvider(
+			"auto",
+			{ mistral: fakeProvider },
+			{
+				autoRouting: {
+					message: "Use this contract and explain the risks",
+					hasDocumentAttachments: true,
+				},
+			}
+		);
+
+		expect(imageSelection).toMatchObject({
+			model: "mistral-large-latest",
+			autoRoutingReason: "vision",
+			capabilities: {
+				supportsImages: true,
+			},
+		});
+		expect(documentSelection).toMatchObject({
+			model: "mistral-large-latest",
+			autoRoutingReason: "rag_or_document",
+		});
+	});
+
+	it("auto-routes code and tool prompts to the balanced model", () => {
+		const codeSelection = selectModelProvider(
+			"auto",
+			{ mistral: fakeProvider },
+			{
+				autoRouting: {
+					message: "Debug this TypeScript stack trace",
+				},
+			}
+		);
+		const toolSelection = selectModelProvider(
+			"auto",
+			{ mistral: fakeProvider },
+			{
+				autoRouting: {
+					message: "Find latest model info",
+					enabledTools: ["web.search"],
+				},
+			}
+		);
+
+		expect(codeSelection).toMatchObject({
+			model: "mistral-small-latest",
+			autoRoutingReason: "code",
+		});
+		expect(toolSelection).toMatchObject({
+			model: "mistral-small-latest",
+			autoRoutingReason: "tool_use",
+		});
 	});
 
 	it("selects OpenAI only after a controlled rollout override", () => {

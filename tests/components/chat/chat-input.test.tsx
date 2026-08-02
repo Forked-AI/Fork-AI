@@ -60,7 +60,7 @@ describe('ChatInput', () => {
 		expect(onSendMessage).toHaveBeenCalledTimes(1)
 		expect(onSendMessage).toHaveBeenLastCalledWith(
 			'First message',
-			'mistral-large',
+			'auto',
 			undefined,
 			[],
 			[]
@@ -77,7 +77,7 @@ describe('ChatInput', () => {
 		expect(onSendMessage).toHaveBeenCalledTimes(2)
 		expect(onSendMessage).toHaveBeenLastCalledWith(
 			'Third message',
-			'mistral-large',
+			'auto',
 			undefined,
 			[],
 			[]
@@ -153,7 +153,7 @@ describe('ChatInput', () => {
 
 		expect(onSendMessage).toHaveBeenCalledWith(
 			'Find latest model info',
-			'mistral-large',
+			'auto',
 			undefined,
 			[],
 			['web.search']
@@ -232,7 +232,7 @@ describe('ChatInput', () => {
 
 		expect(onSendMessage).toHaveBeenCalledWith(
 			'Describe it',
-			'mistral-large',
+			'auto',
 			[
 				expect.objectContaining({
 					fileObjectId: 'file-image-1',

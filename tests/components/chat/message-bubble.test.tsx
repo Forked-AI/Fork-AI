@@ -168,9 +168,7 @@ describe('MessageBubble', () => {
 		getSelection.mockRestore()
 	})
 
-	it('shows run details with sources, tools, fallback, and trace metadata', async () => {
-		const user = userEvent.setup()
-
+	it('shows citations without exposing run diagnostics', () => {
 		render(
 			<MessageBubble
 				message={createMessage({
@@ -232,18 +230,12 @@ describe('MessageBubble', () => {
 			/>
 		)
 
-		expect(screen.getByText('Fallback')).toBeInTheDocument()
-		expect(screen.getByText('Grounded')).toBeInTheDocument()
-
-		await user.click(screen.getByText('Run details'))
-
-		expect(
-			screen.getByText('Resolved to mistral-small-latest')
-		).toBeInTheDocument()
-		expect(screen.getByText('provider-request-1')).toBeInTheDocument()
 		expect(screen.getAllByText('policy.md#1').length).toBeGreaterThan(0)
-		expect(screen.getByText('web.search · succeeded')).toBeInTheDocument()
-		expect(screen.getByText('Research')).toBeInTheDocument()
+		expect(screen.queryByText('Run details')).not.toBeInTheDocument()
+		expect(screen.queryByText('Fallback')).not.toBeInTheDocument()
+		expect(screen.queryByText('Grounded')).not.toBeInTheDocument()
+		expect(screen.queryByText('provider-request-1')).not.toBeInTheDocument()
+		expect(screen.queryByText('web.search · succeeded')).not.toBeInTheDocument()
 	})
 
 	it('submits structured feedback reasons and a correction', async () => {
@@ -294,7 +286,7 @@ describe('MessageBubble', () => {
 		)
 	})
 
-	it('shows a compact no-file-evidence caveat for model-only answers', () => {
+	it('does not show no-source warnings for model-only answers', () => {
 		render(
 			<MessageBubble
 				message={createMessage({
@@ -332,10 +324,12 @@ describe('MessageBubble', () => {
 			/>
 		)
 
+		expect(screen.queryByText('Model-only')).not.toBeInTheDocument()
+		expect(screen.queryByText('No file evidence')).not.toBeInTheDocument()
 		expect(
-			screen.getByText(
+			screen.queryByText(
 				'No file evidence was found for this answer. Ask a follow-up or retry with web search when available.'
 			)
-		).toBeInTheDocument()
+		).not.toBeInTheDocument()
 	})
 })

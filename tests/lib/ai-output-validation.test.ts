@@ -4,6 +4,10 @@ import {
 } from "@/lib/ai/output-validation/contracts";
 import { validateCitationSupport } from "@/lib/ai/output-validation/citations";
 import { validateMarkdownSafety } from "@/lib/ai/output-validation/markdown";
+import {
+	validateFinalAssistantOutput,
+	validateStreamingAssistantOutput,
+} from "@/lib/ai/output-validation/runtime";
 import { validateStructuredJsonText } from "@/lib/ai/output-validation/validator";
 import { describe, expect, it } from "vitest";
 
@@ -62,6 +66,59 @@ describe("AI output validation", () => {
 		).toMatchObject({
 			ok: false,
 			errorCode: "UNSAFE_MARKDOWN_OUTPUT",
+		});
+	});
+
+	it("fails streaming output when unsafe markdown appears", () => {
+		expect(
+			validateStreamingAssistantOutput("[x](javascript:alert(1))")
+		).toMatchObject({
+			ok: false,
+			status: "markdown_unsafe",
+			errorCode: "UNSAFE_MARKDOWN_OUTPUT",
+		});
+	});
+
+	it("requires cautious no-evidence answers for selected-file RAG", () => {
+		expect(
+			validateFinalAssistantOutput({
+				answer: "The selected file says the refund window is 90 days.",
+				ragEvidence: { requested: true, chunks: [] },
+			})
+		).toMatchObject({
+			ok: false,
+			status: "refusal_expected",
+			errorCode: "UNSUPPORTED_QUESTION_NOT_REFUSED",
+		});
+
+		expect(
+			validateFinalAssistantOutput({
+				answer: "I do not have evidence for that in the selected files.",
+				ragEvidence: { requested: true, chunks: [] },
+			}).ok
+		).toBe(true);
+	});
+
+	it("accepts RAG answers with lexical support in selected evidence", () => {
+		expect(
+			validateFinalAssistantOutput({
+				answer: "Current plans have a 30 day refund window for eligible accounts.",
+				ragEvidence: {
+					requested: true,
+					chunks: [
+						{
+							chunkId: "chunk-refund",
+							sourceLabel: "policy.md",
+							content:
+								"Current plans have a 30 day refund window for eligible accounts.",
+						},
+					],
+				},
+			})
+		).toMatchObject({
+			ok: true,
+			status: "valid",
+			citationValidationFailureCount: 0,
 		});
 	});
 });

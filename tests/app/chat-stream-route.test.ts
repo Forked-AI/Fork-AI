@@ -16,8 +16,14 @@ const tokenBudgetMocks = vi.hoisted(() => ({
 const storageMocks = vi.hoisted(() => ({
 	readStoredFileObject: vi.fn(),
 }));
+const retrievalMocks = vi.hoisted(() => ({
+	retrieveDocumentContext: vi.fn(),
+}));
 const idempotencyMocks = vi.hoisted(() => ({
 	beginIdempotency: vi.fn(),
+}));
+const shadowRunMocks = vi.hoisted(() => ({
+	planShadowRun: vi.fn(),
 }));
 const prismaMocks = vi.hoisted(() => ({
 	conversationFindFirst: vi.fn(),
@@ -70,10 +76,18 @@ vi.mock("@/lib/rag/storage", () => ({
 	readStoredFileObject: storageMocks.readStoredFileObject,
 }));
 
+vi.mock("@/lib/rag/retrieval", () => ({
+	retrieveDocumentContext: retrievalMocks.retrieveDocumentContext,
+}));
+
 vi.mock("@/lib/idempotency", () => ({
 	beginIdempotency: idempotencyMocks.beginIdempotency,
 	getRequestIdempotencyActorKey: vi.fn(() => "guest:test"),
 	getUserIdempotencyActorKey: vi.fn((userId: string) => `user:${userId}`),
+}));
+
+vi.mock("@/lib/ai/shadow-runs", () => ({
+	planShadowRun: shadowRunMocks.planShadowRun,
 }));
 
 vi.mock("@/lib/server-safe-log", () => ({
@@ -184,6 +198,7 @@ describe("/api/chat/stream route", () => {
 		rateLimitMocks.checkChatRateLimit.mockReset();
 		mistralMocks.stream.mockReset();
 		idempotencyMocks.beginIdempotency.mockReset();
+		shadowRunMocks.planShadowRun.mockReset();
 		prismaMocks.conversationFindFirst.mockReset();
 		prismaMocks.conversationCreate.mockReset();
 		prismaMocks.conversationUpdate.mockReset();
@@ -205,6 +220,7 @@ describe("/api/chat/stream route", () => {
 		prismaMocks.abuseSignalCreate.mockReset();
 		tokenBudgetMocks.checkTokenBudgetBeforeRequest.mockReset();
 		storageMocks.readStoredFileObject.mockReset();
+		retrievalMocks.retrieveDocumentContext.mockReset();
 
 		process.env.FORK_AI_SYSTEM_PROMPT = "App system prompt";
 
@@ -221,6 +237,13 @@ describe("/api/chat/stream route", () => {
 				complete: vi.fn(),
 				fail: vi.fn(),
 			},
+		});
+		shadowRunMocks.planShadowRun.mockResolvedValue({
+			requestId: "trace-1",
+			sample: false,
+			reason: "disabled",
+			sideEffectFree: true,
+			policyVersion: "ai-shadow-run-v1",
 		});
 		mistralMocks.stream.mockResolvedValue(
 			createProviderStream([
@@ -267,6 +290,7 @@ describe("/api/chat/stream route", () => {
 		});
 		prismaMocks.conversationSkillBindingFindMany.mockResolvedValue([]);
 		prismaMocks.installedSkillFindMany.mockResolvedValue([]);
+		retrievalMocks.retrieveDocumentContext.mockResolvedValue([]);
 		storageMocks.readStoredFileObject.mockResolvedValue(
 			Buffer.from("image-bytes")
 		);
@@ -315,6 +339,41 @@ describe("/api/chat/stream route", () => {
 		});
 		expect(idempotencyMocks.beginIdempotency).not.toHaveBeenCalled();
 		expect(mistralMocks.stream).not.toHaveBeenCalled();
+	});
+
+	it("routes auto model requests to a concrete provider model before streaming", async () => {
+		authMocks.getSession.mockResolvedValue(null);
+
+		const response = await POST(
+			new Request("http://localhost/api/chat/stream", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({
+					message: "Summarize this",
+					model: "auto",
+				}),
+			})
+		);
+
+		await response.text();
+
+		expect(response.status).toBe(200);
+		expect(idempotencyMocks.beginIdempotency).toHaveBeenCalledWith(
+			expect.any(Request),
+			expect.objectContaining({
+				requestInput: expect.objectContaining({
+					model: "ministral-8b-latest",
+					requestedModel: "auto",
+					autoRouted: true,
+					autoRoutingReason: "fast_simple",
+				}),
+			})
+		);
+		expect(mistralMocks.stream).toHaveBeenCalledWith(
+			expect.objectContaining({
+				model: "ministral-8b-latest",
+			})
+		);
 	});
 
 	it("rejects guest web search before idempotency or provider work", async () => {
@@ -634,15 +693,17 @@ describe("/api/chat/stream route", () => {
 		const events = parseSseEvents(await response.text());
 
 		expect(response.status).toBe(200);
-		expect(events).toEqual([
-			expect.objectContaining({
-				type: "error",
-				errorCode: "OUTPUT_MODERATED",
-				replacementContent: expect.stringContaining(
-					"moderation-policy-v1"
-				),
-			}),
-		]);
+		expect(events).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					type: "error",
+					errorCode: "OUTPUT_MODERATED",
+					replacementContent: expect.stringContaining(
+						"moderation-policy-v1"
+					),
+				}),
+			])
+		);
 		expect(
 			events.some(
 				(event) =>
@@ -665,6 +726,60 @@ describe("/api/chat/stream route", () => {
 				action: "block",
 			}),
 		});
+	});
+
+	it("blocks unsafe markdown output before streaming the unsafe chunk", async () => {
+		authMocks.getSession.mockResolvedValue(null);
+		mistralMocks.stream.mockResolvedValue(
+			createProviderStream([
+				{
+					content: "[x](javascript:alert(1))",
+					promptTokens: 3,
+					completionTokens: 7,
+				},
+			])
+		);
+
+		const response = await POST(
+			new Request("http://localhost/api/chat/stream", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({
+					message: "Return a link",
+					model: "mistral-large",
+				}),
+			})
+		);
+
+		const events = parseSseEvents(await response.text());
+
+		expect(response.status).toBe(200);
+		expect(events).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					type: "error",
+					errorCode: "UNSAFE_MARKDOWN_OUTPUT",
+					replacementContent: expect.stringContaining(
+						"unsafe markdown"
+					),
+				}),
+			])
+		);
+		expect(
+			events.some(
+				(event) =>
+					event.type === "content" &&
+					String(event.content).includes("javascript:")
+			)
+		).toBe(false);
+		expect(prismaMocks.usageEventUpdateMany).toHaveBeenCalledWith(
+			expect.objectContaining({
+				data: expect.objectContaining({
+					outcome: "failed",
+					errorCode: "UNSAFE_MARKDOWN_OUTPUT",
+				}),
+			})
+		);
 	});
 
 	it("returns 404 before provider work when an authenticated conversation is not owned", async () => {
@@ -821,6 +936,24 @@ describe("/api/chat/stream route", () => {
 				signal: expect.any(AbortSignal),
 			})
 		);
+		expect(shadowRunMocks.planShadowRun).toHaveBeenCalledWith(
+			expect.objectContaining({
+				userId: "user-1",
+				organizationId: null,
+				conversationId: "conversation-1",
+				taskId: "chat.general",
+				promptLength: expect.any(Number),
+				provider: "mistral",
+				model: "mistral-medium-latest",
+				requestId: expect.any(String),
+				promptVersion: "chat-context-v1",
+			})
+		);
+		const shadowPayload = JSON.stringify(
+			shadowRunMocks.planShadowRun.mock.calls[0][0]
+		);
+		expect(shadowPayload).not.toContain("Use vision");
+		expect(shadowPayload).not.toContain("App system prompt");
 	});
 
 	it("rejects image attachments for text-only models before creating messages", async () => {
