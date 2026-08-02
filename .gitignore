@@ -20,6 +20,8 @@ coverage
 generated
 .codex
 .playwright*
+.seo-cache/
+*.tsbuildinfo
 *.sql
 !prisma/migrations/**/*.sql
 *.png

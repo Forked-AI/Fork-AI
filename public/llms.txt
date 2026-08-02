@@ -1,0 +1,18 @@
+# ForkAI
+> ForkAI is a multi-AI chat workspace for branching conversations, comparing ChatGPT, Claude, Gemini, and other models on shared context, and selectively sharing useful paths.
+
+## Main pages
+- [ForkAI homepage](https://forkai.tech/): Product overview, branching workflow, supported use cases, pricing, and frequently asked questions.
+- [Branching AI chat guide](https://forkai.tech/branching-ai-chat): Detailed explanation of branching conversations, model comparison, research workflows, and selective sharing.
+- [Privacy policy and terms](https://forkai.tech/policy): Account, conversation, billing, and privacy terms.
+- [Early access](https://forkai.tech/prelaunch): Join the ForkAI early-access waitlist.
+
+## Product facts
+- ForkAI preserves the source conversation when a user explores an alternate branch.
+- Users can switch between and compare ChatGPT, Claude, Gemini, and other AI models without rebuilding the prompt context.
+- Shared views can contain selected messages or a focused summary instead of an entire private conversation.
+
+## Canonical identity
+- Name: ForkAI
+- Alternate name: Fork AI
+- Website: https://forkai.tech/
