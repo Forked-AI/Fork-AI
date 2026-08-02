@@ -25,7 +25,7 @@ const pricingPlans = [
 	{
 		name: 'Free',
 		price: 'Free',
-		description: 'Ad-supported access to Fork AI',
+		description: 'Ad-supported access to ForkAI',
 		features: [
 			'Unlimited branching',
 			'Basic model access',
@@ -228,9 +228,12 @@ export function PricingCards({
 												<span className="text-4xl font-bold text-white">
 													${isAnnual ? plan.annualPrice : plan.monthlyPrice}
 												</span>
-												<span className="text-white/60 text-lg">
-													{isAnnual ? '/year' : '/month'}
-												</span>
+												<span className="text-white/60 text-lg">/month</span>
+												{isAnnual ? (
+													<span className="text-xs text-white/45">
+														billed annually
+													</span>
+												) : null}
 											</motion.div>
 										</AnimatePresence>
 									)}

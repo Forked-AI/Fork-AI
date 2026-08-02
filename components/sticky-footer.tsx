@@ -74,7 +74,7 @@ export function StickyFooter() {
 								</li>
 								<li>
 									<Link
-										href="/landing#features"
+										href="/#features"
 										className="text-[#cbd5e1] transition-all duration-300 hover:text-white hover:translate-x-1 inline-block"
 									>
 										Features
@@ -82,7 +82,7 @@ export function StickyFooter() {
 								</li>
 								<li>
 									<Link
-										href="/landing#pricing"
+										href="/#pricing"
 										className="text-[#cbd5e1] transition-all duration-300 hover:text-white hover:translate-x-1 inline-block"
 									>
 										Pricing
@@ -130,7 +130,7 @@ export function StickyFooter() {
 						>
 							<GitBranch className="w-12 h-12 sm:w-16 sm:h-16 text-[#64748b]" />
 							<span className="text-[60px] sm:text-[100px] font-bold select-none bg-gradient-to-t from-[#475569] to-[#64748b] bg-clip-text text-transparent">
-								Fork AI
+								ForkAI
 							</span>
 						</motion.div>
 					</div>

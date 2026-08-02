@@ -555,7 +555,7 @@ export default function SignupPage() {
 
 									<div className="text-sm text-muted-foreground leading-6">
 										Once you verify your email, you can sign in and continue
-										with Fork AI.
+										with ForkAI.
 									</div>
 
 									<Link

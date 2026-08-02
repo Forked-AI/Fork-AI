@@ -178,7 +178,7 @@ export function MarketplacePostActions({
 										</p>
 										<p className="mt-1 text-xs text-white/45">
 											{item.source === 'first_party'
-												? 'Fork AI skill'
+												? 'ForkAI skill'
 												: 'Creator skill'}
 											{item.riskLevel ? ` · ${item.riskLevel} risk` : ''}
 										</p>

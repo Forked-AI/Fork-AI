@@ -84,10 +84,10 @@ export function OpenInForkAICta({
 			<Link
 				href={getLoginHref(shareToken)}
 				data-testid="share-open-in-fork-ai-floating-cta"
-				aria-label="Open this conversation in Fork AI"
+				aria-label="Open this conversation in ForkAI"
 				className={ctaClassName}
 			>
-				Open in Fork AI
+				Open in ForkAI
 				<span aria-hidden="true">→</span>
 			</Link>
 		)
@@ -98,10 +98,10 @@ export function OpenInForkAICta({
 			<Link
 				href={`/chat?c=${conversationId}`}
 				data-testid="share-open-in-fork-ai-floating-cta"
-				aria-label="Open this conversation in Fork AI"
+				aria-label="Open this conversation in ForkAI"
 				className={ctaClassName}
 			>
-				Open in Fork AI
+				Open in ForkAI
 				<span aria-hidden="true">→</span>
 			</Link>
 		)
@@ -112,7 +112,7 @@ export function OpenInForkAICta({
 			<button
 				type="button"
 				data-testid="share-open-in-fork-ai-floating-cta"
-				aria-label="Open this conversation in Fork AI"
+				aria-label="Open this conversation in ForkAI"
 				aria-busy={isImporting}
 				onClick={() => void handleImport()}
 				disabled={isImporting}
@@ -126,11 +126,11 @@ export function OpenInForkAICta({
 				{isImporting ? (
 					<>
 						<Loader2 className="h-4 w-4 animate-spin" />
-						Opening in Fork AI
+						Opening in ForkAI
 					</>
 				) : (
 					<>
-						{error ? 'Unable to open in Fork AI' : 'Open in Fork AI'}
+						{error ? 'Unable to open in ForkAI' : 'Open in ForkAI'}
 						<span aria-hidden="true">→</span>
 					</>
 				)}

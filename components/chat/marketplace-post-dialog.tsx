@@ -180,7 +180,7 @@ export function MarketplacePostDialog({
 										<p className="text-sm font-medium">{skill.title}</p>
 										<p className="mt-1 text-xs text-muted-foreground">
 											{skill.source === 'first_party'
-												? 'Fork AI skill'
+												? 'ForkAI skill'
 												: 'Creator skill'}{' '}
 											· {skill.riskLevel} risk ·{' '}
 											{skill.requiredTools.length
@@ -237,6 +237,6 @@ function defaultTitle(content: string) {
 		.map((line) => line.trim())
 		.find(Boolean)
 
-	if (!firstLine) return 'Fork AI result'
+	if (!firstLine) return 'ForkAI result'
 	return firstLine.length > 96 ? `${firstLine.slice(0, 93)}...` : firstLine
 }

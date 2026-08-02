@@ -9,7 +9,7 @@ import type { MessageSnapshot, ShareSummaryData } from '@/lib/share/types'
 import type { Metadata } from 'next'
 import { headers } from 'next/headers'
 import Link from 'next/link'
-import { redirect } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
 
 // --- Metadata for social preview ---
 
@@ -25,7 +25,10 @@ export async function generateMetadata({
 	})
 
 	if (!share || !share.isActive) {
-		return { title: 'Shared Conversation — Fork AI' }
+		return {
+			title: 'Shared Conversation — ForkAI',
+			robots: { index: false, follow: false },
+		}
 	}
 
 	let snapshots: MessageSnapshot[]
@@ -37,24 +40,28 @@ export async function generateMetadata({
 			: null
 	} catch (error) {
 		logServerError('share/page', 'metadata_parse_failed', error)
-		return { title: 'Shared Conversation — Fork AI' }
+		return {
+			title: 'Shared Conversation — ForkAI',
+			robots: { index: false, follow: false },
+		}
 	}
 	const description =
 		summary?.overview ||
-		`${snapshots.length} message${snapshots.length !== 1 ? 's' : ''} shared via Fork AI`
+		`${snapshots.length} message${snapshots.length !== 1 ? 's' : ''} shared via ForkAI`
 
 	return {
-		title: `${share.title} — Fork AI`,
+		title: `${share.title} — ForkAI`,
 		description,
+		robots: { index: false, follow: true },
 		openGraph: {
-			title: `${share.title} — Fork AI`,
+			title: `${share.title} — ForkAI`,
 			description,
 			type: 'article',
-			siteName: 'Fork AI',
+			siteName: 'ForkAI',
 		},
 		twitter: {
 			card: 'summary',
-			title: `${share.title} — Fork AI`,
+			title: `${share.title} — ForkAI`,
 			description,
 		},
 	}
@@ -73,7 +80,9 @@ export default async function SharePage({
 	const resolvedSearchParams = (await searchParams) ?? {}
 	const requestHeaders = await headers()
 	const rateLimit = await checkRequestRateLimit(
-		new Request('http://localhost/share', { headers: new Headers(requestHeaders) }),
+		new Request('http://localhost/share', {
+			headers: new Headers(requestHeaders),
+		}),
 		{
 			bucket: 'share-page-read',
 			maxRequests: RATE_LIMIT_CONSTANTS.MAX_PUBLIC_SHARE_READS_PER_MINUTE,
@@ -85,7 +94,9 @@ export default async function SharePage({
 		}
 	)
 	if (!rateLimit.allowed) {
-		return <ShareErrorPage message="Too many share requests. Please try again later." />
+		return (
+			<ShareErrorPage message="Too many share requests. Please try again later." />
+		)
 	}
 
 	const share = await prisma.sharedConversation.findUnique({
@@ -94,12 +105,12 @@ export default async function SharePage({
 
 	// Not found or revoked
 	if (!share || !share.isActive) {
-		return <ShareErrorPage message="This share link doesn't exist or has been revoked." />
+		notFound()
 	}
 
 	// Expired
 	if (share.expiresAt && share.expiresAt < new Date()) {
-		return <ShareErrorPage message="This share link has expired." />
+		notFound()
 	}
 
 	// Increment access count (server-side, fire-and-forget)
@@ -119,7 +130,9 @@ export default async function SharePage({
 			: null
 	} catch (error) {
 		logServerError('share/page', 'snapshot_parse_failed', error)
-		return <ShareErrorPage message="This shared conversation is temporarily unavailable." />
+		return (
+			<ShareErrorPage message="This shared conversation is temporarily unavailable." />
+		)
 	}
 	const session = await auth.api.getSession({ headers: requestHeaders })
 	const viewerUserId = session?.user?.id ?? null
@@ -151,7 +164,9 @@ export default async function SharePage({
 				conversationId={share.conversationId}
 				shareOwnerId={share.createdBy}
 				viewerUserId={viewerUserId}
-				autoOpen={openInChat && !!viewerUserId && viewerUserId !== share.createdBy}
+				autoOpen={
+					openInChat && !!viewerUserId && viewerUserId !== share.createdBy
+				}
 			/>
 
 			{/* Header */}
@@ -159,7 +174,7 @@ export default async function SharePage({
 				<div className="mx-auto flex w-full min-w-0 max-w-4xl items-center px-6 py-4">
 					<Link href="/" className="flex items-center gap-2 group">
 						<span className="text-lg font-bold text-[#57FCFF] group-hover:opacity-80 transition-opacity">
-							Fork AI
+							ForkAI
 						</span>
 					</Link>
 				</div>
@@ -171,7 +186,8 @@ export default async function SharePage({
 				<div className="mb-8 min-w-0">
 					<h1 className="text-2xl font-bold text-white mb-2">{share.title}</h1>
 					<p className="text-sm text-white/40">
-						{snapshots.length} message{snapshots.length !== 1 ? 's' : ''} · shared via Fork AI
+						{snapshots.length} message{snapshots.length !== 1 ? 's' : ''} ·
+						shared via ForkAI
 						{share.expiresAt && (
 							<> · expires {new Date(share.expiresAt).toLocaleDateString()}</>
 						)}
@@ -233,7 +249,7 @@ export default async function SharePage({
 				{/* Footer CTA */}
 				<div className="mt-16 pt-8 border-t border-white/10 text-center">
 					<p className="text-sm text-white/30 mb-4">
-						Powered by Fork AI — The AI chat that branches
+						Powered by ForkAI — The AI chat that branches
 					</p>
 					<Link
 						href="/signup"
@@ -274,7 +290,7 @@ function ShareErrorPage({ message }: { message: string }) {
 					href="/chat"
 					className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-[#57FCFF]/10 border border-[#57FCFF]/30 text-[#57FCFF] font-medium text-sm hover:bg-[#57FCFF]/20 transition-all"
 				>
-					Go to Fork AI
+					Go to ForkAI
 				</Link>
 			</div>
 		</div>
@@ -313,7 +329,11 @@ function SharedMessageBubble({
 							isUser ? 'text-[#57FCFF]/70' : 'text-white/40'
 						}`}
 					>
-						{isUser ? 'You' : showModel && message.model ? message.model : 'Assistant'}
+						{isUser
+							? 'You'
+							: showModel && message.model
+								? message.model
+								: 'Assistant'}
 					</span>
 					{showTimestamps && message.createdAt && (
 						<span className="text-[10px] text-white/25">
@@ -324,7 +344,9 @@ function SharedMessageBubble({
 
 				{/* Content */}
 				{isRedacted ? (
-					<p className="text-sm text-white/30 italic">[Message redacted by author]</p>
+					<p className="text-sm text-white/30 italic">
+						[Message redacted by author]
+					</p>
 				) : (
 					<div className="min-w-0 max-w-full text-sm leading-relaxed break-words [overflow-wrap:anywhere]">
 						<MarkdownRenderer
@@ -339,7 +361,13 @@ function SharedMessageBubble({
 	)
 }
 
-function DownloadButton({ content, title }: { content: string; title: string }) {
+function DownloadButton({
+	content,
+	title,
+}: {
+	content: string
+	title: string
+}) {
 	// Client-side download via data URI — wrapped in a server component with inline script
 	const filename = `${title.replace(/[^a-z0-9]/gi, '-').toLowerCase()}.md`
 
@@ -350,7 +378,12 @@ function DownloadButton({ content, title }: { content: string; title: string }) 
 				download={filename}
 				className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-white/5 border border-white/10 text-white/60 text-sm hover:bg-white/10 hover:text-white transition-all"
 			>
-				<svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+				<svg
+					className="w-4 h-4"
+					fill="none"
+					stroke="currentColor"
+					viewBox="0 0 24 24"
+				>
 					<path
 						strokeLinecap="round"
 						strokeLinejoin="round"
@@ -376,7 +409,7 @@ function buildMarkdown(
 	const lines: string[] = [
 		`# ${title}`,
 		'',
-		`*Shared via [Fork AI](https://forkai.tech)*`,
+		`*Shared via [ForkAI](https://forkai.tech)*`,
 		'',
 		'---',
 		'',
@@ -400,8 +433,14 @@ function buildMarkdown(
 	}
 
 	for (const msg of snapshots) {
-		const role = msg.role === 'user' ? '**You**' : `**Assistant${showModel && msg.model ? ` (${msg.model})` : ''}**`
-		const ts = showTimestamps && msg.createdAt ? ` · *${new Date(msg.createdAt).toLocaleString()}*` : ''
+		const role =
+			msg.role === 'user'
+				? '**You**'
+				: `**Assistant${showModel && msg.model ? ` (${msg.model})` : ''}**`
+		const ts =
+			showTimestamps && msg.createdAt
+				? ` · *${new Date(msg.createdAt).toLocaleString()}*`
+				: ''
 		lines.push(`${role}${ts}`)
 		lines.push('')
 		lines.push(msg.content)

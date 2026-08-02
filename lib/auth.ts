@@ -272,11 +272,11 @@ async function sendEmail(to: string, url: string, token: string) {
 	let html: string;
 
 	if (isOtp) {
-		subject = "Your Fork AI Verification Code";
+		subject = "Your ForkAI Verification Code";
 		html = `
       <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 0; background: linear-gradient(180deg, #0A2727 0%, #0C1110 100%);">
         <div style="text-align: center; padding: 40px 20px 30px;">
-          <h1 style="color: #57FCFF; margin: 0 0 10px 0; font-size: 32px; font-weight: 700; letter-spacing: -0.5px;">Fork AI</h1>
+          <h1 style="color: #57FCFF; margin: 0 0 10px 0; font-size: 32px; font-weight: 700; letter-spacing: -0.5px;">ForkAI</h1>
           <p style="color: #fff; margin: 0; font-size: 18px; opacity: 0.9;">Verification Code</p>
         </div>
         <div style="background-color: rgba(255, 255, 255, 0.05); backdrop-filter: blur(10px); border-radius: 16px; padding: 40px 30px; margin: 0 20px 30px; border: 1px solid rgba(87, 252, 255, 0.2);">
@@ -295,7 +295,7 @@ async function sendEmail(to: string, url: string, token: string) {
       </div>
     `;
 	} else if (isReset) {
-		subject = "Reset Your Fork AI Password";
+		subject = "Reset Your ForkAI Password";
 		html = `
       <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 0; background: linear-gradient(180deg, #0A2727 0%, #0C1110 100%);">
         <!-- Header -->
@@ -306,7 +306,7 @@ async function sendEmail(to: string, url: string, token: string) {
             </svg>
           </div>
           <h1 style="color: #57FCFF; margin: 0 0 10px 0; font-size: 32px; font-weight: 700; letter-spacing: -0.5px;">Password Reset</h1>
-          <p style="color: rgba(255, 255, 255, 0.7); margin: 0; font-size: 16px;">Reset your Fork AI account password</p>
+          <p style="color: rgba(255, 255, 255, 0.7); margin: 0; font-size: 16px;">Reset your ForkAI account password</p>
         </div>
         
         <!-- Main content -->
@@ -339,21 +339,21 @@ async function sendEmail(to: string, url: string, token: string) {
         <!-- Footer -->
         <div style="text-align: center; padding: 24px 20px;">
           <p style="margin: 0 0 8px 0; color: rgba(255, 255, 255, 0.5); font-size: 12px;">Need help? Contact support</p>
-          <p style="margin: 0; color: #57FCFF; font-size: 12px; font-weight: 500;">© ${new Date().getFullYear()} Fork AI. All rights reserved.</p>
+          <p style="margin: 0; color: #57FCFF; font-size: 12px; font-weight: 500;">© ${new Date().getFullYear()} ForkAI. All rights reserved.</p>
         </div>
       </div>
     `;
 	} else {
-		subject = "Welcome to Fork AI – Verify Your Email";
+		subject = "Welcome to ForkAI – Verify Your Email";
 		html = `
       <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 0; background: linear-gradient(180deg, #0A2727 0%, #0C1110 100%);">
         <div style="text-align: center; padding: 40px 20px 30px;">
-          <h1 style="color: #57FCFF; margin: 0 0 10px 0; font-size: 36px; font-weight: 700; letter-spacing: -0.5px;">Welcome to Fork AI</h1>
+          <h1 style="color: #57FCFF; margin: 0 0 10px 0; font-size: 36px; font-weight: 700; letter-spacing: -0.5px;">Welcome to ForkAI</h1>
           <p style="color: rgba(255, 255, 255, 0.7); margin: 0; font-size: 16px;">Let's verify your email address</p>
         </div>
         <div style="background-color: rgba(255, 255, 255, 0.05); backdrop-filter: blur(10px); border-radius: 16px; padding: 40px 30px; margin: 0 20px 30px; border: 1px solid rgba(87, 252, 255, 0.2);">
           <p style="color: #fff; font-size: 18px; line-height: 1.6; margin: 0 0 20px 0; font-weight: 500; opacity: 0.9;">Hello,</p>
-          <p style="color: rgba(255, 255, 255, 0.8); font-size: 16px; line-height: 1.8; margin: 0 0 30px 0;">Thank you for joining Fork AI! Click the button below to verify your email and start exploring:</p>
+          <p style="color: rgba(255, 255, 255, 0.8); font-size: 16px; line-height: 1.8; margin: 0 0 30px 0;">Thank you for joining ForkAI! Click the button below to verify your email and start exploring:</p>
           <div style="text-align: center; margin: 30px 0;">
             <a href="${url}" style="background: linear-gradient(135deg, #57FCFF 0%, #40D4E0 100%); color: #0A2727; padding: 16px 48px; text-decoration: none; border-radius: 12px; display: inline-block; font-size: 16px; font-weight: 700; box-shadow: 0 0 30px rgba(87, 252, 255, 0.4);">Verify Email</a>
           </div>
@@ -366,7 +366,7 @@ async function sendEmail(to: string, url: string, token: string) {
         </div>
         <div style="padding: 24px 20px; text-align: center; border-top: 1px solid rgba(87, 252, 255, 0.1);">
           <p style="color: rgba(255, 255, 255, 0.5); font-size: 12px; margin: 0 0 8px 0;">Need help? Contact support</p>
-          <p style="color: #57FCFF; font-size: 12px; font-weight: 500; margin: 0;">© ${new Date().getFullYear()} Fork AI. All rights reserved.</p>
+          <p style="color: #57FCFF; font-size: 12px; font-weight: 500; margin: 0;">© ${new Date().getFullYear()} ForkAI. All rights reserved.</p>
         </div>
       </div>
     `;

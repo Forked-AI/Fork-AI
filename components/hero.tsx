@@ -5,12 +5,12 @@ import { geist } from '@/lib/fonts'
 import { createRafThrottle } from '@/lib/rate-limit'
 import { cn } from '@/lib/utils'
 import { useGSAP } from '@gsap/react'
-import { motion } from 'framer-motion'
+import { AnimatePresence, motion } from 'framer-motion'
 import gsap from 'gsap'
 import { ScrollTrigger } from 'gsap/ScrollTrigger'
 import { MoveRight, Play } from 'lucide-react'
 import Link from 'next/link'
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 gsap.registerPlugin(ScrollTrigger)
 
@@ -37,6 +37,8 @@ function SplitWords({ text, className }: { text: string; className?: string }) {
 
 export default function Hero({ showGlowSphere = true }: HeroProps) {
 	const { isAuthenticated } = useAuth()
+	const [flipIndex, setFlipIndex] = useState(0)
+	const flipWords = ['AI', 'Chats', 'Ideas', 'Everything']
 	const containerRef = useRef<HTMLDivElement>(null)
 	const hasTopFallbackResetRef = useRef(false)
 	const heroResetTargets = [
@@ -210,21 +212,26 @@ export default function Hero({ showGlowSphere = true }: HeroProps) {
 					)
 			})
 
+			// Keep the primary heading immediately visible on mobile. This avoids
+			// delaying the text LCP while the rest of the page still uses motion.
 			mm.add('(max-width: 767px)', () => {
-				gsap.from('.hero-word-inner', {
-					y: '100%',
-					opacity: 0,
-					duration: 0.7,
-					ease: 'power3.out',
-					stagger: 0.05,
-					delay: 0.2,
-				})
+				gsap.set('.hero-word-inner', { clearProps: 'opacity,transform' })
 			})
 
 			return () => mm.revert()
 		},
 		{ scope: containerRef }
 	)
+
+	useEffect(() => {
+		const timer = window.setInterval(
+			() =>
+				setFlipIndex((currentIndex) => (currentIndex + 1) % flipWords.length),
+			2500
+		)
+
+		return () => window.clearInterval(timer)
+	}, [])
 
 	return (
 		<div
@@ -239,7 +246,7 @@ export default function Hero({ showGlowSphere = true }: HeroProps) {
 					style={{ opacity: 0.04, letterSpacing: '-0.04em', lineHeight: 0.85 }}
 					aria-hidden="true"
 				>
-					FORK AI
+					FORKAI
 				</div>
 			</div>
 
@@ -273,8 +280,31 @@ export default function Hero({ showGlowSphere = true }: HeroProps) {
 						<span className="block">
 							<SplitWords text="Your AI sucks." />
 						</span>
-						<span className="block">
+						<span className="flex flex-wrap items-center justify-center">
 							<SplitWords text="Fork your" />
+							<span className="hero-word inline-block overflow-hidden">
+								<span className="hero-word-inner inline-block">
+									<span className="inline-flex min-w-[140px] items-center justify-center md:min-w-[220px]">
+										<AnimatePresence mode="wait">
+											<motion.span
+												key={flipIndex}
+												initial={{ rotateX: 90, opacity: 0 }}
+												animate={{ rotateX: 0, opacity: 1 }}
+												exit={{ rotateX: -90, opacity: 0 }}
+												transition={{
+													duration: 0.4,
+													type: 'spring',
+													stiffness: 120,
+												}}
+												className="inline-block -rotate-1 transform rounded-xl bg-gradient-to-r from-white via-[#f8fafc] to-white px-4 py-1 text-black shadow-2xl"
+												style={{ transformStyle: 'preserve-3d' }}
+											>
+												{flipWords[flipIndex]}
+											</motion.span>
+										</AnimatePresence>
+									</span>
+								</span>
+							</span>
 						</span>
 					</h1>
 				</div>
@@ -282,7 +312,7 @@ export default function Hero({ showGlowSphere = true }: HeroProps) {
 				{/* Subtitle */}
 				<div className="hero-subtitle mx-auto mt-8 max-w-2xl text-center">
 					<p className="text-gray-300 text-xl leading-relaxed">
-						Fork AI is a powerful multi-AI chat platform and AI workspace.
+						ForkAI is a powerful multi-AI chat platform and AI workspace.
 						Seamlessly switch between ChatGPT, Claude, and Gemini without losing
 						context. Branch conversations, organize chats, and start free—no
 						credit card required.
@@ -291,19 +321,22 @@ export default function Hero({ showGlowSphere = true }: HeroProps) {
 
 				{/* CTAs */}
 				<div className="hero-primary-cta mt-10 flex flex-col sm:flex-row justify-center gap-4 items-center">
-					<Link prefetch={false} href={isAuthenticated ? '/chat' : '/prelaunch'}>
+					<Link
+						prefetch={false}
+						href={isAuthenticated ? '/chat' : '/prelaunch'}
+					>
 						<Button className="bg-gradient-to-r from-white to-[#f8fafc] text-black hover:from-[#f8fafc] hover:to-white rounded-full px-8 py-6 text-lg font-medium transition-all hover:scale-105 hover:shadow-2xl hover:shadow-white/20">
 							{isAuthenticated ? 'Open Chat' : 'Get Early Access'}{' '}
 							<MoveRight className="ml-2 h-5 w-5" />
 						</Button>
 					</Link>
-					<Link prefetch={false} href="/demo">
+					<Link prefetch={false} href="/branching-ai-chat">
 						<Button
 							variant="outline"
 							className="glass border-white/20 text-white rounded-full px-8 py-6 text-lg font-medium group bg-transparent"
 						>
 							<Play className="mr-2 h-4 w-4 fill-current group-hover:scale-110 transition-transform" />{' '}
-							Watch Demo
+							Explore Branching
 						</Button>
 					</Link>
 				</div>

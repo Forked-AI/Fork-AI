@@ -8,15 +8,16 @@
 'use client'
 
 import { authClient } from '@/lib/auth-client'
+import { createRafThrottle } from '@/lib/rate-limit'
 import { GitBranch } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 export function SiteHeader() {
 	const [isScrolled, setIsScrolled] = useState(false)
 	const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
-	const [lastScrollY, setLastScrollY] = useState(0)
+	const lastScrollYRef = useRef(0)
 	const [session, setSession] = useState<any>(null)
 	const pathname = usePathname()
 
@@ -36,7 +37,7 @@ export function SiteHeader() {
 	const isHomePage = pathname === '/' || pathname === '/landing'
 
 	useEffect(() => {
-		const handleScroll = () => {
+		const handleScroll = createRafThrottle(() => {
 			const currentScrollY = window.scrollY
 
 			// Always expand at the very top
@@ -44,20 +45,26 @@ export function SiteHeader() {
 				setIsScrolled(false)
 			}
 			// Scrolling down - shrink the header
-			else if (currentScrollY > lastScrollY && currentScrollY > 100) {
+			else if (
+				currentScrollY > lastScrollYRef.current &&
+				currentScrollY > 100
+			) {
 				setIsScrolled(true)
 			}
 			// Scrolling up - expand the header
-			else if (currentScrollY < lastScrollY) {
+			else if (currentScrollY < lastScrollYRef.current) {
 				setIsScrolled(false)
 			}
 
-			setLastScrollY(currentScrollY)
-		}
+			lastScrollYRef.current = currentScrollY
+		})
 
 		window.addEventListener('scroll', handleScroll, { passive: true })
-		return () => window.removeEventListener('scroll', handleScroll)
-	}, [lastScrollY])
+		return () => {
+			window.removeEventListener('scroll', handleScroll)
+			handleScroll.cancel()
+		}
+	}, [])
 
 	const handleNavClick = (elementId: string) => {
 		setIsMobileMenuOpen(false)
@@ -76,13 +83,13 @@ export function SiteHeader() {
 				})
 			}
 		}
-		// If not on home page, the Link component will handle navigation to /#elementId
+		// If not on home page, the Link component handles navigation to /#elementId.
 	}
 
 	const navItems = [
 		{ name: 'Features', id: 'features' },
 		{ name: 'Pricing', id: 'pricing' },
-		{ name: 'Testimonials', id: 'testimonials' },
+		{ name: 'Use Cases', id: 'testimonials' },
 		{ name: 'FAQ', id: 'faq' },
 	]
 
@@ -95,40 +102,37 @@ export function SiteHeader() {
 		<>
 			{/* Desktop Header */}
 			<header
-				className={`fixed top-2 left-1/2 -translate-x-1/2 z-[9999] hidden w-full flex-row items-center justify-between rounded-full glass border-white/20 shadow-2xl shadow-[#cbd5e1]/10 transition-all duration-300 ease-out md:flex ${
+				className={`fixed top-2 left-1/2 -translate-x-1/2 z-[9999] hidden w-[calc(100%-2rem)] grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 rounded-full glass border-white/20 shadow-2xl shadow-[#cbd5e1]/10 transition-all duration-300 ease-out md:grid ${
 					isScrolled
 						? 'max-w-3xl px-3 py-1.5 scale-[0.98]'
 						: 'max-w-5xl px-4 py-2'
 				}`}
 				style={{
 					willChange: 'transform',
-					transform: 'translateZ(0)',
 					backfaceVisibility: 'hidden',
 					perspective: '1000px',
 				}}
 			>
 				<Link
-					className={`z-50 flex items-center justify-center gap-2 transition-all duration-300 ${
-						isScrolled ? 'ml-4' : ''
-					}`}
+					className="z-50 flex shrink-0 items-center justify-center gap-2 transition-all duration-300"
 					href="/"
 				>
 					<GitBranch className="w-8 h-8 text-white" />
-					<span className="font-bold text-white text-lg">Fork AI</span>
+					<span className="font-bold text-white text-lg">ForkAI</span>
 				</Link>
 
 				<nav
 					aria-label="Primary"
-					className={`absolute inset-0 hidden flex-1 flex-row items-center justify-center text-sm font-medium text-muted-foreground transition duration-200 hover:text-foreground md:flex ${
+					className={`min-w-0 flex flex-row items-center justify-center text-sm font-medium text-muted-foreground transition duration-200 hover:text-foreground ${
 						isScrolled ? 'space-x-0' : 'space-x-2'
 					}`}
 				>
 					{navItems.map((item) => (
 						<Link
 							key={item.id}
-							href={`/landing#${item.id}`}
+							href={`/#${item.id}`}
 							className={`relative py-2 text-muted-foreground hover:text-white transition-all cursor-pointer group ${
-								isScrolled ? 'px-2' : 'px-4'
+								isScrolled ? 'px-1.5' : 'px-3'
 							}`}
 							onClick={(e) => {
 								if (isHomePage) {
@@ -143,15 +147,22 @@ export function SiteHeader() {
 					))}
 				</nav>
 
-				<div className="flex items-center gap-4 z-50">
+				<div className="z-50 flex shrink-0 items-center gap-3">
 					{session ? (
-						<div className="flex items-center gap-4">
-							<span className="text-sm text-white">
+						<div className="flex items-center gap-3">
+							<span
+								className={`max-w-32 truncate text-sm text-white ${
+									isScrolled ? 'hidden' : 'hidden xl:block'
+								}`}
+								title={`Welcome, ${session.user.name}`}
+							>
 								Welcome, {session.user.name}
 							</span>
 							<Link
 								href="/chat"
-								className="rounded-full font-bold relative cursor-pointer hover:-translate-y-0.5 transition-all duration-200 inline-block text-center bg-gradient-to-r from-[#e2e8f0] to-white text-black shadow-xl shadow-white/20 hover:shadow-2xl hover:shadow-white/30 px-6 py-2 text-sm shimmer-hover"
+								className={`relative inline-block cursor-pointer rounded-full bg-gradient-to-r from-[#e2e8f0] to-white py-2 text-center text-sm font-bold text-black shadow-xl shadow-white/20 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-2xl hover:shadow-white/30 shimmer-hover ${
+									isScrolled ? 'px-4' : 'px-5'
+								}`}
 							>
 								Open Chat
 							</Link>
@@ -199,7 +210,7 @@ export function SiteHeader() {
 			<header className="fixed top-2 left-1/2 -translate-x-1/2 z-[9999] mx-4 flex w-[calc(100%-2rem)] flex-row items-center justify-between rounded-full glass border-white/20 shadow-2xl md:hidden px-4 py-3">
 				<Link className="flex items-center justify-center gap-2" href="/">
 					<GitBranch className="w-7 h-7 text-white" />
-					<span className="font-bold text-white">Fork AI</span>
+					<span className="font-bold text-white">ForkAI</span>
 				</Link>
 
 				<button
@@ -235,7 +246,7 @@ export function SiteHeader() {
 							{navItems.map((item) => (
 								<Link
 									key={item.id}
-									href={`/landing#${item.id}`}
+									href={`/#${item.id}`}
 									onClick={(e) => {
 										if (isHomePage) {
 											e.preventDefault()

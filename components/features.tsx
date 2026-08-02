@@ -184,7 +184,7 @@ const STEPS = [
 		icon: Sparkles,
 		tag: 'Accessible',
 		title: 'Premium UX,\nzero barrier.',
-		body: "Fork AI runs on an ad-supported model so powerful AI stays accessible to everyone—no credit card, no paywall. Start free and upgrade when you're ready.",
+		body: "ForkAI runs on an ad-supported model so powerful AI stays accessible to everyone—no credit card, no paywall. Start free and upgrade when you're ready.",
 		visual: (
 			<div className="text-center w-full max-w-[200px]">
 				<div className="text-7xl font-black bg-gradient-to-b from-[#cbd5e1] to-[#94a3b8] bg-clip-text text-transparent leading-none">
@@ -211,6 +211,7 @@ const STEPS = [
 export function Features() {
 	const containerRef = useRef<HTMLDivElement>(null)
 	const narrativeRef = useRef<HTMLDivElement>(null)
+	const pinnedNarrativeRef = useRef<HTMLDivElement>(null)
 
 	useGSAP(
 		() => {
@@ -218,6 +219,7 @@ export function Features() {
 
 			mm.add('(min-width: 768px)', () => {
 				let cancelNarrativeUpdate: (() => void) | undefined
+				let narrativeTrigger: ScrollTrigger | undefined
 
 				// ── 1. Section-2 entrance: slide up FROM BELOW (offground pattern) ──
 				// The header tag row reveals horizontally (slides from left, like offground service tags)
@@ -260,8 +262,11 @@ export function Features() {
 				const steps = gsap.utils.toArray<HTMLElement>('.step-content')
 				const visuals = gsap.utils.toArray<HTMLElement>('.step-visual')
 
-				if (steps.length > 0 && narrativeRef.current) {
-					const totalScrollLength = (steps.length - 1) * 600 // 600px scroll per step
+				if (
+					steps.length > 0 &&
+					narrativeRef.current &&
+					pinnedNarrativeRef.current
+				) {
 					let lastStep = 0
 
 					// Set ALL steps' initial CSS so there's zero bleed-through
@@ -341,13 +346,15 @@ export function Features() {
 					)
 					cancelNarrativeUpdate = updateNarrativeStep.cancel
 
-					ScrollTrigger.create({
-						trigger: narrativeRef.current,
-						start: 'top top',
-						end: `+=${totalScrollLength}`,
+					narrativeTrigger = ScrollTrigger.create({
+						trigger: pinnedNarrativeRef.current,
+						endTrigger: narrativeRef.current,
 						pin: true,
-						pinSpacing: true,
+						start: 'top top',
+						end: 'bottom bottom',
+						pinSpacing: false,
 						anticipatePin: 1,
+						invalidateOnRefresh: true,
 						onUpdate: updateNarrativeStep,
 					})
 				}
@@ -373,6 +380,7 @@ export function Features() {
 
 				return () => {
 					cancelNarrativeUpdate?.()
+					narrativeTrigger?.kill()
 				}
 			})
 
@@ -421,17 +429,17 @@ export function Features() {
 											geist.className
 										)}
 									>
-										What is Fork AI?
+										What is ForkAI?
 									</h2>
 								</div>
 							</div>
 
 							<div className="features-subtext space-y-5">
 								<p className="text-lg leading-relaxed text-white/60">
-									Fork AI is a multi-AI chat platform and AI workspace for
-									people who need more than one linear conversation. It keeps
-									ChatGPT, Claude, Gemini, and other models in one focused place
-									so your context stays intact.
+									ForkAI is a multi-AI chat platform and AI workspace for people
+									who need more than one linear conversation. It keeps ChatGPT,
+									Claude, Gemini, and other models in one focused place so your
+									context stays intact.
 								</p>
 								<p className="max-w-xl text-base leading-7 text-white/45">
 									Branching conversations let you explore alternatives without
@@ -447,7 +455,7 @@ export function Features() {
 							<div
 								className="relative min-h-[340px]"
 								role="img"
-								aria-label="Fork AI workspace illustration showing one prompt branching into research and compare paths, then creating a shareable branch"
+								aria-label="ForkAI workspace illustration showing one prompt branching into research and compare paths, then creating a shareable branch"
 							>
 								<svg
 									viewBox="0 0 420 340"
@@ -728,73 +736,80 @@ export function Features() {
 			{/* ── Part B: Taiko-style pinned narrative (text swaps, visual transitions) ─ */}
 			<div
 				ref={narrativeRef}
-				className="relative h-screen flex items-center overflow-hidden"
+				className="relative h-screen md:h-[calc(1800px+100vh)]"
 			>
-				{/* Left: Text steps (overlap each other, shown one at a time) */}
-				<div className="absolute inset-0 flex items-center px-4">
-					<div className="max-w-6xl w-full mx-auto grid grid-cols-1 md:grid-cols-2 gap-12 items-center">
-						{/* Text column */}
-						<div className="relative h-72">
-							{STEPS.map((step, i) => (
-								<div
-									key={step.tag}
-									className="step-content absolute inset-0 flex flex-col justify-center"
-								>
-									{/* Step counter */}
-									<div className="flex items-center gap-3 mb-5">
-										<span className="text-xs font-mono text-white/30 tabular-nums">
-											0{i + 1} / 0{STEPS.length}
-										</span>
-										<div className="flex-1 h-px bg-white/10">
-											<div
-												className="h-full bg-[#cbd5e1]/60 transition-all duration-500"
-												style={{ width: `${((i + 1) / STEPS.length) * 100}%` }}
-											/>
-										</div>
-										<span className="px-2.5 py-1 rounded-full bg-white/5 border border-white/10 text-xs text-[#cbd5e1]">
-											{step.tag}
-										</span>
-									</div>
-
-									<h3
-										className={cn(
-											'text-3xl md:text-4xl font-bold tracking-tight text-white mb-4 whitespace-pre-line',
-											geist.className
-										)}
+				<div
+					ref={pinnedNarrativeRef}
+					className="relative flex h-screen items-center overflow-hidden"
+				>
+					{/* Left: Text steps (overlap each other, shown one at a time) */}
+					<div className="absolute inset-0 flex items-center px-4">
+						<div className="max-w-6xl w-full mx-auto grid grid-cols-1 md:grid-cols-2 gap-12 items-center">
+							{/* Text column */}
+							<div className="relative h-72">
+								{STEPS.map((step, i) => (
+									<div
+										key={step.tag}
+										className="step-content absolute inset-0 flex flex-col justify-center"
 									>
-										{step.title}
-									</h3>
+										{/* Step counter */}
+										<div className="flex items-center gap-3 mb-5">
+											<span className="text-xs font-mono text-white/30 tabular-nums">
+												0{i + 1} / 0{STEPS.length}
+											</span>
+											<div className="flex-1 h-px bg-white/10">
+												<div
+													className="h-full bg-[#cbd5e1]/60 transition-all duration-500"
+													style={{
+														width: `${((i + 1) / STEPS.length) * 100}%`,
+													}}
+												/>
+											</div>
+											<span className="px-2.5 py-1 rounded-full bg-white/5 border border-white/10 text-xs text-[#cbd5e1]">
+												{step.tag}
+											</span>
+										</div>
 
-									<p className="text-white/55 text-base leading-relaxed max-w-md">
-										{step.body}
-									</p>
-								</div>
-							))}
-						</div>
+										<h3
+											className={cn(
+												'text-3xl md:text-4xl font-bold tracking-tight text-white mb-4 whitespace-pre-line',
+												geist.className
+											)}
+										>
+											{step.title}
+										</h3>
 
-						{/* Visual column */}
-						<div className="relative h-72 flex items-center justify-center">
-							{STEPS.map((step) => (
-								<div
-									key={step.tag}
-									className="step-visual absolute inset-0 flex items-center justify-center"
-								>
-									{step.visual}
-								</div>
-							))}
+										<p className="text-white/55 text-base leading-relaxed max-w-md">
+											{step.body}
+										</p>
+									</div>
+								))}
+							</div>
+
+							{/* Visual column */}
+							<div className="relative h-72 flex items-center justify-center">
+								{STEPS.map((step) => (
+									<div
+										key={step.tag}
+										className="step-visual absolute inset-0 flex items-center justify-center"
+									>
+										{step.visual}
+									</div>
+								))}
+							</div>
 						</div>
 					</div>
-				</div>
 
-				{/* Progress dots (taiko-style scroll position indicator) */}
-				<div className="absolute right-6 top-1/2 -translate-y-1/2 flex flex-col gap-3 z-20">
-					{STEPS.map((step) => (
-						<div
-							key={step.tag}
-							className="w-1.5 h-1.5 rounded-full bg-white/20 transition-all duration-300"
-							title={step.tag}
-						/>
-					))}
+					{/* Progress dots (taiko-style scroll position indicator) */}
+					<div className="absolute right-6 top-1/2 -translate-y-1/2 flex flex-col gap-3 z-20">
+						{STEPS.map((step) => (
+							<div
+								key={step.tag}
+								className="w-1.5 h-1.5 rounded-full bg-white/20 transition-all duration-300"
+								title={step.tag}
+							/>
+						))}
+					</div>
 				</div>
 			</div>
 		</section>

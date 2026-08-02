@@ -151,7 +151,7 @@ export default function PrelaunchPage() {
 							transition={{ duration: 0.6, delay: 0.2 }}
 							className="text-lg md:text-xl text-white/70 max-w-2xl mx-auto mb-12 leading-relaxed"
 						>
-							Fork AI is a multi-AI platform with a fine-grained, zero-effort
+							ForkAI is a multi-AI platform with a fine-grained, zero-effort
 							UX. Fork chats, swap models without losing context, and share only
 							what you want.
 						</motion.p>

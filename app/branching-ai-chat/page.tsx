@@ -32,6 +32,7 @@ import {
 } from '@/components/branching-ai-chat-content'
 import { JsonLd } from '@/components/json-ld'
 import { AuroraBackground } from '@/components/ui/aurora-background'
+import { SITE_URL } from '@/lib/site-config'
 import type { Metadata } from 'next'
 
 const pagePath = '/branching-ai-chat'
@@ -84,7 +85,7 @@ const [
 const summaryAside = {
 	eyebrow: 'Shared summaries',
 	title: 'Clarity improves when the recap is part of the workflow.',
-	body: 'Fork AI condenses long collaborative sessions into concise summaries that keep the team aligned on the decisions and context that actually matter.',
+	body: 'ForkAI condenses long collaborative sessions into concise summaries that keep the team aligned on the decisions and context that actually matter.',
 	bullets: [
 		'Highlight decisions without replaying the entire conversation',
 		'Reduce misinterpretation across longer working sessions',
@@ -111,10 +112,7 @@ function ParagraphGroup({
 }
 
 export default function BranchingAiChatPage() {
-	const baseUrl = (
-		process.env.NEXT_PUBLIC_BASE_URL || 'https://forkai.tech'
-	).trim()
-	const articleSchema = createBranchingAiArticleSchema(baseUrl)
+	const articleSchema = createBranchingAiArticleSchema(SITE_URL)
 
 	const introLeadParagraph = chapterOne.subsections[0].paragraphs[0]
 	const introContinuationParagraphs =
@@ -151,6 +149,8 @@ export default function BranchingAiChatPage() {
 						author={branchingAiChatArticleMeta.author}
 						tags={branchingAiChatArticleMeta.topicTags}
 						readTimeMinutes={branchingAiChatArticleMeta.readTimeMinutes}
+						publishedAt={branchingAiChatArticleMeta.publishedAt}
+						modifiedAt={branchingAiChatArticleMeta.modifiedAt}
 					/>
 
 					<SectionSpyNav items={sectionNavItems} mode="mobile" />

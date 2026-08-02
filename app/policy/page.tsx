@@ -12,11 +12,11 @@ const policySection = [
 		content: [
 			{
 				heading: 'Information We Collect',
-				text: 'Fork AI collects information you provide directly to us, such as when you create an account, use our multi-AI platform, or communicate with us. This may include your name, email address, conversation data, and usage preferences.',
+				text: 'ForkAI collects information you provide directly to us, such as when you create an account, use our multi-AI platform, or communicate with us. This may include your name, email address, conversation data, and usage preferences.',
 			},
 			{
 				heading: 'How We Use Your Information',
-				text: "We use the information we collect to provide, maintain, and improve Fork AI's services, including the branching conversation UI, model switching features, and privacy-first sharing capabilities. We also use data to personalize your experience and communicate updates.",
+				text: "We use the information we collect to provide, maintain, and improve ForkAI's services, including the branching conversation UI, model switching features, and privacy-first sharing capabilities. We also use data to personalize your experience and communicate updates.",
 			},
 			{
 				heading: 'Branch & Conversation Privacy',
@@ -30,15 +30,15 @@ const policySection = [
 		content: [
 			{
 				heading: 'Acceptance of Terms',
-				text: 'By accessing and using Fork AI, you accept and agree to be bound by these terms. Fork AI provides a multi-AI platform with branching conversations, model switching, and selective sharing features.',
+				text: 'By accessing and using ForkAI, you accept and agree to be bound by these terms. ForkAI provides a multi-AI platform with branching conversations, model switching, and selective sharing features.',
 			},
 			{
 				heading: 'Use License',
-				text: 'Fork AI grants you a personal, non-exclusive license to use our platform for creating, branching, and sharing AI conversations. You retain ownership of your conversation content while granting us license to process it through our services.',
+				text: 'ForkAI grants you a personal, non-exclusive license to use our platform for creating, branching, and sharing AI conversations. You retain ownership of your conversation content while granting us license to process it through our services.',
 			},
 			{
 				heading: 'Ad-Supported Model',
-				text: 'Fork AI is supported by thoughtful, minimal ad placements to keep the platform accessible. By using Fork AI, you agree to view non-intrusive advertisements. Premium tiers may offer ad-free experiences.',
+				text: 'ForkAI is supported by thoughtful, minimal ad placements to keep the platform accessible. By using ForkAI, you agree to view non-intrusive advertisements. Premium tiers may offer ad-free experiences.',
 			},
 		],
 	},
@@ -110,7 +110,7 @@ export default function PolicyPage() {
 						</h1>
 
 						<p className="text-lg text-white/60 max-w-2xl mx-auto leading-relaxed">
-							Fork AI is built with privacy at its core. Learn how we protect
+							ForkAI is built with privacy at its core. Learn how we protect
 							your conversations, branches, and data while giving you full
 							control.
 						</p>
@@ -172,11 +172,7 @@ export default function PolicyPage() {
 										</div>
 										<p className="text-white/60 leading-relaxed">
 											Last updated:{' '}
-											{new Date().toLocaleDateString('en-US', {
-												year: 'numeric',
-												month: 'long',
-												day: 'numeric',
-											})}
+											<time dateTime="2026-08-02">August 2, 2026</time>
 										</p>
 									</div>
 
@@ -219,8 +215,8 @@ export default function PolicyPage() {
 							</h3>
 							<p className="text-white/60 mb-6 leading-relaxed">
 								If you have any questions about our privacy policy, terms of
-								service, or how Fork AI handles your data, please don't hesitate
-								to contact us.
+								service, or how ForkAI handles your data, please don&apos;t
+								hesitate to contact us.
 							</p>
 							<motion.a
 								href="mailto:privacy@forkai.com"

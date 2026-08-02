@@ -349,7 +349,7 @@ export function SettingsModal({
 				open={open}
 				onOpenChange={onOpenChange}
 				title="Preferences"
-				description="Customize your Fork AI experience"
+				description="Customize your ForkAI experience"
 				icon={<SettingsIcon className="h-5 w-5 text-primary" />}
 				contentClassName="sm:max-w-2xl max-h-[85vh] overflow-y-auto"
 				headerTrailing={

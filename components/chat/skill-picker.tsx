@@ -300,7 +300,7 @@ function SkillCard({
 						</div>
 					</div>
 					<p className="text-xs text-muted-foreground/60">
-						{template.source === 'first_party' ? 'Fork AI' : 'Private'}
+						{template.source === 'first_party' ? 'ForkAI' : 'Private'}
 					</p>
 				</div>
 			</div>

@@ -104,7 +104,7 @@ export function FeedbackModal({
 						<textarea
 							value={correction}
 							onChange={(e) => setCorrection(e.target.value)}
-							placeholder="Write the answer you expected or the correction Fork AI should learn from."
+							placeholder="Write the answer you expected or the correction ForkAI should learn from."
 							className="w-full h-24 px-3 py-2 bg-background/30 border border-border/50 rounded-lg text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary resize-none"
 						/>
 					</div>

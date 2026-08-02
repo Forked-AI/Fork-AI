@@ -60,7 +60,7 @@ const AUTO_MODEL: Model = {
 	name: 'Auto',
 	description:
 		'Routes each message to a suitable model based on the prompt, files, and tools.',
-	provider: 'Fork AI',
+	provider: 'ForkAI',
 	contextWindow: 'Automatic',
 	isFavorite: true,
 	capabilities: {
@@ -1372,7 +1372,7 @@ export const ChatInput = forwardRef<HTMLTextAreaElement, ChatInputProps>(
 
 					<div className="text-center mt-3">
 						<p className="text-[10px] text-muted-foreground/40 font-mono tracking-widest uppercase">
-							Fork AI Model 0.1
+							ForkAI Model 0.1
 						</p>
 					</div>
 				</div>
