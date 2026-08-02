@@ -125,7 +125,7 @@ export function PricingSection() {
 					</motion.div>
 
 					<h2 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-white via-white to-white/60 bg-clip-text text-transparent mb-4">
-						Fork AI Pricing – Free, Pro, and Team Plans
+						ForkAI Pricing – Free, Pro, and Team Plans
 					</h2>
 
 					<p className="text-lg text-white/60 max-w-2xl mx-auto mb-8">

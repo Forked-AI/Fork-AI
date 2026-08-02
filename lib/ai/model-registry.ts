@@ -46,7 +46,7 @@ export const modelRegistry: ModelRegistryRecord[] = [
 		},
 		safetyNotes: [
 			"Hosted provider key only; no browser exposure.",
-			"Provider-native tools disabled; Fork AI tool audit remains authoritative.",
+			"Provider-native tools disabled; ForkAI tool audit remains authoritative.",
 		],
 		evalBaseline: {
 			datasetVersion: "ci-smoke.v2",

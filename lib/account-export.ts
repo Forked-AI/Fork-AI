@@ -31,7 +31,7 @@ function formatMarkdownExport(
 	exportData: Awaited<ReturnType<typeof buildAccountExportData>>
 ) {
 	const lines: string[] = [
-		"# Fork AI Account Export",
+		"# ForkAI Account Export",
 		"",
 		`Exported at: ${exportData.exportedAt}`,
 		"",

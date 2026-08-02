@@ -1,7 +1,7 @@
 'use client'
 
 import { JsonLd } from '@/components/json-ld'
-import { AnimatePresence, motion } from 'framer-motion'
+import { motion } from 'framer-motion'
 import { Minus, Plus } from 'lucide-react'
 import { useState } from 'react'
 
@@ -16,9 +16,9 @@ export function FAQSection() {
 
 	const faqs = [
 		{
-			question: 'What is Fork AI exactly?',
+			question: 'What is ForkAI exactly?',
 			answer:
-				'Fork AI is a multi-AI platform with a branching chat UI. Instead of being trapped in a single messy thread, you can fork your conversations into branches, explore multiple ideas simultaneously, and share only the parts you want to share.',
+				'ForkAI is a multi-AI platform with a branching chat UI. Instead of being trapped in a single messy thread, you can fork your conversations into branches, explore multiple ideas simultaneously, and share only the parts you want to share.',
 		},
 		{
 			question: 'How does branching work?',
@@ -28,15 +28,15 @@ export function FAQSection() {
 		{
 			question: 'Can I switch between AI models?',
 			answer:
-				'Yes! Fork AI lets you switch models on any branch instantly. You can compare responses from GPT-4, Claude, Gemini, and more on the same context without re-explaining everything.',
+				'Yes! ForkAI lets you switch models on any branch instantly. You can compare responses from GPT-4, Claude, Gemini, and more on the same context without re-explaining everything.',
 		},
 		{
 			question: 'How does privacy-first sharing work?',
 			answer:
-				'Instead of sharing your entire conversation history, Fork AI lets you share a precise slice: a specific branch, selected messages, or an AI-generated summary. Collaborators see exactly what they need, nothing more.',
+				'Instead of sharing your entire conversation history, ForkAI lets you share a precise slice: a specific branch, selected messages, or an AI-generated summary. Collaborators see exactly what they need, nothing more.',
 		},
 		{
-			question: 'Is Fork AI really free?',
+			question: 'Is ForkAI really free?',
 			answer:
 				'Yes! The free tier is ad-supported and includes unlimited branching and basic model access. Pro users get an ad-free experience, access to all AI models, and advanced features like export and priority access.',
 		},
@@ -84,7 +84,7 @@ export function FAQSection() {
 						transition={{ duration: 0.6, delay: 0.2 }}
 						viewport={{ once: true }}
 					>
-						Questions? We've got{' '}
+						Questions? We&apos;ve got{' '}
 						<span className="bg-gradient-to-b from-foreground via-gray-400 to-primary bg-clip-text text-transparent">
 							answers
 						</span>
@@ -137,26 +137,23 @@ export function FAQSection() {
 										</motion.span>
 									</motion.button>
 								</h3>
-								<AnimatePresence>
-									{openItems.includes(index) && (
-										<motion.div
-											id={`faq-answer-${index}`}
-											role="region"
-											aria-labelledby={`faq-trigger-${index}`}
-											className="px-6 pb-6 text-muted-foreground leading-relaxed overflow-hidden"
-											initial={{ opacity: 0, height: 0 }}
-											animate={{ opacity: 1, height: 'auto' }}
-											exit={{ opacity: 0, height: 0 }}
-											transition={{
-												duration: 0.4,
-												ease: 'easeInOut',
-												opacity: { duration: 0.2 },
-											}}
-										>
-											{faq.answer}
-										</motion.div>
-									)}
-								</AnimatePresence>
+								<motion.div
+									id={`faq-answer-${index}`}
+									role="region"
+									aria-labelledby={`faq-trigger-${index}`}
+									aria-hidden={!openItems.includes(index)}
+									className="grid overflow-hidden px-6 text-muted-foreground"
+									initial={false}
+									animate={{
+										gridTemplateRows: openItems.includes(index) ? '1fr' : '0fr',
+										opacity: openItems.includes(index) ? 1 : 0,
+									}}
+									transition={{ duration: 0.35, ease: 'easeInOut' }}
+								>
+									<div className="min-h-0 overflow-hidden">
+										<p className="pb-6 leading-relaxed">{faq.answer}</p>
+									</div>
+								</motion.div>
 							</motion.div>
 						))}
 					</div>

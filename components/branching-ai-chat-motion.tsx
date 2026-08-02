@@ -64,6 +64,8 @@ interface ArticleMetaRowProps {
 	author: string
 	tags: string[]
 	readTimeMinutes: number
+	publishedAt: string
+	modifiedAt: string
 }
 
 interface ChapterRailProps {
@@ -656,7 +658,7 @@ export function BranchingIntroComparisonWidget() {
 						</div>
 					</div>
 					<p className="mt-4 max-w-2xl text-sm leading-7 text-slate-300">
-						Compare the old single-thread workflow with Fork AI's branching
+						Compare the old single-thread workflow with ForkAI&apos;s branching
 						workspace before diving into the article.
 					</p>
 					<div className="mt-6 grid gap-4 lg:grid-cols-2">
@@ -714,7 +716,7 @@ export function BranchingIntroComparisonWidget() {
 						>
 							<div className="flex items-center justify-between gap-3">
 								<p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-sky-100/75">
-									After: Fork AI way
+									After: ForkAI way
 								</p>
 								<span className="rounded-full bg-sky-200/14 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-sky-100">
 									Paths stay clear
@@ -772,8 +774,8 @@ export function ForkGeneratorWidget() {
 					</div>
 				</div>
 				<p className="mt-4 max-w-2xl text-sm leading-7 text-slate-300">
-					Type a prompt and watch Fork AI turn one direction into several
-					focused branches.
+					Type a prompt and watch ForkAI turn one direction into several focused
+					branches.
 				</p>
 				<div className="mt-6 rounded-[1.25rem] border border-white/10 bg-white/[0.035] p-4">
 					<div className="flex flex-col gap-3 sm:flex-row">
@@ -1134,7 +1136,7 @@ export function AudienceRolesWidget() {
 					</span>
 					<div>
 						<p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-sky-100/75">
-							Who it's for
+							Who it&apos;s for
 						</p>
 						<h3 className="mt-1 font-[family:var(--font-serif)] text-2xl font-semibold leading-8 text-white">
 							Match branching workflows to different roles.
@@ -1232,8 +1234,7 @@ export function BranchingQuizWidget() {
 				</p>
 				<div className="mt-6 rounded-[1.25rem] border border-white/10 bg-white/[0.035] p-4">
 					<p className="text-sm font-semibold leading-6 text-white">
-						What is the main advantage of Fork AI over a standard linear AI
-						chat?
+						What is the main advantage of ForkAI over a standard linear AI chat?
 					</p>
 					<div className="mt-4 grid gap-3">
 						{quizOptions.map((option) => {
@@ -1278,7 +1279,7 @@ export function BranchingQuizWidget() {
 						>
 							<p>
 								{selectedOption.isCorrect
-									? 'Correct. Fork AI keeps the source context intact while each branch explores a different path.'
+									? 'Correct. ForkAI keeps the source context intact while each branch explores a different path.'
 									: 'Not quite. The key is preserving one source context while branching into multiple focused paths.'}
 							</p>
 							<div className="mt-3 rounded-lg border border-white/10 bg-slate-950/45 px-3 py-2 text-slate-100">
@@ -1341,7 +1342,7 @@ export function BranchingAiHero({
 							<ArrowRight className="h-4 w-4" />
 						</Link>
 						<Link
-							href="/landing#pricing"
+							href="/#pricing"
 							className="inline-flex items-center justify-center gap-2 rounded-full border border-white/15 bg-white/5 px-6 py-3 text-sm font-semibold text-white transition-colors duration-200 hover:border-white/25 hover:bg-white/10"
 						>
 							View pricing
@@ -1394,7 +1395,7 @@ export function BranchingAiHero({
 						</div>
 						<div className="absolute inset-x-4 bottom-4 rounded-2xl border border-white/10 bg-slate-950/75 p-4 backdrop-blur-md">
 							<p className="text-xs font-semibold uppercase tracking-[0.2em] text-sky-100/75">
-								Fork AI workflow
+								ForkAI workflow
 							</p>
 							<p className="mt-2 text-sm leading-6 text-slate-200">
 								Compare branches, keep alternate ideas intact, and validate the
@@ -1434,6 +1435,8 @@ export function ArticleMetaRow({
 	author,
 	tags,
 	readTimeMinutes,
+	publishedAt,
+	modifiedAt,
 }: ArticleMetaRowProps) {
 	return (
 		<EditorialReveal className="mt-6">
@@ -1444,6 +1447,11 @@ export function ArticleMetaRow({
 					</span>
 					<span className="hidden text-slate-500 sm:inline">•</span>
 					<span className="text-slate-400">{readTimeMinutes} min read</span>
+					<span className="hidden text-slate-500 sm:inline">•</span>
+					<span className="text-slate-400">
+						Published <time dateTime={publishedAt}>May 5, 2026</time>
+						{' · '}Updated <time dateTime={modifiedAt}>Aug 2, 2026</time>
+					</span>
 				</div>
 				<div className="flex flex-wrap items-center justify-center gap-2">
 					{tags.map((tag) => (

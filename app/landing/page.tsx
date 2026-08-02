@@ -18,10 +18,10 @@ import type { Metadata } from 'next'
 export const metadata: Metadata = {
 	title: 'Multi-AI Chat Platform & AI Workspace',
 	description:
-		'Fork AI is a powerful multi-AI chat platform that lets you interact with ChatGPT, Claude, and Gemini in one workspace. Branch conversations, switch models, and start free today.',
+		'ForkAI is a powerful multi-AI chat platform that lets you interact with ChatGPT, Claude, and Gemini in one workspace. Branch conversations, switch models, and start free today.',
 	openGraph: {
 		title:
-			'Fork AI – The Multi-AI Chat Platform Built for Effortless Conversations',
+			'ForkAI – The Multi-AI Chat Platform Built for Effortless Conversations',
 		description:
 			'Branch, compare, and switch between ChatGPT, Claude, and Gemini without losing context. Free to start, no credit card required.',
 	},
@@ -31,22 +31,11 @@ export default function Landing() {
 	return (
 		<AuroraBackground className="min-h-screen w-full">
 			<div className="min-h-screen w-full relative">
-				{/* Hero Section */}
 				<Hero />
-
-				{/* Features Section */}
 				<Features />
-
-				{/* Pricing Section */}
 				<PricingSection />
-
-				{/* Testimonials Section */}
 				<Testimonials />
-
-				{/* New Release Promo */}
 				<NewReleasePromo />
-
-				{/* FAQ Section */}
 				<FAQSection />
 			</div>
 		</AuroraBackground>

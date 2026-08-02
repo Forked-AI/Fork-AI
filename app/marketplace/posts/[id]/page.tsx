@@ -7,6 +7,7 @@ import type { MessageSnapshot, ShareSummaryData } from '@/lib/share/types'
 import type { Metadata } from 'next'
 import { headers } from 'next/headers'
 import Link from 'next/link'
+import { notFound } from 'next/navigation'
 
 export async function generateMetadata({
 	params,
@@ -15,16 +16,27 @@ export async function generateMetadata({
 }): Promise<Metadata> {
 	const { id } = await params
 	const post = await getPublicMarketplacePost({ postId: id })
-	if (!post) return { title: 'Marketplace Post — Fork AI' }
+	if (!post) {
+		return {
+			title: 'Marketplace Post — ForkAI',
+			robots: { index: false, follow: false },
+		}
+	}
+
+	const canonical = `/marketplace/posts/${id}`
+	const isIndexable = post.visibility === 'public'
 
 	return {
-		title: `${post.title} — Fork AI Marketplace`,
-		description: post.summary || 'A shared Fork AI result post.',
+		title: `${post.title} — ForkAI Marketplace`,
+		description: post.summary || 'A shared ForkAI result post.',
+		alternates: { canonical },
+		robots: { index: isIndexable, follow: isIndexable },
 		openGraph: {
-			title: `${post.title} — Fork AI Marketplace`,
-			description: post.summary || 'A shared Fork AI result post.',
+			title: `${post.title} — ForkAI Marketplace`,
+			description: post.summary || 'A shared ForkAI result post.',
 			type: 'article',
-			siteName: 'Fork AI',
+			siteName: 'ForkAI',
+			url: canonical,
 		},
 	}
 }
@@ -44,9 +56,7 @@ export default async function MarketplacePostPage({
 	})
 
 	if (!post?.share) {
-		return (
-			<MarketplacePostError message="This marketplace post is not available." />
-		)
+		notFound()
 	}
 
 	let snapshots: MessageSnapshot[] = []
@@ -68,7 +78,7 @@ export default async function MarketplacePostPage({
 			<header className="sticky top-0 z-10 border-b border-white/10 bg-[#0a0d11]/90 backdrop-blur-xl">
 				<div className="mx-auto flex w-full max-w-5xl items-center justify-between px-6 py-4">
 					<Link href="/" className="text-lg font-bold text-[#57FCFF]">
-						Fork AI
+						ForkAI
 					</Link>
 					<Link
 						href="/chat"
@@ -171,7 +181,7 @@ function MarketplacePostError({ message }: { message: string }) {
 					href="/"
 					className="mt-6 inline-flex rounded-lg bg-[#57FCFF] px-4 py-2 text-sm font-semibold text-black"
 				>
-					Back to Fork AI
+					Back to ForkAI
 				</Link>
 			</div>
 		</div>
