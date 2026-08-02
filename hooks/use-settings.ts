@@ -3,6 +3,7 @@
 import {
 	DEFAULT_THEME_SETTINGS,
 	normalizeStoredThemeSettings,
+	type ThemeColorPosition,
 } from "@/lib/theme-engine";
 import { useEffect, useState } from "react";
 
@@ -32,6 +33,8 @@ export interface Settings {
 	themeBorder: string; // Border color
 	themeText: string; // Auto-calculated text color
 	themeTextMuted: string; // Auto-calculated muted text
+	themeColors: string[]; // Active custom color stops (1-3)
+	themeColorPositions: ThemeColorPosition[]; // Persisted gradient stop positions
 	waveIntensity: number; // 0-100
 	noiseAmount: number; // 0-100
 	activePreset: string | null; // preset ID or null for custom

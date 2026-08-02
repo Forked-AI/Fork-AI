@@ -10,14 +10,13 @@ import {
 	createPerformanceMonitor,
 	type PerformanceMetrics,
 } from '@/lib/performance-monitor'
+import {
+	DEFAULT_THEME_COLOR_POSITIONS,
+	type ThemeColorPosition,
+} from '@/lib/theme-engine'
 import { QUICK_SWATCHES } from '@/lib/theme-presets'
 import { cn } from '@/lib/utils'
-import {
-	ChevronLeft,
-	ChevronRight,
-	Minus,
-	Plus,
-} from 'lucide-react'
+import { ChevronLeft, ChevronRight, Minus, Plus } from 'lucide-react'
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 
 interface DotPosition {
@@ -34,7 +33,11 @@ interface ColorDot {
 
 interface ZenColorPickerProps {
 	colors: string[] // 1-3 colors
-	onChange: (colors: string[]) => void
+	positions: ThemeColorPosition[]
+	onChange: (
+		colors: string[],
+		positions: ThemeColorPosition[]
+	) => boolean | void
 	waveIntensity?: number
 	noiseAmount?: number
 	onWaveChange?: (intensity: number) => void
@@ -49,6 +52,7 @@ const DOT_SIZE_MOBILE = 32
 
 export function ZenColorPicker({
 	colors,
+	positions,
 	onChange,
 	waveIntensity = 0,
 	noiseAmount = 0,
@@ -59,9 +63,13 @@ export function ZenColorPicker({
 	const canvasRef = useRef<HTMLDivElement>(null)
 	const [isMobile, setIsMobile] = useState(false)
 	const [dots, setDots] = useState<ColorDot[]>([])
+	const dotsRef = useRef<ColorDot[]>([])
 	const [isDragging, setIsDragging] = useState(false)
 	const [draggedDotIndex, setDraggedDotIndex] = useState<number | null>(null)
-	const [dragStartPos, setDragStartPos] = useState<{ x: number; y: number } | null>(null)
+	const [dragStartPos, setDragStartPos] = useState<{
+		x: number
+		y: number
+	} | null>(null)
 	const [swatchScrollPosition, setSwatchScrollPosition] = useState(0)
 	const [showColorPicker, setShowColorPicker] = useState(false)
 	const [pickerPosition, setPickerPosition] = useState({ x: 0, y: 0 })
@@ -81,6 +89,26 @@ export function ZenColorPicker({
 
 	const canvasSize = isMobile ? CANVAS_SIZE_MOBILE : CANVAS_SIZE
 	const dotSize = isMobile ? DOT_SIZE_MOBILE : DOT_SIZE
+	const restoreControlledDots = useCallback(() => {
+		const activeId = dotsRef.current.find((dot) => dot.active)?.id || 'dot-0'
+		const restoredDots = colors.map((color, index) => {
+			const id = `dot-${index}`
+
+			return {
+				id,
+				color,
+				position: positions[index] || DEFAULT_THEME_COLOR_POSITIONS[index],
+				active: id === activeId,
+			}
+		})
+
+		if (!restoredDots.some((dot) => dot.active) && restoredDots[0]) {
+			restoredDots[0].active = true
+		}
+
+		setDots(restoredDots)
+		dotsRef.current = restoredDots
+	}, [colors, positions])
 
 	// Check if mobile
 	useEffect(() => {
@@ -92,41 +120,10 @@ export function ZenColorPicker({
 		return () => window.removeEventListener('resize', checkMobile)
 	}, [])
 
-	// Initialize dots from colors
+	// Synchronize the controlled color stops after a preset, reset, or reload.
 	useEffect(() => {
-		const centerX = 0.5
-		const centerY = 0.5
-		const radius = 0.3
-
-		const newDots: ColorDot[] = colors.map((color, index) => {
-			let position: DotPosition
-
-			if (index === 0) {
-				// Dot A: Start at top
-				position = { x: centerX, y: centerY - radius }
-			} else if (index === 1) {
-				// Dot B: Mirror of A (bottom)
-				position = { x: centerX, y: centerY + radius }
-			} else {
-				// Dot C: 120° offset from A
-				const angleA = -Math.PI / 2 // A is at top
-				const angleC = angleA + (2 * Math.PI) / 3
-				position = {
-					x: centerX + radius * Math.cos(angleC),
-					y: centerY + radius * Math.sin(angleC),
-				}
-			}
-
-			return {
-				id: `dot-${index}`,
-				color,
-				position,
-				active: index === 0,
-			}
-		})
-
-		setDots(newDots)
-	}, [colors])
+		restoreControlledDots()
+	}, [restoreControlledDots])
 
 	// Calculate mirror and companion positions
 	const calculateLinkedPositions = useCallback(
@@ -152,7 +149,12 @@ export function ZenColorPicker({
 				y: centerY + radius * Math.sin(angleC),
 			}
 
-			return { dotB, dotC }
+			const clamp = (value: number) => Math.max(0.05, Math.min(0.95, value))
+
+			return {
+				dotB: { x: clamp(dotB.x), y: clamp(dotB.y) },
+				dotC: { x: clamp(dotC.x), y: clamp(dotC.y) },
+			}
 		},
 		[]
 	)
@@ -191,8 +193,14 @@ export function ZenColorPicker({
 		(e: React.PointerEvent) => {
 			if (isDragging && draggedDotIndex !== null && canvasRef.current) {
 				const rect = canvasRef.current.getBoundingClientRect()
-				const x = Math.max(0.05, Math.min(0.95, (e.clientX - rect.left) / rect.width))
-				const y = Math.max(0.05, Math.min(0.95, (e.clientY - rect.top) / rect.height))
+				const x = Math.max(
+					0.05,
+					Math.min(0.95, (e.clientX - rect.left) / rect.width)
+				)
+				const y = Math.max(
+					0.05,
+					Math.min(0.95, (e.clientY - rect.top) / rect.height)
+				)
 
 				const newPosition = { x, y }
 				const newDots = [...dots]
@@ -235,6 +243,7 @@ export function ZenColorPicker({
 				}
 
 				setDots(newDots)
+				dotsRef.current = newDots
 
 				// Redraw gradient in real-time
 				if (canvasRef.current) {
@@ -242,8 +251,11 @@ export function ZenColorPicker({
 						color: dot.color,
 						position: dot.position,
 					}))
-					const gradientSvg = generateGradient(colorStops, canvasSize, canvasSize)
-					canvasRef.current.style.backgroundImage = `url('data:image/svg+xml;base64,${btoa(gradientSvg)}')`
+					canvasRef.current.style.background = generateGradient(
+						colorStops,
+						canvasSize,
+						canvasSize
+					)
 				}
 			}
 		},
@@ -257,18 +269,21 @@ export function ZenColorPicker({
 				const CLICK_THRESHOLD = 5
 				const wasClick = dragStartPos
 					? Math.abs(e.clientX - dragStartPos.x) < CLICK_THRESHOLD &&
-					  Math.abs(e.clientY - dragStartPos.y) < CLICK_THRESHOLD
+						Math.abs(e.clientY - dragStartPos.y) < CLICK_THRESHOLD
 					: false
 
 				if (wasClick) {
 					// Open color picker for the clicked dot
-					const dotId = dots[draggedDotIndex]?.id
+					const dotId = dotsRef.current[draggedDotIndex]?.id
 					if (dotId) {
-						setDots((prevDots) =>
-							prevDots.map((dot) => ({ ...dot, active: dot.id === dotId }))
-						)
+						const activeDots = dotsRef.current.map((dot) => ({
+							...dot,
+							active: dot.id === dotId,
+						}))
+						setDots(activeDots)
+						dotsRef.current = activeDots
 
-						const modalContent = document.querySelector('[role="dialog"]')
+						const modalContent = canvasRef.current?.closest('[role="dialog"]')
 						const modalRect = modalContent?.getBoundingClientRect()
 
 						if (modalRect) {
@@ -293,6 +308,15 @@ export function ZenColorPicker({
 							setShowColorPicker(true)
 						}
 					}
+				} else {
+					const currentDots = dotsRef.current
+					const applied = onChange(
+						currentDots.map((dot) => dot.color),
+						currentDots.map((dot) => dot.position)
+					)
+					if (applied === false) {
+						restoreControlledDots()
+					}
 				}
 
 				setIsDragging(false)
@@ -302,18 +326,21 @@ export function ZenColorPicker({
 				e.currentTarget.releasePointerCapture(e.pointerId)
 			}
 		},
-		[isDragging, draggedDotIndex, dragStartPos, dots]
+		[isDragging, draggedDotIndex, dragStartPos, onChange, restoreControlledDots]
 	)
 
 	// Add/remove color stops
 	const handleAddColor = () => {
 		if (colors.length >= 3) return
-		onChange([...colors, '#FFFFFF'])
+		onChange(
+			[...colors, '#FFFFFF'],
+			[...positions, DEFAULT_THEME_COLOR_POSITIONS[colors.length]]
+		)
 	}
 
 	const handleRemoveColor = () => {
 		if (colors.length <= 1) return
-		onChange(colors.slice(0, -1))
+		onChange(colors.slice(0, -1), positions.slice(0, -1))
 	}
 
 	// Update active dot color
@@ -323,7 +350,10 @@ export function ZenColorPicker({
 
 		const newColors = [...colors]
 		newColors[activeDotIndex] = color
-		onChange(newColors)
+		onChange(
+			newColors,
+			dotsRef.current.map((dot) => dot.position)
+		)
 	}
 
 	// Handle color change from CompactColorPicker
@@ -333,8 +363,16 @@ export function ZenColorPicker({
 		const newDots = dots.map((dot) =>
 			dot.id === editingDotId ? { ...dot, color } : dot
 		)
+		const applied = onChange(
+			newDots.map((dot) => dot.color),
+			newDots.map((dot) => dot.position)
+		)
+		if (applied === false) {
+			restoreControlledDots()
+			return
+		}
 		setDots(newDots)
-		onChange(newDots.map((dot) => dot.color))
+		dotsRef.current = newDots
 
 		// Redraw gradient
 		if (canvasRef.current) {
@@ -342,8 +380,11 @@ export function ZenColorPicker({
 				color: dot.color,
 				position: dot.position,
 			}))
-			const gradientSvg = generateGradient(colorStops, canvasSize, canvasSize)
-			canvasRef.current.style.backgroundImage = `url('data:image/svg+xml;base64,${btoa(gradientSvg)}')`
+			canvasRef.current.style.background = generateGradient(
+				colorStops,
+				canvasSize,
+				canvasSize
+			)
 		}
 	}
 
@@ -388,6 +429,11 @@ export function ZenColorPicker({
 
 	const activeDot = dots.find((dot) => dot.active)
 	const activeDotColor = activeDot?.color || '#FFFFFF'
+	const [manualColor, setManualColor] = useState(activeDotColor)
+
+	useEffect(() => {
+		setManualColor(activeDotColor)
+	}, [activeDotColor])
 
 	return (
 		<div className={cn('space-y-4', className)}>
@@ -395,6 +441,7 @@ export function ZenColorPicker({
 			<div className="flex items-center justify-center">
 				<div
 					ref={canvasRef}
+					data-testid="theme-gradient-canvas"
 					className="relative rounded-lg overflow-hidden cursor-crosshair border border-white/10"
 					style={{
 						width: canvasSize,
@@ -421,9 +468,20 @@ export function ZenColorPicker({
 
 					{/* Dots */}
 					{dots.map((dot, index) => (
-						<div
+						<button
+							type="button"
 							key={dot.id}
 							data-dot-id={dot.id}
+							aria-label={`Select theme color ${index + 1}`}
+							aria-pressed={dot.active}
+							onClick={() => {
+								const activeDots = dotsRef.current.map((item) => ({
+									...item,
+									active: item.id === dot.id,
+								}))
+								setDots(activeDots)
+								dotsRef.current = activeDots
+							}}
 							className={cn(
 								'absolute rounded-full transition-transform',
 								isDragging && draggedDotIndex === index
@@ -439,7 +497,9 @@ export function ZenColorPicker({
 								top: `${dot.position.y * 100}%`,
 								transform: 'translate(-50%, -50%)',
 								// High-contrast ring: white + black outline always visible
-								border: dot.active ? '3px solid white' : '2px solid rgba(255,255,255,0.9)',
+								border: dot.active
+									? '3px solid white'
+									: '2px solid rgba(255,255,255,0.9)',
 								boxShadow: dot.active
 									? '0 0 0 2px rgba(0,0,0,0.6), 0 0 0 6px rgba(87,252,255,0.35), 0 4px 12px rgba(0,0,0,0.4)'
 									: '0 0 0 1.5px rgba(0,0,0,0.5), 0 2px 8px rgba(0,0,0,0.3)',
@@ -558,11 +618,24 @@ export function ZenColorPicker({
 				<Input
 					id="manual-color"
 					type="text"
-					value={activeDotColor}
-					onChange={(e) => handleColorChange(e.target.value)}
+					value={manualColor}
+					onChange={(e) => {
+						const value = e.target.value
+						setManualColor(value)
+						if (/^#[0-9a-fA-F]{6}$/.test(value)) {
+							handleColorChange(value)
+						}
+					}}
+					aria-invalid={!/^#[0-9a-fA-F]{6}$/.test(manualColor)}
 					placeholder="#FFFFFF"
+					maxLength={7}
 					className="font-mono"
 				/>
+				{!/^#[0-9a-fA-F]{6}$/.test(manualColor) && (
+					<p className="text-xs text-destructive" role="alert">
+						Enter a complete six-digit hex color.
+					</p>
+				)}
 			</div>
 
 			{/* SVG filter for wave effect */}

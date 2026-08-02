@@ -13,10 +13,7 @@ import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { ZenColorPicker } from '@/components/ui/zen-color-picker'
 import { type Settings } from '@/hooks/use-settings'
-import {
-	suggestContrastFix,
-	validateThemeContrast,
-} from '@/lib/color-utils'
+import { suggestContrastFix, validateThemeContrast } from '@/lib/color-utils'
 import {
 	buildCustomThemeFromColors,
 	getThemeSettingsFromPreset,
@@ -46,9 +43,11 @@ export function ThemeCustomizationModal({
 	onOpenChange,
 	settings,
 	updateSettings,
+	showSavedIndicator,
 }: ThemeCustomizationModalProps) {
 	const [showPresets, setShowPresets] = useState(true)
 	const [contrastDismissed, setContrastDismissed] = useState(false)
+	const [contrastBlocked, setContrastBlocked] = useState(false)
 	const { resolvedTheme } = useTheme()
 	const effectiveTheme =
 		resolveEffectiveTheme(settings.theme, resolvedTheme) ?? 'dark'
@@ -66,22 +65,66 @@ export function ThemeCustomizationModal({
 		)
 	}, [resolvedPalette])
 
-	const handleThemeColorsChange = (colors: string[]) => {
-		updateSettings(buildCustomThemeFromColors(colors))
+	const getContrastReport = (nextSettings: Settings) => {
+		const nextEffectiveTheme =
+			resolveEffectiveTheme(nextSettings.theme, resolvedTheme) ?? 'dark'
+		const nextPalette = resolveThemePalette(nextSettings, nextEffectiveTheme)
+
+		return validateThemeContrast(
+			nextPalette.themeText,
+			nextPalette.themeBackground,
+			nextPalette.themePrimary,
+			nextPalette.themeCard
+		)
+	}
+
+	const applyPaletteUpdate = (
+		partial: Partial<Settings>,
+		knownCompliant?: boolean
+	) => {
+		const nextSettings = { ...settings, ...partial }
+		const nextReport = getContrastReport(nextSettings)
+		const shouldBlock =
+			settings.strictContrastMode &&
+			(knownCompliant === false ||
+				(knownCompliant !== true && nextReport.overall === 'fail'))
+
+		if (shouldBlock) {
+			setContrastBlocked(true)
+			setContrastDismissed(false)
+			return false
+		}
+
+		updateSettings(partial)
+		showSavedIndicator?.()
+		setContrastBlocked(false)
 		setContrastDismissed(false)
+		return true
+	}
+
+	const handleThemeColorsChange = (
+		colors: string[],
+		positions: Settings['themeColorPositions']
+	) => {
+		const applied = applyPaletteUpdate(
+			buildCustomThemeFromColors(colors, positions)
+		)
+		setContrastDismissed(false)
+		return applied
 	}
 
 	const handlePresetSelect = (preset: ThemePreset) => {
-		updateSettings(getThemeSettingsFromPreset(preset))
-		setContrastDismissed(false)
+		applyPaletteUpdate(getThemeSettingsFromPreset(preset), preset.wcagCompliant)
 	}
 
 	const handleWaveChange = (intensity: number) => {
 		updateSettings({ waveIntensity: intensity })
+		showSavedIndicator?.()
 	}
 
 	const handleNoiseChange = (amount: number) => {
 		updateSettings({ noiseAmount: amount })
+		showSavedIndicator?.()
 	}
 
 	const handleContrastAutoFix = () => {
@@ -90,13 +133,26 @@ export function ThemeCustomizationModal({
 			resolvedPalette.themeBackground || '#0d1117',
 			4.5
 		)
-		updateSettings(
-			buildCustomThemeFromColors([
+		let fixedTheme = buildCustomThemeFromColors(
+			[
 				fixedColor,
 				settings.themeSecondary || fixedColor,
 				settings.themeTertiary || fixedColor,
-			])
+			],
+			settings.themeColorPositions
 		)
+		const fixedSettings = { ...settings, ...fixedTheme }
+
+		if (getContrastReport(fixedSettings).overall === 'fail') {
+			fixedTheme = buildCustomThemeFromColors(
+				['#FFFFFF', settings.themeSecondary, settings.themeTertiary],
+				settings.themeColorPositions
+			)
+		}
+
+		updateSettings(fixedTheme)
+		showSavedIndicator?.()
+		setContrastBlocked(false)
 		setContrastDismissed(false)
 	}
 
@@ -112,6 +168,15 @@ export function ThemeCustomizationModal({
 			contentClassName="sm:max-w-3xl max-h-[85vh] overflow-y-auto overflow-x-hidden"
 		>
 			<div className="space-y-6">
+				{contrastBlocked && (
+					<div
+						className="rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm text-foreground"
+						role="alert"
+					>
+						Strict Contrast Mode blocked that palette because it does not meet
+						WCAG AA. Choose a compliant preset or use Auto-Fix.
+					</div>
+				)}
 				<div className="space-y-3">
 					<div className="flex items-center justify-between">
 						<Label className="text-sm font-medium">Preset Palettes</Label>
@@ -128,7 +193,9 @@ export function ThemeCustomizationModal({
 					{showPresets && (
 						<>
 							<div className="space-y-2">
-								<p className="text-xs text-muted-foreground">WCAG AA Compliant</p>
+								<p className="text-xs text-muted-foreground">
+									WCAG AA Compliant
+								</p>
 								<div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
 									{COMPLIANT_PRESETS.map((preset) => (
 										<button
@@ -234,11 +301,8 @@ export function ThemeCustomizationModal({
 						</p>
 					</div>
 					<ZenColorPicker
-						colors={[
-							settings.themePrimary,
-							settings.themeSecondary,
-							settings.themeTertiary,
-						]}
+						colors={settings.themeColors}
+						positions={settings.themeColorPositions}
 						onChange={handleThemeColorsChange}
 						waveIntensity={settings.waveIntensity}
 						noiseAmount={settings.noiseAmount}
@@ -247,15 +311,17 @@ export function ThemeCustomizationModal({
 					/>
 				</div>
 
-				{!contrastDismissed &&
-					contrastReport.overall === 'fail' &&
-					!settings.strictContrastMode && (
-						<ContrastWarning
-							report={contrastReport}
-							onAutoFix={handleContrastAutoFix}
-							onDismiss={() => setContrastDismissed(true)}
-						/>
-					)}
+				{!contrastDismissed && contrastReport.overall === 'fail' && (
+					<ContrastWarning
+						report={contrastReport}
+						onAutoFix={handleContrastAutoFix}
+						onDismiss={
+							settings.strictContrastMode
+								? undefined
+								: () => setContrastDismissed(true)
+						}
+					/>
+				)}
 
 				<div className="space-y-3 border-t border-border/50 pt-2">
 					<Label className="text-sm font-medium">Advanced Options</Label>
@@ -270,13 +336,15 @@ export function ThemeCustomizationModal({
 									Strict Contrast Mode
 								</FieldLabel>
 								<FieldDescription className="text-xs text-muted-foreground">
-									Block saving themes below AA standard
+									Block applying palettes below AA standard
 								</FieldDescription>
 							</FieldContent>
 							<Switch
 								checked={settings.strictContrastMode}
 								onCheckedChange={(checked) => {
 									updateSettings({ strictContrastMode: checked })
+									showSavedIndicator?.()
+									setContrastBlocked(false)
 								}}
 								className="mt-0.5 data-[state=checked]:bg-primary"
 							/>
@@ -303,9 +371,10 @@ export function ThemeCustomizationModal({
 													reducedEffects: true,
 													waveIntensity: 0,
 													noiseAmount: 0,
-											  }
+												}
 											: { reducedEffects: false }
 									)
+									showSavedIndicator?.()
 								}}
 								className="mt-0.5 data-[state=checked]:bg-primary"
 							/>

@@ -51,7 +51,7 @@ export function rgbToHsl(rgb: RGB): HSL {
   const max = Math.max(r, g, b);
   const min = Math.min(r, g, b);
   const diff = max - min;
-  
+
   let h = 0;
   let s = 0;
   const l = (max + min) / 2;
@@ -172,11 +172,11 @@ export function isWCAGCompliant(
   largeText: boolean = false
 ): boolean {
   const ratio = getContrastRatio(foreground, background);
-  
+
   if (level === 'AAA') {
     return largeText ? ratio >= 4.5 : ratio >= 7;
   }
-  
+
   // AA level
   return largeText ? ratio >= 3 : ratio >= 4.5;
 }
@@ -213,7 +213,7 @@ export function suggestContrastFix(
   for (let step = 5; step <= 50; step += 5) {
     const adjustment = isDarkBackground ? step : -step;
     adjusted = adjustBrightness(foreground, adjustment);
-    
+
     if (getContrastRatio(adjusted, background) >= targetRatio) {
       return adjusted;
     }
@@ -253,13 +253,21 @@ export function validateThemeContrast(
   const textPassesAAA = textVsBackground >= 7;
   const largeTextPassesAAA = largeTextVsBackground >= 4.5;
 
-  const allPassAA = textPassesAA && largeTextPassesAA && accentPassesAA && borderPassesAA;
-  const allPassAAA = textPassesAAA && largeTextPassesAAA && accentPassesAA && borderPassesAA;
+  const allPassAA =
+    textPassesAA && largeTextPassesAA && accentPassesAA && borderPassesAA;
+  const allPassAAA =
+    textPassesAAA && largeTextPassesAAA && accentPassesAA && borderPassesAA;
 
   return {
     textVsBackground: { ratio: textVsBackground, passes: textPassesAA },
-    largeTextVsBackground: { ratio: largeTextVsBackground, passes: largeTextPassesAA },
-    accentVsBackground: { ratio: accentVsBackground, passes: accentPassesAA },
+    largeTextVsBackground: {
+      ratio: largeTextVsBackground,
+      passes: largeTextPassesAA,
+    },
+    accentVsBackground: {
+      ratio: accentVsBackground,
+      passes: accentPassesAA,
+    },
     borderVsSurface: { ratio: borderVsSurface, passes: borderPassesAA },
     overall: allPassAA ? 'pass' : 'fail',
     level: allPassAAA ? 'AAA' : allPassAA ? 'AA' : 'fail',
@@ -276,22 +284,23 @@ export interface ColorStop {
 
 export function generateGradient(
   stops: ColorStop[],
-  width: number,
-  height: number
+  _width: number,
+  _height: number
 ): string {
   if (stops.length === 0) return 'transparent';
   if (stops.length === 1) return stops[0].color;
 
-  // Calculate gradient angle from positions
-  const first = stops[0].position;
-  const last = stops[stops.length - 1].position;
-  
-  const dx = last.x - first.x;
-  const dy = last.y - first.y;
-  const angle = Math.atan2(dy, dx) * (180 / Math.PI) + 90;
+  const layers = stops.map((stop) => {
+    const x = Math.round(Math.max(0, Math.min(1, stop.position.x)) * 100);
+    const y = Math.round(Math.max(0, Math.min(1, stop.position.y)) * 100);
 
-  const colorList = stops.map((stop) => stop.color).join(', ');
-  return `linear-gradient(${angle}deg, ${colorList})`;
+    return `radial-gradient(circle at ${x}% ${y}%, ${stop.color} 0%, ${addAlpha(stop.color, 0)} 68%)`;
+  });
+  const base = `linear-gradient(135deg, ${stops
+    .map((stop) => stop.color)
+    .join(', ')})`;
+
+  return [...layers, base].join(', ');
 }
 
 /**

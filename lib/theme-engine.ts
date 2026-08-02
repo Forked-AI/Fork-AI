@@ -1,5 +1,6 @@
 import {
 	darkenColor,
+	generateGradient,
 	hexToHsl,
 	hslToHex,
 	lightenColor,
@@ -15,6 +16,11 @@ import {
 export type ThemeMode = "dark" | "light" | "system";
 export type EffectiveTheme = Exclude<ThemeMode, "system">;
 
+export interface ThemeColorPosition {
+	x: number;
+	y: number;
+}
+
 export interface ThemeSettingsFields {
 	theme?: ThemeMode;
 	themeBackground?: string;
@@ -27,6 +33,8 @@ export interface ThemeSettingsFields {
 	themeBorder?: string;
 	themeText?: string;
 	themeTextMuted?: string;
+	themeColors?: string[];
+	themeColorPositions?: ThemeColorPosition[];
 	waveIntensity?: number;
 	noiseAmount?: number;
 	activePreset?: string | null;
@@ -47,6 +55,12 @@ export interface ResolvedThemePalette {
 	themeTextMuted: string;
 }
 
+export const DEFAULT_THEME_COLOR_POSITIONS: ThemeColorPosition[] = [
+	{ x: 0.5, y: 0.2 },
+	{ x: 0.5, y: 0.8 },
+	{ x: 0.76, y: 0.65 },
+];
+
 export const DEFAULT_THEME_SETTINGS = {
 	themeBackground: "#0a0d11",
 	themeChatBackground: "linear-gradient(180deg, #0A2727 0%, #0C1110 100%)",
@@ -58,6 +72,8 @@ export const DEFAULT_THEME_SETTINGS = {
 	themeBorder: "#242b36",
 	themeText: "#f0f4f8",
 	themeTextMuted: "#94a3b8",
+	themeColors: ["#57FCFF", "#9B59B6", "#2ECC71"],
+	themeColorPositions: DEFAULT_THEME_COLOR_POSITIONS,
 	waveIntensity: 0,
 	noiseAmount: 0,
 	activePreset: "default" as string | null,
@@ -109,6 +125,56 @@ function normalizeHexColor(value: string): string {
 	return normalized.startsWith("#") ? normalized : `#${normalized}`;
 }
 
+function clampPosition(value: unknown, fallback: number): number {
+	return typeof value === "number" && Number.isFinite(value)
+		? Math.max(0.05, Math.min(0.95, value))
+		: fallback;
+}
+
+export function normalizeThemeColorPositions(
+	positions: unknown,
+	count: number
+): ThemeColorPosition[] {
+	const storedPositions = Array.isArray(positions) ? positions : [];
+
+	return Array.from(
+		{ length: Math.max(1, Math.min(3, count)) },
+		(_, index) => {
+			const fallback = DEFAULT_THEME_COLOR_POSITIONS[index];
+			const stored = storedPositions[index] as
+				| Partial<ThemeColorPosition>
+				| undefined;
+
+			return {
+				x: clampPosition(stored?.x, fallback.x),
+				y: clampPosition(stored?.y, fallback.y),
+			};
+		}
+	);
+}
+
+function normalizeThemeColors(
+	colors: unknown,
+	fallbackColors: string[]
+): string[] {
+	const storedColors = Array.isArray(colors)
+		? colors.filter(isHexColor).map(normalizeHexColor).slice(0, 3)
+		: [];
+
+	if (storedColors.length > 0) {
+		return storedColors;
+	}
+
+	const normalizedFallbacks = fallbackColors
+		.filter(isHexColor)
+		.map(normalizeHexColor)
+		.slice(0, 3);
+
+	return normalizedFallbacks.length > 0
+		? normalizedFallbacks
+		: [...DEFAULT_THEME_SETTINGS.themeColors];
+}
+
 function getHexColorOrDefault(value: unknown, fallback: string): string {
 	return isHexColor(value) ? normalizeHexColor(value) : fallback;
 }
@@ -158,34 +224,57 @@ export function getThemeSettingsFromPreset(
 		themeBorder: preset.border,
 		themeText: preset.text,
 		themeTextMuted: preset.textMuted,
+		themeColors: [preset.primary, preset.secondary, preset.tertiary],
+		themeColorPositions: DEFAULT_THEME_COLOR_POSITIONS,
 		activePreset: preset.id,
 	};
 }
 
 export function buildCustomThemeFromColors(
-	colors: string[]
+	colors: string[],
+	positions?: ThemeColorPosition[]
 ): Partial<ThemeSettingsFields> {
-	const primary = colors[0] || DEFAULT_THEME_SETTINGS.themePrimary;
-	const secondary = colors[1] || primary;
-	const tertiary = colors[2] || primary;
-	const background = primary;
-	const card = lightenColor(primary, 5);
-	const sidebar = darkenColor(primary, 3);
-	const border = lightenColor(primary, 10);
-	const textColor = getOptimalTextColor(primary);
+	const normalizedColors = normalizeThemeColors(colors, [
+		DEFAULT_THEME_SETTINGS.themePrimary,
+	]);
+	const normalizedPositions = normalizeThemeColorPositions(
+		positions,
+		normalizedColors.length
+	);
+	const primary = normalizedColors[0];
+	const secondary = normalizedColors[1] || primary;
+	const tertiary = normalizedColors[2] || primary;
+	const primaryHsl = hexToHsl(primary);
+	const background = primaryHsl
+		? hslToHex({
+				h: primaryHsl.h,
+				s: Math.min(primaryHsl.s, 30),
+				l: 7,
+			})
+		: DEFAULT_THEME_SETTINGS.themeBackground;
+	const card = lightenColor(background, 5);
+	const sidebar = darkenColor(background, 2);
+	const border = lightenColor(background, 12);
+	const textColor = getOptimalTextColor(background);
 	const textMutedColor = textColor === "#FFFFFF" ? "#a0a0a0" : "#606060";
+	const colorStops = normalizedColors.map((color, index) => ({
+		color,
+		position: normalizedPositions[index],
+	}));
 
 	return {
 		themePrimary: primary,
 		themeSecondary: secondary,
 		themeTertiary: tertiary,
 		themeBackground: background,
-		themeChatBackground: background,
+		themeChatBackground: generateGradient(colorStops, 300, 300),
 		themeCard: card,
 		themeSidebar: sidebar,
 		themeBorder: border,
 		themeText: textColor,
 		themeTextMuted: textMutedColor,
+		themeColors: normalizedColors,
+		themeColorPositions: normalizedPositions,
 		activePreset: null,
 	};
 }
@@ -193,7 +282,7 @@ export function buildCustomThemeFromColors(
 export function normalizeStoredThemeSettings(
 	raw: Partial<ThemeSettingsFields> | null | undefined
 ): Partial<ThemeSettingsFields> {
-	const themeSettings = { ...(raw || {}) };
+	let themeSettings = { ...(raw || {}) };
 	const activePreset = isNonEmptyString(themeSettings.activePreset)
 		? themeSettings.activePreset
 		: null;
@@ -203,9 +292,16 @@ export function normalizeStoredThemeSettings(
 
 		if (fullPreset) {
 			if (!isNonEmptyString(themeSettings.themeChatBackground)) {
-				themeSettings.themeChatBackground = getPresetChatBackground(fullPreset);
+				themeSettings.themeChatBackground =
+					getPresetChatBackground(fullPreset);
 			}
-			return themeSettings;
+			if (!Array.isArray(themeSettings.themeColors)) {
+				themeSettings.themeColors = [
+					fullPreset.primary,
+					fullPreset.secondary,
+					fullPreset.tertiary,
+				];
+			}
 		}
 
 		const legacyPreset = BACKGROUND_PRESETS.find(
@@ -213,7 +309,7 @@ export function normalizeStoredThemeSettings(
 		);
 
 		if (legacyPreset) {
-			return {
+			themeSettings = {
 				...themeSettings,
 				themeBackground: legacyPreset.value,
 				themeChatBackground: legacyPreset.style || legacyPreset.value,
@@ -228,13 +324,26 @@ export function normalizeStoredThemeSettings(
 		!isNonEmptyString(themeSettings.themeChatBackground) &&
 		isNonEmptyString(themeSettings.themeBackground)
 	) {
-		return {
+		themeSettings = {
 			...themeSettings,
 			themeChatBackground: themeSettings.themeBackground,
 		};
 	}
 
-	return themeSettings;
+	const themeColors = normalizeThemeColors(themeSettings.themeColors, [
+		themeSettings.themePrimary || DEFAULT_THEME_SETTINGS.themePrimary,
+		themeSettings.themeSecondary || DEFAULT_THEME_SETTINGS.themeSecondary,
+		themeSettings.themeTertiary || DEFAULT_THEME_SETTINGS.themeTertiary,
+	]);
+
+	return {
+		...themeSettings,
+		themeColors,
+		themeColorPositions: normalizeThemeColorPositions(
+			themeSettings.themeColorPositions,
+			themeColors.length
+		),
+	};
 }
 
 export function resolveThemePalette(
@@ -249,8 +358,10 @@ export function resolveThemePalette(
 			settings.themeBackground ||
 			DEFAULT_THEME_SETTINGS.themeChatBackground,
 		themeCard: settings.themeCard || DEFAULT_THEME_SETTINGS.themeCard,
-		themeSidebar: settings.themeSidebar || DEFAULT_THEME_SETTINGS.themeSidebar,
-		themePrimary: settings.themePrimary || DEFAULT_THEME_SETTINGS.themePrimary,
+		themeSidebar:
+			settings.themeSidebar || DEFAULT_THEME_SETTINGS.themeSidebar,
+		themePrimary:
+			settings.themePrimary || DEFAULT_THEME_SETTINGS.themePrimary,
 		themeSecondary:
 			settings.themeSecondary || DEFAULT_THEME_SETTINGS.themeSecondary,
 		themeTertiary:
