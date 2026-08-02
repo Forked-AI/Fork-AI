@@ -1,4 +1,6 @@
 import { auth } from "@/lib/auth";
+import { resolveWorkspaceContext } from "@/lib/organizations/context";
+import { organizationRoleHasPermission } from "@/lib/organizations/roles";
 import { logServerError } from "@/lib/server-safe-log";
 import { getTokenBudgetStatus } from "@/lib/token-budget";
 import { headers } from "next/headers";
@@ -21,11 +23,38 @@ export async function GET() {
 	try {
 		const session = await auth.api.getSession({ headers: await headers() });
 		if (!session?.user?.id) {
-			return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+			return NextResponse.json(
+				{ error: "Unauthorized" },
+				{ status: 401 }
+			);
 		}
 
-		const status = await getTokenBudgetStatus(session.user.id);
+		const workspaceResult = await resolveWorkspaceContext({
+			session,
+			requiredPermission: "workspace:read",
+		});
+		if (!workspaceResult.ok) {
+			return workspaceResult.response;
+		}
+
+		const { workspace } = workspaceResult;
+		const canManageBilling =
+			workspace.isPersonal ||
+			(workspace.role
+				? organizationRoleHasPermission(workspace.role, "billing:write")
+				: false);
+		const status = await getTokenBudgetStatus(
+			session.user.id,
+			workspace.organizationId
+		);
 		return NextResponse.json({
+			workspace: {
+				customerType: workspace.organizationId
+					? "organization"
+					: "user",
+				referenceId: workspace.organizationId,
+				canManageBilling,
+			},
 			plan: {
 				tier: status.tier,
 				isTrial: status.tier === "trial",
@@ -39,6 +68,9 @@ export async function GET() {
 		});
 	} catch (error) {
 		logServerError("billing/status", "fetch_failed", error);
-		return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+		return NextResponse.json(
+			{ error: "Internal server error" },
+			{ status: 500 }
+		);
 	}
 }

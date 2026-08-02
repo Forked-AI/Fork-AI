@@ -6,13 +6,18 @@ import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 
 import { useAuth } from '@/contexts/auth-context'
-import { useSubscriptionCheckout } from '@/hooks/use-subscription-checkout'
+import {
+	type SubscriptionBillingScope,
+	useSubscriptionCheckout,
+} from '@/hooks/use-subscription-checkout'
 import { cn } from '@/lib/utils'
 
 export type BillingTier = 'free' | 'trial' | 'pro'
 
 interface PricingCardsProps {
 	currentTier?: BillingTier | null
+	billingScope?: SubscriptionBillingScope
+	canManageBilling?: boolean
 	className?: string
 }
 
@@ -83,12 +88,17 @@ function getCurrentPlanBadge(
 	return null
 }
 
-export function PricingCards({ currentTier = null, className }: PricingCardsProps) {
+export function PricingCards({
+	currentTier = null,
+	billingScope,
+	canManageBilling = true,
+	className,
+}: PricingCardsProps) {
 	const [isAnnual, setIsAnnual] = useState(false)
 	const [pendingPlan, setPendingPlan] = useState<string | null>(null)
 	const router = useRouter()
 	const { session } = useAuth()
-	const { startUpgrade, isCheckingOut } = useSubscriptionCheckout()
+	const { startUpgrade, isCheckingOut } = useSubscriptionCheckout(billingScope)
 
 	const handleCtaClick = async (planName: string) => {
 		if (planName === 'Free') {
@@ -97,12 +107,14 @@ export function PricingCards({ currentTier = null, className }: PricingCardsProp
 		}
 
 		if (planName === 'Pro') {
+			if (!canManageBilling) {
+				return
+			}
+
 			if (session) {
 				setPendingPlan('Pro')
 				try {
 					await startUpgrade(isAnnual)
-				} catch (error) {
-					console.error('Failed to start checkout', error)
 				} finally {
 					setPendingPlan(null)
 				}
@@ -153,9 +165,14 @@ export function PricingCards({ currentTier = null, className }: PricingCardsProp
 				{pricingPlans.map((plan, index) => {
 					const badge = getCurrentPlanBadge(plan.name, currentTier)
 					const shouldDisableForCurrentPro =
-						plan.name === 'Pro' && (currentTier === 'pro' || currentTier === 'trial')
+						plan.name === 'Pro' &&
+						(currentTier === 'pro' || currentTier === 'trial')
 					const isPending =
 						pendingPlan === plan.name || (plan.name === 'Pro' && isCheckingOut)
+					const isDisabled =
+						isPending ||
+						shouldDisableForCurrentPro ||
+						(plan.name === 'Pro' && !canManageBilling)
 
 					return (
 						<motion.div
@@ -190,10 +207,14 @@ export function PricingCards({ currentTier = null, className }: PricingCardsProp
 							)}
 
 							<div className="text-center mb-8">
-								<h3 className="text-xl font-bold text-white mb-2">{plan.name}</h3>
+								<h3 className="text-xl font-bold text-white mb-2">
+									{plan.name}
+								</h3>
 								<div className="flex items-baseline justify-center gap-1 mb-2 h-12">
 									{'price' in plan ? (
-										<span className="text-4xl font-bold text-white">{plan.price}</span>
+										<span className="text-4xl font-bold text-white">
+											{plan.price}
+										</span>
 									) : (
 										<AnimatePresence mode="wait">
 											<motion.div
@@ -219,7 +240,10 @@ export function PricingCards({ currentTier = null, className }: PricingCardsProp
 
 							<ul className="space-y-4 mb-8">
 								{plan.features.map((feature, featureIndex) => (
-									<li key={featureIndex} className="flex items-center gap-3 group">
+									<li
+										key={featureIndex}
+										className="flex items-center gap-3 group"
+									>
 										<Check className="w-5 h-5 text-[#cbd5e1] flex-shrink-0 transition-transform group-hover:scale-110" />
 										<span className="text-white/80 text-sm">{feature}</span>
 									</li>
@@ -230,16 +254,12 @@ export function PricingCards({ currentTier = null, className }: PricingCardsProp
 								whileHover={{ scale: 1.05 }}
 								whileTap={{ scale: 0.95 }}
 								onClick={() => void handleCtaClick(plan.name)}
-								disabled={isPending || shouldDisableForCurrentPro}
+								disabled={isDisabled}
 								className={`w-full py-3 px-6 rounded-lg font-medium transition-all duration-300 shimmer-hover flex items-center justify-center gap-2 ${
 									plan.popular
 										? 'bg-gradient-to-r from-[#cbd5e1] to-[#94a3b8] text-black shadow-xl shadow-[#cbd5e1]/20 hover:shadow-2xl hover:shadow-[#cbd5e1]/30'
 										: 'glass border-white/20 text-white hover:border-white/30 hover:shadow-lg'
-								} ${
-									isPending || shouldDisableForCurrentPro
-										? 'opacity-70 cursor-not-allowed'
-										: ''
-								}`}
+								} ${isDisabled ? 'opacity-70 cursor-not-allowed' : ''}`}
 							>
 								{isPending ? (
 									<>

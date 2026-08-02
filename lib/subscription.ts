@@ -11,6 +11,11 @@ export interface SubscriptionEntitlement {
 	trialEndsAt: Date | null;
 }
 
+export interface SubscriptionEntitlementInput {
+	userId: string;
+	organizationId?: string | null;
+}
+
 const ACTIVE_SUBSCRIPTION_STATUSES = new Set([
 	"active",
 	"trialing",
@@ -64,12 +69,12 @@ export function getUtcMonthWindow(date: Date): { start: Date; end: Date } {
 	return { start, end };
 }
 
-async function hasActiveProSubscription(userId: string): Promise<boolean> {
+async function hasActiveProSubscription(referenceId: string): Promise<boolean> {
 	try {
 		const rows = await prisma.$queryRaw<StripeSubscriptionRow[]>`
 			SELECT "plan", "status", "periodEnd", "trialEnd", "endedAt"
 			FROM "subscription"
-			WHERE "referenceId" = ${userId}
+			WHERE "referenceId" = ${referenceId}
 		`;
 
 		if (!rows.length) {
@@ -124,8 +129,9 @@ async function hasActiveProSubscription(userId: string): Promise<boolean> {
 }
 
 export async function resolveSubscriptionEntitlement(
-	userId: string
+	input: SubscriptionEntitlementInput
 ): Promise<SubscriptionEntitlement> {
+	const { userId, organizationId = null } = input;
 	const user = await prisma.user.findUnique({
 		where: { id: userId },
 		select: { createdAt: true },
@@ -144,7 +150,22 @@ export async function resolveSubscriptionEntitlement(
 		};
 	}
 
-	const proSubscriptionActive = await hasActiveProSubscription(userId);
+	const subscriptionReferenceId = organizationId ?? userId;
+	const proSubscriptionActive = await hasActiveProSubscription(
+		subscriptionReferenceId
+	);
+	if (organizationId) {
+		return {
+			tier: proSubscriptionActive ? "pro" : "free",
+			monthlyTokenBudget: proSubscriptionActive
+				? getProMonthlyTokenBudget()
+				: getFreeMonthlyTokenBudget(),
+			usageWindowStart: start,
+			usageWindowEnd: end,
+			trialEndsAt: null,
+		};
+	}
+
 	const trialEndsAt = new Date(user.createdAt);
 	trialEndsAt.setUTCDate(trialEndsAt.getUTCDate() + getTrialDays());
 	const trialActive = trialEndsAt.getTime() > now.getTime();

@@ -116,7 +116,10 @@ export async function getTokenBudgetStatus(
 	userId: string,
 	organizationId?: string | null
 ): Promise<TokenBudgetStatus> {
-	const entitlement = await resolveSubscriptionEntitlement(userId);
+	const entitlement = await resolveSubscriptionEntitlement({
+		userId,
+		organizationId,
+	});
 	const usedTokens = await getMonthlyUsedTokens(
 		organizationId ? "organization" : "user",
 		organizationId ?? userId,
@@ -141,7 +144,10 @@ export async function checkTokenBudgetBeforeRequest(
 	messagesForEstimate: Array<{ content: ProviderMessageContent }>,
 	organizationId?: string | null
 ): Promise<TokenBudgetCheckResult> {
-	const entitlement = await resolveSubscriptionEntitlement(userId);
+	const entitlement = await resolveSubscriptionEntitlement({
+		userId,
+		organizationId,
+	});
 	const usedTokens = await getMonthlyUsedTokens(
 		organizationId ? "organization" : "user",
 		organizationId ?? userId,
