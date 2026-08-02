@@ -54,6 +54,9 @@ vi.mock('gsap/ScrollTrigger', () => ({
 }))
 
 vi.mock('framer-motion', () => ({
+	AnimatePresence: ({ children }: { children: React.ReactNode }) => (
+		<>{children}</>
+	),
 	motion: {
 		div: ({
 			children,
@@ -64,6 +67,19 @@ vi.mock('framer-motion', () => ({
 			animate?: unknown
 			transition?: unknown
 		}) => <div {...props}>{children}</div>,
+		span: ({
+			children,
+			initial: _initial,
+			animate: _animate,
+			exit: _exit,
+			transition: _transition,
+			...props
+		}: React.HTMLAttributes<HTMLSpanElement> & {
+			initial?: unknown
+			animate?: unknown
+			exit?: unknown
+			transition?: unknown
+		}) => <span {...props}>{children}</span>,
 		rect: ({
 			animate: _animate,
 			transition: _transition,

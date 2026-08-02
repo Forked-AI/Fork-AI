@@ -261,7 +261,7 @@ describe('MessageBubble', () => {
 		await user.click(screen.getByText('Unsupported by source'))
 		await user.type(
 			screen.getByPlaceholderText(
-				'Write the answer you expected or the correction Fork AI should learn from.'
+				'Write the answer you expected or the correction ForkAI should learn from.'
 			),
 			'Use the uploaded policy.'
 		)

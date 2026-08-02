@@ -59,7 +59,7 @@ describe('SiteHeader', () => {
 		await waitFor(() => {
 			expect(authClientMocks.getSession).toHaveBeenCalled()
 		})
-		expect(screen.getAllByText('Fork AI').length).toBeGreaterThan(0)
+		expect(screen.getAllByText('ForkAI').length).toBeGreaterThan(0)
 		expect(screen.getAllByText('Features').length).toBeGreaterThan(0)
 	})
 
@@ -72,7 +72,14 @@ describe('SiteHeader', () => {
 
 		render(<SiteHeader />)
 
-		expect(await screen.findByText('Welcome, Ada')).toBeInTheDocument()
+		const welcome = await screen.findByText('Welcome, Ada')
+		expect(welcome).toHaveClass('hidden', 'xl:block')
+		expect(screen.getByRole('navigation', { name: 'Primary' })).toHaveClass(
+			'min-w-0'
+		)
+		expect(screen.getByRole('navigation', { name: 'Primary' })).not.toHaveClass(
+			'absolute'
+		)
 		expect(screen.getByRole('link', { name: 'Open Chat' })).toHaveAttribute(
 			'href',
 			'/chat'
