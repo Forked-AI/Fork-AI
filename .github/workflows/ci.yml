@@ -81,8 +81,10 @@ jobs:
       - name: Generate Prisma client
         run: pnpm run prisma:generate
 
-      - name: Apply migrations to ephemeral database
-        run: pnpm exec prisma migrate deploy
+      # Historical migrations assume an existing base schema. CI starts with an
+      # empty, disposable database, so initialize it from the current schema.
+      - name: Synchronize disposable CI database schema
+        run: pnpm exec prisma db push
 
       - name: Typecheck
         run: pnpm exec tsc --noEmit --pretty false
