@@ -130,3 +130,14 @@ Use Conventional Commits as described in
 [docs/development/COMMIT-LINT.md](docs/development/COMMIT-LINT.md). Before
 opening a PR, run the smallest relevant test set plus `pnpm lint` when the
 change touches TypeScript or React code.
+
+## Desktop sign-in release
+
+The separate ForkAI Desktop project uses the same deployed web app and API.
+Deploy this server-side Electron integration, browser handoff, and public
+`/api/desktop/auth-config` endpoint before distributing the updated desktop app.
+No database migration or new provider credentials are required.
+
+After deployment, run `pnpm test:desktop-deployment https://forkai.tech` and test
+Google sign-in returning to the installed desktop app. The check verifies the
+compatibility endpoint, authorization page, and OAuth plugin without signing in.
