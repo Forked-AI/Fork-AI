@@ -1,3 +1,4 @@
+import { electron } from "@better-auth/electron";
 import { stripe } from "@better-auth/stripe";
 import { betterAuth } from "better-auth";
 import { prismaAdapter } from "better-auth/adapters/prisma";
@@ -16,6 +17,7 @@ import {
 	recordOTPAttemptByType,
 } from "./otp-rate-limit";
 import { prisma } from "./prisma";
+import { DESKTOP_CLIENT_ID, DESKTOP_PROTOCOL } from "./desktop-config";
 import { logServerError, logServerWarning } from "./server-safe-log";
 
 // Error codes for account status issues
@@ -177,6 +179,7 @@ async function checkAccountStatus(email: string): Promise<{
 }
 
 export const auth = betterAuth({
+	trustedOrigins: [`${DESKTOP_PROTOCOL}:/`],
 	database: prismaAdapter(prisma, {
 		provider: "postgresql",
 	}),
@@ -234,6 +237,7 @@ export const auth = betterAuth({
 		},
 	},
 	plugins: [
+		electron({ clientID: DESKTOP_CLIENT_ID }),
 		multiSession({
 			maximumSessions: 2,
 		}),

@@ -1,5 +1,7 @@
 'use client'
 
+import { DesktopAuthReturn } from '@/components/desktop-auth-return'
+
 import { ThemeApplier } from '@/components/chat/theme-applier'
 import { ScrollIndicator } from '@/components/scroll-indicator'
 import { SiteHeader } from '@/components/site-header'
@@ -48,6 +50,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
 			>
 				<ThemeApplier />
 				<AuthProvider>
+					<DesktopAuthReturn />
 					{!shouldHideGlobalChrome && <SiteHeader />}
 					<main className={mainClassName}>
 						{children}

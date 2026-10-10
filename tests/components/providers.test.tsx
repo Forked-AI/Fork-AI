@@ -82,3 +82,5 @@ describe('Providers', () => {
 		expect(container.querySelector('main')).not.toHaveClass('min-h-screen', 'pb-96')
 	})
 })
+
+vi.mock('@/components/desktop-auth-return', () => ({ DesktopAuthReturn: () => null }))

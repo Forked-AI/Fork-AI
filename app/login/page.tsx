@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { authClient } from '@/lib/auth-client'
+import { getDesktopClient } from '@/lib/desktop-client'
 import { buildPreservedNextQuery, resolveAuthCallbackPath } from '@/lib/auth-redirect'
 import { motion } from 'framer-motion'
 import Link from 'next/link'
@@ -41,6 +42,11 @@ export default function LoginPage() {
 
 	const handleGoogleSignIn = async () => {
 		try {
+			const desktop = getDesktopClient()
+			if (desktop) {
+				await desktop.signInWithGoogle()
+				return
+			}
 			await authClient.signIn.social({
 				provider: 'google',
 				callbackURL,
